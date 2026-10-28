@@ -64,5 +64,5 @@ class LocalLog:
                 raise NotAuthorizedError(decision.reason)
         self._store.append(entry)
         if self._authorizer is not None:
-            self._authorizer.stored(entry)
+            self._authorizer.accepted(entry)
         return entry

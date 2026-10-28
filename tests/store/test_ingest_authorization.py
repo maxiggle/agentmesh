@@ -29,7 +29,7 @@ class FakeAuthorizer:
             return Decision.allow()
         return Decision.wait("not yet")
 
-    def stored(self, entry: Entry) -> bool:
+    def accepted(self, entry: Entry) -> bool:
         self.stored_ids.append(entry.id)
         grantee = self.grants.get(entry.author)
         if grantee is None or grantee in self.allowed:

@@ -78,7 +78,7 @@ def test_genesis_must_be_pinned(team: Team, genesis: tuple[Entry, Roster]) -> No
     decision = book.authorize(genesis[0])
     assert decision.verdict is Verdict.DENY
     assert "pinned" in decision.reason
-    assert not book.stored(genesis[0])
+    assert not book.accepted(genesis[0])
 
 
 def test_genesis_must_be_signed_by_its_admin(team: Team) -> None:
@@ -89,13 +89,13 @@ def test_genesis_must_be_signed_by_its_admin(team: Team) -> None:
 
 def test_members_are_authorized(team: Team, genesis: tuple[Entry, Roster]) -> None:
     book = RosterBook(genesis[0].id)
-    assert book.stored(genesis[0])
+    assert book.accepted(genesis[0])
     assert book.current == genesis[1]
     assert book.authorize(team.message("gef")).verdict is Verdict.ALLOW
     assert book.authorize(team.message("tobi")).verdict is Verdict.WAIT
     second, roster = _add(team, *genesis, "tobi")
     assert book.authorize(second).verdict is Verdict.ALLOW
-    assert book.stored(second)
+    assert book.accepted(second)
     assert book.current == roster
     assert book.authorize(team.message("tobi")).verdict is Verdict.ALLOW
     assert book.member_for_key(team.keys["tobi"]) == team.member("tobi")
@@ -103,9 +103,9 @@ def test_members_are_authorized(team: Team, genesis: tuple[Entry, Roster]) -> No
 
 def test_only_admins_change_the_roster(team: Team, genesis: tuple[Entry, Roster]) -> None:
     book = RosterBook(genesis[0].id)
-    book.stored(genesis[0])
+    book.accepted(genesis[0])
     second, roster = _add(team, *genesis, "tobi")
-    book.stored(second)
+    book.accepted(second)
     by_member = team.roster_entry(
         "tobi", roster.successor(second.id, members=(*roster.members, team.member("lee"))), 3
     )
@@ -127,23 +127,23 @@ def test_version_must_follow(team: Team, genesis: tuple[Entry, Roster]) -> None:
     entry, roster = genesis
     skipped = Roster(3, entry.id, "Acme", ("gef",), roster.members)
     book = RosterBook(entry.id)
-    book.stored(entry)
+    book.accepted(entry)
     assert book.authorize(team.roster_entry("gef", skipped, 3)).verdict is Verdict.DENY
 
 
 def test_fork_freezes_until_resolved(team: Team, genesis: tuple[Entry, Roster]) -> None:
     book = RosterBook(genesis[0].id)
-    book.stored(genesis[0])
+    book.accepted(genesis[0])
     with_tobi, tobi_roster = _add(team, *genesis, "tobi")
     with_lee, _ = _add(team, *genesis, "lee")
-    book.stored(with_tobi)
+    book.accepted(with_tobi)
     assert book.current == tobi_roster
-    assert book.stored(with_lee)
+    assert book.accepted(with_lee)
     assert book.forked
     assert book.current == genesis[1]
     assert book.authorize(team.message("tobi")).verdict is Verdict.WAIT
     resolved, roster = _add(team, with_tobi, tobi_roster, "lee")
-    assert book.stored(resolved)
+    assert book.accepted(resolved)
     assert not book.forked
     assert book.current == roster
 
@@ -181,6 +181,6 @@ def test_channel_permissions(
 
 def test_non_roster_entries_do_not_change_state(team: Team, genesis: tuple[Entry, Roster]) -> None:
     book = RosterBook(genesis[0].id)
-    book.stored(genesis[0])
-    assert not book.stored(team.message("gef"))
-    assert not book.stored(genesis[0])
+    book.accepted(genesis[0])
+    assert not book.accepted(team.message("gef"))
+    assert not book.accepted(genesis[0])
