@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
+from agentmesh.log.authorize import Authorizer, Verdict
 from agentmesh.log.entry import Entry
 from agentmesh.log.verify import DroppedEntryError, EntryVerifier, RejectedEntryError
 from agentmesh.store.base import Store
@@ -24,14 +25,15 @@ class Receipt:
 
 
 class Ingestor:
-    """Runs protocol §5 on entries from other devices and stores the ones that pass.
+    """Runs protocol §5 on entries from other devices and stores the ones that pass."""
 
-    Roster authorization (step 8) is not applied yet; it arrives with the roster.
-    """
-
-    def __init__(self, store: Store, verifier: EntryVerifier) -> None:
+    def __init__(
+        self, store: Store, verifier: EntryVerifier, authorizer: Authorizer | None = None
+    ) -> None:
         self._store = store
         self._verifier = verifier
+        self._authorizer = authorizer
+        self._authorization_changed = False
 
     def receive(self, raw: bytes) -> Receipt:
         try:
@@ -46,10 +48,24 @@ class Ingestor:
             self._verifier.check(entry)
         except RejectedEntryError as exc:
             return Receipt(Outcome.REJECTED, entry.id, str(exc))
-        receipt = self._place(entry)
+        receipt = self._admit(entry)
         if receipt.outcome is not Outcome.STORED:
             return receipt
         return Receipt(Outcome.STORED, entry.id, released=self._release(entry))
+
+    def _admit(self, entry: Entry) -> Receipt:
+        if self._authorizer is not None:
+            decision = self._authorizer.authorize(entry)
+            if decision.verdict is Verdict.DENY:
+                self._store.unpark(entry.id)
+                return Receipt(Outcome.REJECTED, entry.id, decision.reason)
+            if decision.verdict is Verdict.WAIT:
+                self._store.park(entry)
+                return Receipt(Outcome.PARKED, entry.id, decision.reason)
+        receipt = self._place(entry)
+        if self._authorizer is not None and receipt.outcome in (Outcome.STORED, Outcome.FORKED):
+            self._authorization_changed |= self._authorizer.stored(entry)
+        return receipt
 
     def _place(self, entry: Entry) -> Receipt:
         if self._store.contains(entry.id):
@@ -75,9 +91,13 @@ class Ingestor:
         frontier = [stored]
         while frontier:
             current = frontier.pop()
-            for waiting in self._store.parked(current.author, current.seq + 1):
-                self._store.unpark(waiting.id)
-                if self._place(waiting).outcome is Outcome.STORED:
-                    released.append(waiting.id)
-                    frontier.append(waiting)
+            waiting = self._store.parked(current.author, current.seq + 1)
+            if self._authorization_changed:
+                self._authorization_changed = False
+                waiting = self._store.all_parked()
+            for entry in waiting:
+                self._store.unpark(entry.id)
+                if self._admit(entry).outcome is Outcome.STORED:
+                    released.append(entry.id)
+                    frontier.append(entry)
         return tuple(released)

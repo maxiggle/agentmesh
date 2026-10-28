@@ -2,9 +2,14 @@ import time
 from collections.abc import Callable, Iterable
 
 from agentmesh.identity import KeyHandle, Signer
+from agentmesh.log.authorize import Authorizer, Verdict
 from agentmesh.log.entry import Entry, EntryContent, Kind
 from agentmesh.log.verify import EntryVerifier
 from agentmesh.store.base import Store
+
+
+class NotAuthorizedError(Exception):
+    pass
 
 
 def wall_clock_ms() -> int:
@@ -23,6 +28,7 @@ class LocalLog:
         verifier: EntryVerifier,
         *,
         clock: Callable[[], int] = wall_clock_ms,
+        authorizer: Authorizer | None = None,
     ) -> None:
         self._store = store
         self._signer = signer
@@ -30,6 +36,7 @@ class LocalLog:
         self._team = team
         self._verifier = verifier
         self._clock = clock
+        self._authorizer = authorizer
         self._author = signer.public_key(handle)
 
     @property
@@ -51,5 +58,11 @@ class LocalLog:
         )
         entry = content.sign(self._signer, self._handle)
         self._verifier.verify(entry.encode())
+        if self._authorizer is not None:
+            decision = self._authorizer.authorize(entry)
+            if decision.verdict is not Verdict.ALLOW:
+                raise NotAuthorizedError(decision.reason)
         self._store.append(entry)
+        if self._authorizer is not None:
+            self._authorizer.stored(entry)
         return entry
