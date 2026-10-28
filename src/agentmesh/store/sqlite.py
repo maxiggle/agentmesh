@@ -147,6 +147,15 @@ class SqliteStore:
     def log(self, author: bytes) -> list[Entry]:
         return self._entries("SELECT raw FROM entries WHERE author = ? ORDER BY seq, id", (author,))
 
+    def frontier(self) -> dict[bytes, int]:
+        rows = self._conn.execute("SELECT author, MAX(seq) FROM entries GROUP BY author")
+        return dict(rows)
+
+    def entries_after(self, author: bytes, seq: int) -> list[Entry]:
+        return self._entries(
+            "SELECT raw FROM entries WHERE author = ? AND seq > ? ORDER BY seq, id", (author, seq)
+        )
+
     def append(self, entry: Entry) -> None:
         with self._transaction():
             head = self.head(entry.author)
