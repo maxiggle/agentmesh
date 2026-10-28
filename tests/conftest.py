@@ -41,6 +41,11 @@ def other_handle(signer: SoftwareSigner) -> KeyHandle:
     return signer.create_key("other-device")
 
 
+@pytest.fixture(scope="session")
+def third_handle(signer: SoftwareSigner) -> KeyHandle:
+    return signer.create_key("third-device")
+
+
 @pytest.fixture
 def team() -> bytes:
     return TEAM
