@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.log.entry import Entry
+from agentmesh.log.body import Status, StatusBody
+from agentmesh.log.entry import Entry, Kind
+from agentmesh.log.envelope import Envelope
 from agentmesh.store.base import ChainError, DuplicateEntryError, Store
 from agentmesh.store.sqlite import MIGRATIONS, SqliteStore
 
@@ -125,3 +127,81 @@ def test_parking(store: SqliteStore, chain: list[Entry]) -> None:
     assert not store.contains(chain[2].id)
     store.unpark(chain[2].id)
     assert store.parked(author, 3) == []
+
+
+def _status(target: bytes) -> bytes:
+    return Envelope.plain(StatusBody(target, Status.DONE).encode()).encode()
+
+
+def test_arrivals_follow_local_arrival_order(
+    store: SqliteStore, chain: list[Entry], make_entry: Callable[..., Entry]
+) -> None:
+    store.insert(chain[1])
+    store.insert(chain[0])
+    positions = store.arrivals()
+    assert [a.entry for a in positions] == [chain[1], chain[0]]
+    assert positions[0].position < positions[1].position
+    assert [a.entry for a in store.arrivals(after=positions[0].position)] == [chain[0]]
+    assert [a.entry for a in store.arrivals(limit=1)] == [chain[1]]
+
+
+def test_arrivals_filter_by_kind(
+    store: SqliteStore, chain: list[Entry], make_entry: Callable[..., Entry]
+) -> None:
+    store.append(chain[0])
+    status = make_entry(
+        seq=2, prev=chain[0].id, kind=Kind.STATUS, refs=(chain[0].id,), body=_status(chain[0].id)
+    )
+    store.append(status)
+    assert [a.entry for a in store.arrivals(kinds=[Kind.STATUS])] == [status]
+    assert [a.entry for a in store.arrivals(kinds=[Kind.MESSAGE, Kind.STATUS])] == [
+        chain[0],
+        status,
+    ]
+
+
+def test_read_marks(store: SqliteStore, chain: list[Entry]) -> None:
+    for entry in chain:
+        store.append(entry)
+    store.mark_read([chain[0].id, chain[2].id])
+    store.mark_read([chain[0].id])
+    assert store.is_read(chain[0].id)
+    assert not store.is_read(chain[1].id)
+    assert [a.entry for a in store.arrivals(unread_only=True)] == [chain[1]]
+
+
+def test_referencing(
+    store: SqliteStore, chain: list[Entry], make_entry: Callable[..., Entry]
+) -> None:
+    store.append(chain[0])
+    reply = make_entry(seq=2, prev=chain[0].id, refs=(chain[0].id,))
+    store.append(reply)
+    assert store.referencing(chain[0].id) == [reply]
+    assert store.referencing(reply.id) == []
+
+
+def test_find_by_prefix(store: SqliteStore, chain: list[Entry]) -> None:
+    for entry in chain:
+        store.append(entry)
+    assert store.find_by_prefix(chain[1].id[:4]) == [chain[1]]
+    assert store.find_by_prefix(b"") == sorted(chain, key=lambda e: e.id)
+
+
+def test_upgrading_from_version_1_indexes_existing_entries(
+    tmp_db: Path, chain: list[Entry], make_entry: Callable[..., Entry]
+) -> None:
+    conn = sqlite3.connect(tmp_db, isolation_level=None)
+    for statement in MIGRATIONS[0].statements:
+        conn.execute(statement)
+    conn.execute("PRAGMA user_version = 1")
+    reply = make_entry(seq=2, prev=chain[0].id, refs=(chain[0].id,))
+    for entry in (chain[0], reply):
+        conn.execute(
+            "INSERT INTO entries (id, author, seq, raw) VALUES (?, ?, ?, ?)",
+            (entry.id, entry.author, entry.seq, entry.encode()),
+        )
+    conn.close()
+    with SqliteStore(tmp_db) as store:
+        assert store.schema_version == len(MIGRATIONS)
+        assert [a.entry for a in store.arrivals()] == [chain[0], reply]
+        assert store.referencing(chain[0].id) == [reply]
