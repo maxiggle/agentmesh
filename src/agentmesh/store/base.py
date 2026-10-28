@@ -1,6 +1,8 @@
+from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Protocol
 
-from agentmesh.log.entry import Entry
+from agentmesh.log.entry import Entry, Kind
 
 
 class StoreError(Exception):
@@ -13,6 +15,12 @@ class DuplicateEntryError(StoreError):
 
 class ChainError(StoreError):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class Arrival:
+    position: int
+    entry: Entry
 
 
 class Store(Protocol):
@@ -45,3 +53,22 @@ class Store(Protocol):
     def parked(self, author: bytes, seq: int) -> list[Entry]: ...
 
     def unpark(self, entry_id: bytes) -> None: ...
+
+    def arrivals(
+        self,
+        after: int = 0,
+        kinds: Iterable[Kind] = (),
+        *,
+        unread_only: bool = False,
+        limit: int | None = None,
+    ) -> list[Arrival]:
+        """Stored entries in local arrival order, after the `after` cursor."""
+        ...
+
+    def referencing(self, entry_id: bytes) -> list[Entry]: ...
+
+    def find_by_prefix(self, prefix: bytes) -> list[Entry]: ...
+
+    def mark_read(self, entry_ids: Iterable[bytes]) -> None: ...
+
+    def is_read(self, entry_id: bytes) -> bool: ...
