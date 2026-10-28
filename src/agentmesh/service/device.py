@@ -20,6 +20,7 @@ from agentmesh.service.roster_admin import AdminApi, RosterAdmin
 from agentmesh.store.ingest import Ingestor
 from agentmesh.store.local_log import LocalLog
 from agentmesh.store.sqlite import SqliteStore
+from agentmesh.sync.session import SyncNode
 from agentmesh.transport.directory import DirectoryExchange
 
 _HOME_MODE = 0o700
@@ -49,6 +50,14 @@ class Device:
         self._api = ToolApi(Messenger(self._store, local_log, directory))
         self._admin = AdminApi(RosterAdmin(self._book, local_log))
         ingestor = Ingestor(self._store, verifier, self._book)
+        self._sync_node = SyncNode(
+            self._store,
+            ingestor,
+            signer,
+            key,
+            config.team,
+            is_member=lambda peer: self._book.member_for_key(peer) is not None,
+        )
         self._exchange = (
             None
             if config.exchange is None
@@ -137,6 +146,10 @@ class Device:
     @property
     def roster(self) -> RosterBook:
         return self._book
+
+    @property
+    def sync_node(self) -> SyncNode:
+        return self._sync_node
 
     def sync(self) -> int:
         return 0 if self._exchange is None else self._exchange.sync()
