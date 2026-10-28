@@ -1,0 +1,141 @@
+from collections.abc import Callable
+from dataclasses import replace
+
+import pytest
+
+from agentmesh.identity import KeyHandle
+from agentmesh.identity.software import SoftwareSigner
+from agentmesh.log.canonical import decode, encode
+from agentmesh.log.entry import Entry, EntryContent, Kind, Signature
+from agentmesh.log.verify import (
+    MAX_ENTRY_SIZE,
+    DroppedEntryError,
+    EntryVerifier,
+    RejectedEntryError,
+    is_valid_channel,
+)
+
+ID_A = b"\x01" * 32
+ID_B = b"\x02" * 32
+
+
+@pytest.fixture
+def verifier(team: bytes) -> EntryVerifier:
+    return EntryVerifier(team)
+
+
+def test_accepts_valid_entry(verifier: EntryVerifier, make_entry: Callable[..., Entry]) -> None:
+    entry = make_entry()
+    assert verifier.verify(entry.encode()) == entry
+
+
+def test_accepts_chained_entry_with_refs(
+    verifier: EntryVerifier, make_entry: Callable[..., Entry]
+) -> None:
+    entry = make_entry(seq=2, prev=ID_A, refs=(ID_A, ID_B))
+    assert verifier.verify(entry.encode()) == entry
+
+
+def test_drops_oversize_entry(verifier: EntryVerifier, make_entry: Callable[..., Entry]) -> None:
+    raw = make_entry(body=b"x" * MAX_ENTRY_SIZE).encode()
+    with pytest.raises(DroppedEntryError):
+        verifier.verify(raw)
+
+
+def test_rejects_garbage(verifier: EntryVerifier) -> None:
+    with pytest.raises(RejectedEntryError, match="malformed"):
+        verifier.verify(b"\xff\x00garbage")
+
+
+def test_rejects_other_version(verifier: EntryVerifier, make_entry: Callable[..., Entry]) -> None:
+    with pytest.raises(RejectedEntryError, match="version"):
+        verifier.verify(make_entry(v=1).encode())
+
+
+def test_rejects_bad_signature(verifier: EntryVerifier, make_entry: Callable[..., Entry]) -> None:
+    entry = make_entry()
+    forged = replace(entry, sig=Signature("es256", bytes(64)))
+    with pytest.raises(RejectedEntryError, match="bad signature"):
+        verifier.verify(forged.encode())
+
+
+def test_rejects_unknown_signature_algorithm(
+    verifier: EntryVerifier, make_entry: Callable[..., Entry]
+) -> None:
+    entry = make_entry()
+    other = replace(entry, sig=Signature("es256-webauthn", entry.sig.value))
+    with pytest.raises(RejectedEntryError, match="algorithm"):
+        verifier.verify(other.encode())
+
+
+def test_rejects_entry_signed_by_someone_else(
+    verifier: EntryVerifier,
+    make_content: Callable[..., EntryContent],
+    signer: SoftwareSigner,
+    other_handle: KeyHandle,
+) -> None:
+    entry = make_content().sign(signer, other_handle)
+    with pytest.raises(RejectedEntryError, match="bad signature"):
+        verifier.verify(entry.encode())
+
+
+def test_rejects_content_changed_after_signing(
+    verifier: EntryVerifier, make_entry: Callable[..., Entry]
+) -> None:
+    fields = decode(make_entry().encode())
+    assert isinstance(fields, dict)
+    fields["channel"] = "#frontend"
+    with pytest.raises(RejectedEntryError, match="bad signature"):
+        verifier.verify(encode(fields))
+
+
+def test_rejects_other_team(make_entry: Callable[..., Entry]) -> None:
+    with pytest.raises(RejectedEntryError, match="wrong team"):
+        EntryVerifier(b"\xee" * 16).verify(make_entry().encode())
+
+
+@pytest.mark.parametrize(
+    ("overrides", "reason"),
+    [
+        ({"seq": 0}, "seq"),
+        ({"seq": 1, "prev": ID_A}, "prev"),
+        ({"seq": 2, "prev": None}, "prev"),
+        ({"channel": "backend"}, "channel"),
+        ({"channel": "_team"}, "channel"),
+        ({"kind": Kind.ROSTER, "channel": "#backend"}, "channel"),
+        ({"channel": "dm:tobi+gef"}, "channel"),
+        ({"refs": (ID_B, ID_A)}, "refs"),
+        ({"refs": (ID_A, ID_A)}, "refs"),
+        ({"refs": tuple(bytes([i]) * 32 for i in range(17))}, "refs"),
+    ],
+)
+def test_rejects_bad_shape(
+    verifier: EntryVerifier,
+    make_entry: Callable[..., Entry],
+    overrides: dict[str, object],
+    reason: str,
+) -> None:
+    with pytest.raises(RejectedEntryError, match=reason):
+        verifier.verify(make_entry(**overrides).encode())
+
+
+@pytest.mark.parametrize(
+    ("channel", "kind", "valid"),
+    [
+        ("#backend", Kind.MESSAGE, True),
+        ("#a", Kind.STATUS, True),
+        ("#" + "a" * 32, Kind.MESSAGE, True),
+        ("#" + "a" * 33, Kind.MESSAGE, False),
+        ("#Backend", Kind.MESSAGE, False),
+        ("#-x", Kind.MESSAGE, False),
+        ("dm:gef+tobi", Kind.MESSAGE, True),
+        ("dm:tobi+gef", Kind.MESSAGE, False),
+        ("dm:gef+gef", Kind.MESSAGE, False),
+        ("_team", Kind.ROSTER, True),
+        ("_team", Kind.KEY_ANNOUNCE, True),
+        ("_team", Kind.MESSAGE, False),
+        ("#backend", Kind.KEY_ANNOUNCE, False),
+    ],
+)
+def test_channel_rules(channel: str, kind: Kind, valid: bool) -> None:
+    assert is_valid_channel(channel, kind) is valid
