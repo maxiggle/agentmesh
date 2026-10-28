@@ -185,7 +185,11 @@ class Messenger:
         new = blocked = questions = shipped = 0
         for arrival in self._store.arrivals(kinds=[Kind.MESSAGE], unread_only=True):
             message = self._as_message(arrival.entry)
-            if message is None or not self._is_for_me(message):
+            if (
+                message is None
+                or message.entry.author == self.author
+                or not self._is_for_me(message)
+            ):
                 continue
             new += 1
             blocked += message.body.type is MessageType.BLOCKED and self._names_me(message)

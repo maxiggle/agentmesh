@@ -233,3 +233,11 @@ def test_empty_results(gef: Device) -> None:
     assert "no teammates seen yet" in render.team(
         gef.messenger.me, gef.messenger.author, gef.messenger.team()
     )
+
+
+def test_digest_ignores_my_own_messages(gef: Device, tobi: Device) -> None:
+    question = gef.messenger.post(["tobi"], "question", "Done yet?")
+    sync(gef, tobi)
+    tobi.messenger.inbox()
+    tobi.messenger.reply(question.id.hex()[:8], "Yes")
+    assert render.digest(tobi.messenger.digest()) == "nothing new"
