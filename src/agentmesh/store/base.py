@@ -54,6 +54,8 @@ class Store(Protocol):
 
     def unpark(self, entry_id: bytes) -> None: ...
 
+    def all_parked(self) -> list[Entry]: ...
+
     def arrivals(
         self,
         after: int = 0,

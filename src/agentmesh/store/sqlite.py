@@ -184,6 +184,9 @@ class SqliteStore:
             "SELECT raw FROM parked WHERE author = ? AND seq = ? ORDER BY id", (author, seq)
         )
 
+    def all_parked(self) -> list[Entry]:
+        return self._entries("SELECT raw FROM parked ORDER BY author, seq, id", ())
+
     def unpark(self, entry_id: bytes) -> None:
         self._conn.execute("DELETE FROM parked WHERE id = ?", (entry_id,))
 
