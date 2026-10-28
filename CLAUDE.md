@@ -11,6 +11,7 @@ These rules apply to every contributor, human or agent. They are not optional.
   - Scopes follow the package layout: `identity`, `log`, `store`, `crypto`, `roster`, `sync`, `transport`, `service`, `mcp`, `cli`, `relay`.
   - Summary is imperative, lowercase, no trailing period, at most 72 characters.
   - The body explains *why*, not *what*.
+- Commit messages and pull requests describe the work itself. Never mention build-plan phases, milestones or roadmap steps.
 - No AI or tool attribution lines (`Co-Authored-By`, "Generated with …") in commits or pull requests.
 - Never rewrite published history on `main`. No force pushes to `main`.
 
