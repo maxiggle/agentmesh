@@ -107,11 +107,15 @@ def test_parked_entry_with_wrong_prev_is_discarded_on_release(
 
 
 def test_fork_is_stored_and_flagged(
-    ingestor: Ingestor, store: SqliteStore, chain: list[Entry], make_entry: Callable[..., Entry]
+    ingestor: Ingestor,
+    store: SqliteStore,
+    chain: list[Entry],
+    make_entry: Callable[..., Entry],
+    message: Callable[[str], bytes],
 ) -> None:
     ingestor.receive(chain[0].encode())
     ingestor.receive(chain[1].encode())
-    fork = make_entry(seq=2, prev=chain[0].id, body=b"different")
+    fork = make_entry(seq=2, prev=chain[0].id, body=message("different"))
     receipt = ingestor.receive(fork.encode())
     assert receipt.outcome is Outcome.FORKED
     assert store.forked_at(chain[0].author) == 2

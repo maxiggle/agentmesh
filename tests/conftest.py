@@ -7,11 +7,23 @@ import pytest
 
 from agentmesh.identity import KeyHandle
 from agentmesh.identity.software import SoftwareSigner
+from agentmesh.log.body import MessageBody, MessageType
 from agentmesh.log.entry import Entry, EntryContent, Kind
+from agentmesh.log.envelope import Envelope
 
 TEAM = bytes(range(16))
 
 ContentFactory = Callable[..., EntryContent]
+
+
+def plain_message(summary: str = "hello") -> bytes:
+    body = MessageBody(MessageType.FYI, ("#backend",), summary)
+    return Envelope.plain(body.encode()).encode()
+
+
+@pytest.fixture
+def message() -> Callable[[str], bytes]:
+    return plain_message
 
 
 @pytest.fixture(scope="session")
@@ -48,7 +60,7 @@ def make_content(signer: SoftwareSigner, handle: KeyHandle) -> ContentFactory:
             kind=Kind.MESSAGE,
             refs=(),
             ts=1_700_000_000_000,
-            body=b"body",
+            body=plain_message(),
         )
         return replace(base, **overrides)
 

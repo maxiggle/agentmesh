@@ -132,12 +132,15 @@ A reply is a `message` whose `refs` contains the ID of the message it answers.
 
 ### 4.2 `status`
 
-| Field    | Type | Rules |
-|----------|------|-------|
-| `status` | tstr | `open`, `claimed`, `done` or `wontfix`. |
-| `note`   | tstr | Optional, at most 140 characters. |
+| Field    | Type      | Rules |
+|----------|-----------|-------|
+| `target` | bstr (32) | ID of the `message` this status applies to. |
+| `status` | tstr      | `open`, `claimed`, `done` or `wontfix`. |
+| `note`   | tstr      | Optional, at most 140 characters. |
 
-`refs` MUST contain exactly one ID: the target `message`, which MUST be in the same channel. A message's current state is that of its latest valid `status` entry, ordered as in §7. A message with no status entry is `open`.
+`refs` MUST contain `target`. It also lists every status entry for the same target that the writer had seen and is replacing, so that updates from different authors are ordered by §7 rather than by entry ID. The target MUST be in the same channel; receivers check this once they hold the target.
+
+A message's current state is that of the status entry for it that no other status entry replaces, by `refs` or by being earlier in the same author's log. If several remain, the last one in §7 order wins. A message with no status entry is `open`.
 
 ### 4.3 `roster`
 
