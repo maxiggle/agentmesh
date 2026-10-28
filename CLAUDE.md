@@ -43,7 +43,7 @@ These rules apply to every contributor, human or agent. They are not optional.
   - Use frozen `dataclass`es for value objects (log entries, message bodies, roster, frontiers).
   - Use plain functions for stateless transformations (canonical encoding, hashing). Do not wrap them in classes for the sake of it.
 - Depend on interfaces, not implementations. Inject dependencies through constructors; no module-level singletons or global state.
-- Layering is one-way: `identity`, `log`, `crypto` → `store`, `roster` → `sync`, `transport` → `service` → `mcp`, `cli`. Lower layers never import higher ones.
+- Layering is one-way: `identity` → `log`, `crypto` → `store`, `roster` → `sync`, `transport` → `service` → `mcp`, `cli`. Lower layers never import higher ones.
 - Prefer composition over inheritance. Keep inheritance hierarchies at most one level deep.
 - Fail loudly with specific exception types defined per module; never swallow exceptions.
 
