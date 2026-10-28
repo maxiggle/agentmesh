@@ -40,6 +40,14 @@ class Params:
             raise ApiError(f"{name} must be an integer")
         return value
 
+    def flag(self, name: str) -> bool:
+        value = self._take(name)
+        if value is None:
+            return False
+        if not isinstance(value, bool):
+            raise ApiError(f"{name} must be true or false")
+        return value
+
     def finish(self) -> None:
         unknown = sorted(self._raw.keys() - self._used)
         if unknown:

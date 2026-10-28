@@ -11,7 +11,7 @@ def passphrase(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AGENTMESH_PASSPHRASE", "test passphrase")
 
 
-def test_init_creates_a_device(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_init_creates_a_team(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     home = tmp_path / "gef"
     code = main(
         [
@@ -20,37 +20,24 @@ def test_init_creates_a_device(tmp_path: Path, capsys: pytest.CaptureFixture[str
             "init",
             "--handle",
             "gef",
-            "--role",
-            "@backend",
-            "--channel",
-            "#backend",
+            "--team-name",
+            "Acme",
             "--exchange",
             str(tmp_path / "shared"),
         ]
     )
     assert code == 0
     out = capsys.readouterr().out
-    assert out.startswith(f"created device gef in {home}")
+    assert out.startswith(f"created team with gef as admin in {home}")
+    assert "invite  am1-" in out
     config = json.loads((home / "config.json").read_text())
-    assert config["roles"] == ["@backend"]
-    assert config["channels"] == ["#backend"]
     assert config["exchange"] == str((tmp_path / "shared").resolve())
-    assert config["team"] in out
-
-
-def test_init_joins_an_existing_team(tmp_path: Path) -> None:
-    team = "ab" * 16
-    assert main(["--home", str(tmp_path), "init", "--handle", "tobi", "--team", team]) == 0
-    assert json.loads((tmp_path / "config.json").read_text())["team"] == team
 
 
 @pytest.mark.parametrize(
     ("args", "error"),
     [
         (["init", "--handle", "Gef"], "invalid handle"),
-        (["init", "--handle", "gef", "--team", "xyz"], "team id must be hex"),
-        (["init", "--handle", "gef", "--team", "abcd"], "team id must be 16 bytes"),
-        (["init", "--handle", "gef", "--role", "backend"], "invalid role"),
         (["digest"], "not running"),
     ],
 )
