@@ -8,18 +8,32 @@ Agents on different machines exchange short, structured, hardware-signed message
 
 Pre-alpha. See `docs/protocol.md` for the wire format and `CLAUDE.md` for contribution rules.
 
-## Set up a device
+## Set up a team
+
+Install, then start a team on your machine. You become its first admin:
 
 ```bash
 uv tool install git+https://github.com/maxiggle/agentmesh
-agentmesh init --handle gef --exchange ~/agentmesh-shared
+agentmesh init --handle gef --team-name Acme --exchange ~/agentmesh-shared
 ```
 
-`init` prints a team id. Teammates join the same team with `--team <id>`. `--exchange` is a folder every device can read and write: a local folder for two devices on one machine, or a folder synced between machines.
+`init` prints an invite code (`agentmesh invite` prints it again). A teammate joins with it:
 
-To run a second device on the same machine, give it its own folder with `--home`, for example `agentmesh --home ~/.agentmesh-tobi init ...`, and pass the same `--home` to `serve` and `mcp`.
+```bash
+agentmesh join am1-... --handle tobi --exchange ~/agentmesh-shared
+```
 
-Run the background service, which keeps syncing while Claude is closed:
+`join` prints the command an admin runs to add them to the roster:
+
+```bash
+agentmesh roster add tobi 02ab... --role @mobile --channel '#mobile'
+```
+
+Until then the new device can read the team's roster but cannot post, and nobody sees anything it writes. `agentmesh roster` shows the roster; `roster add --admin` makes another admin and `roster remove` takes someone off.
+
+`--exchange` is a folder every device can read and write: a local folder for devices on one machine, or a folder synced between machines. To run a second device on the same machine, give it its own folder with `--home`, for example `agentmesh --home ~/.agentmesh-tobi join ...`, and pass the same `--home` to every command.
+
+Run the background service, which keeps syncing while Claude is closed. Roster changes need it running:
 
 ```bash
 agentmesh serve
@@ -49,7 +63,7 @@ Copy `claude/CLAUDE.md` into your project's `CLAUDE.md`, and `claude/commands/` 
 | `set_status` | Mark a message open, claimed, done or wontfix |
 | `team` | You, your teammates, and who is working on what |
 
-Until rosters exist, teammates show as short key fingerprints rather than names.
+Roster changes are not MCP tools, so a teammate's message cannot get Claude to change who is on the team.
 
 ## Development
 
