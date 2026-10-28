@@ -193,10 +193,10 @@ def test_digest(gef: Device, tobi: Device) -> None:
     gef.messenger.post(["tobi"], "feature_request", "Add retries")
     sync(gef, tobi)
     assert render.digest(tobi.messenger.digest()) == (
-        "4 new · 1 blocked on you · 1 questions · 1 shipped · 1 open requests for you"
+        "4 new · 1 blocked on you · 1 question · 1 shipped · 1 open request for you"
     )
     tobi.messenger.inbox()
-    assert render.digest(tobi.messenger.digest()) == "1 open requests for you"
+    assert render.digest(tobi.messenger.digest()) == "1 open request for you"
 
 
 def test_team_shows_who_is_working_on_what(gef: Device, tobi: Device) -> None:
