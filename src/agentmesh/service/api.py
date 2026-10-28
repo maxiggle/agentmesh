@@ -88,12 +88,12 @@ class ToolApi:
         limit = params.optional_int("limit")
         params.finish()
         page = self._messenger.inbox(since=since, channel=channel, limit=limit)
-        return render.inbox(page, self._messenger.author)
+        return render.inbox(page, self._messenger.display_name)
 
     def _read(self, params: Params) -> str:
         entry_id = params.text("id")
         params.finish()
-        return render.detail(self._messenger.read(entry_id), self._messenger.author)
+        return render.detail(self._messenger.read(entry_id), self._messenger.display_name)
 
     def _post(self, params: Params) -> str:
         to = params.texts("to")
@@ -125,4 +125,4 @@ class ToolApi:
 
     def _team(self, params: Params) -> str:
         params.finish()
-        return render.team(self._messenger.me, self._messenger.author, self._messenger.team())
+        return render.team(self._messenger.me, self._messenger.display_name, self._messenger.team())

@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from agentmesh.log.body import Status
@@ -21,8 +22,7 @@ def short_id(entry_id: bytes) -> str:
     return entry_id[:4].hex()
 
 
-def fingerprint(author: bytes, me: bytes) -> str:
-    return "me" if author == me else author[1:4].hex()
+Names = Callable[[bytes], str]
 
 
 def quote(text: str) -> str:
@@ -37,13 +37,13 @@ def posted(entry: Entry) -> str:
     return f"posted {short_id(entry.id)} in {entry.content.channel}"
 
 
-def inbox(page: InboxPage, me: bytes) -> str:
+def inbox(page: InboxPage, names: Names) -> str:
     if not page.items:
         return f"no new messages{SEP}cursor {page.cursor}"
     lines = [UNTRUSTED]
     for item in page.items:
         lines.append(
-            _message_line(item, me) if isinstance(item, Message) else _status_line(item, me)
+            _message_line(item, names) if isinstance(item, Message) else _status_line(item, names)
         )
     footer = f"cursor {page.cursor}"
     if page.remaining:
@@ -52,13 +52,13 @@ def inbox(page: InboxPage, me: bytes) -> str:
     return "\n".join(lines)
 
 
-def detail(view: MessageDetail, me: bytes) -> str:
+def detail(view: MessageDetail, names: Names) -> str:
     message = view.message
     content = message.entry.content
     body = message.body
     lines = [
         UNTRUSTED,
-        f"id {short_id(message.entry.id)}{SEP}from {fingerprint(content.author, me)}"
+        f"id {short_id(message.entry.id)}{SEP}from {names(content.author)}"
         f"{SEP}{content.channel}{SEP}{timestamp(content.ts)}",
         f"type {body.type}{SEP}status {message.status}{SEP}to {', '.join(body.to)}",
         f"summary: {quote(body.summary)}",
@@ -71,9 +71,9 @@ def detail(view: MessageDetail, me: bytes) -> str:
         lines.append(f"links: {', '.join(quote(link) for link in body.links)}")
     for entry, status in view.history:
         note = f"{SEP}{quote(status.note)}" if status.note else ""
-        lines.append(f"status {status.status} by {fingerprint(entry.author, me)}{note}")
+        lines.append(f"status {status.status} by {names(entry.author)}{note}")
     for reply in view.replies:
-        lines.append(f"reply {_message_line(reply, me)}")
+        lines.append(f"reply {_message_line(reply, names)}")
     return "\n".join(lines)
 
 
@@ -89,17 +89,14 @@ def digest(summary: Digest) -> str:
     return SEP.join(shown) if shown else "nothing new"
 
 
-def team(me: Identity, author: bytes, teammates: tuple[Teammate, ...]) -> str:
-    channels = ", ".join(me.channels)
+def team(me: Identity, names: Names, teammates: tuple[Teammate, ...]) -> str:
+    channels = ", ".join(me.channels) or "none"
     roles = f"{SEP}roles {', '.join(me.roles)}" if me.roles else ""
-    lines = [f"me {me.handle} ({author[1:4].hex()}){roles}{SEP}channels {channels}"]
+    lines = [f"me {me.handle}{roles}{SEP}channels {channels}"]
     for mate in teammates:
-        if mate.author == author:
-            continue
-        line = (
-            f"{fingerprint(mate.author, author)}{SEP}{_count(mate.messages, 'message', 'messages')}"
-            f"{SEP}last {timestamp(mate.last_ts)}"
-        )
+        line = f"{names(mate.author)}{SEP}{_count(mate.messages, 'message', 'messages')}"
+        if mate.last_ts:
+            line += f"{SEP}last {timestamp(mate.last_ts)}"
         if mate.claimed:
             working = ", ".join(
                 f"{short_id(m.entry.id)} {quote(m.body.summary)}" for m in mate.claimed
@@ -107,15 +104,15 @@ def team(me: Identity, author: bytes, teammates: tuple[Teammate, ...]) -> str:
             line += f"{SEP}working on {working}"
         lines.append(line)
     if len(lines) == 1:
-        lines.append("no teammates seen yet")
+        lines.append("no teammates yet")
     return "\n".join(lines)
 
 
-def _message_line(message: Message, me: bytes) -> str:
+def _message_line(message: Message, names: Names) -> str:
     body = message.body
     parts = [
         short_id(message.entry.id),
-        fingerprint(message.entry.author, me),
+        names(message.entry.author),
         str(body.type),
         quote(body.summary),
     ]
@@ -128,10 +125,10 @@ def _message_line(message: Message, me: bytes) -> str:
     return SEP.join(parts)
 
 
-def _status_line(change: StatusChange, me: bytes) -> str:
+def _status_line(change: StatusChange, names: Names) -> str:
     parts = [
         short_id(change.entry.id),
-        fingerprint(change.entry.author, me),
+        names(change.entry.author),
         f"{change.body.status} on {short_id(change.target.entry.id)}",
         quote(change.target.body.summary),
     ]
