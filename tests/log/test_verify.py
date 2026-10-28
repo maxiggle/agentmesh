@@ -5,8 +5,10 @@ import pytest
 
 from agentmesh.identity import KeyHandle
 from agentmesh.identity.software import SoftwareSigner
+from agentmesh.log.body import MessageBody, MessageType, Status, StatusBody
 from agentmesh.log.canonical import decode, encode
 from agentmesh.log.entry import Entry, EntryContent, Kind, Signature
+from agentmesh.log.envelope import Encryption, Envelope
 from agentmesh.log.verify import (
     MAX_ENTRY_SIZE,
     DroppedEntryError,
@@ -139,3 +141,46 @@ def test_rejects_bad_shape(
 )
 def test_channel_rules(channel: str, kind: Kind, valid: bool) -> None:
     assert is_valid_channel(channel, kind) is valid
+
+
+def _plain(body: bytes) -> bytes:
+    return Envelope.plain(body).encode()
+
+
+TARGET = b"\x07" * 32
+
+
+@pytest.mark.parametrize(
+    ("kind", "body", "reason"),
+    [
+        (Kind.MESSAGE, b"not an envelope", "bad envelope"),
+        (Kind.MESSAGE, _plain(b"\xa0"), "bad body"),
+        (Kind.STATUS, _plain(MessageBody(MessageType.FYI, ("#a",), "hi").encode()), "bad body"),
+        (Kind.STATUS, _plain(StatusBody(TARGET, Status.DONE).encode()), "target"),
+    ],
+)
+def test_rejects_bad_bodies(
+    verifier: EntryVerifier,
+    make_entry: Callable[..., Entry],
+    kind: Kind,
+    body: bytes,
+    reason: str,
+) -> None:
+    with pytest.raises(RejectedEntryError, match=reason):
+        verifier.verify(make_entry(kind=kind, body=body).encode())
+
+
+def test_accepts_status_with_target_in_refs(
+    verifier: EntryVerifier, make_entry: Callable[..., Entry]
+) -> None:
+    body = _plain(StatusBody(TARGET, Status.DONE).encode())
+    entry = make_entry(kind=Kind.STATUS, body=body, refs=(ID_A, TARGET))
+    assert verifier.verify(entry.encode()) == entry
+
+
+def test_does_not_inspect_encrypted_bodies(
+    verifier: EntryVerifier, make_entry: Callable[..., Entry]
+) -> None:
+    body = Envelope(Encryption.AES256GCM, 1, b"opaque", b"\x00" * 12).encode()
+    entry = make_entry(body=body)
+    assert verifier.verify(entry.encode()) == entry

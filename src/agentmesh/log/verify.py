@@ -1,4 +1,5 @@
 from agentmesh.identity import es256
+from agentmesh.log.body import BodyError, MessageBody, StatusBody
 from agentmesh.log.entry import (
     PROTOCOL_VERSION,
     SIG_ALG_ES256,
@@ -6,6 +7,7 @@ from agentmesh.log.entry import (
     EntryFormatError,
     Kind,
 )
+from agentmesh.log.envelope import Encryption, Envelope, EnvelopeError
 from agentmesh.log.names import CONTROL_CHANNEL, TEAM_CHANNEL, dm_members
 
 MAX_ENTRY_SIZE = 16 * 1024
@@ -79,3 +81,23 @@ class EntryVerifier:
             raise RejectedEntryError(f"more than {MAX_REFS} refs")
         if list(content.refs) != sorted(set(content.refs)):
             raise RejectedEntryError("refs must be sorted and unique")
+        if content.kind in (Kind.MESSAGE, Kind.STATUS):
+            EntryVerifier._check_body(entry)
+
+    @staticmethod
+    def _check_body(entry: Entry) -> None:
+        try:
+            envelope = Envelope.decode(entry.content.body)
+        except EnvelopeError as exc:
+            raise RejectedEntryError(f"bad envelope: {exc}") from exc
+        if envelope.enc is not Encryption.NONE:
+            return
+        try:
+            if entry.content.kind is Kind.MESSAGE:
+                MessageBody.decode(envelope.data)
+                return
+            status = StatusBody.decode(envelope.data)
+        except BodyError as exc:
+            raise RejectedEntryError(f"bad body: {exc}") from exc
+        if status.target not in entry.content.refs:
+            raise RejectedEntryError("status target must be in refs")
