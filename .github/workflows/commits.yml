@@ -1,0 +1,29 @@
+name: Commit messages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  conventional-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check pull request commits
+        if: github.event_name == 'pull_request'
+        run: python scripts/check_commit_msg.py --range "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+      - name: Check pushed commits
+        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+        run: python scripts/check_commit_msg.py --range "${{ github.event.before }}..${{ github.sha }}"
+      - name: Check full history on first push
+        if: github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000'
+        run: python scripts/check_commit_msg.py --range "${{ github.sha }}"

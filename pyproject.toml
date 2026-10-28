@@ -49,7 +49,7 @@ ban-relative-imports = "all"
 
 [tool.mypy]
 strict = true
-files = ["src", "tests"]
+files = ["src", "tests", "scripts"]
 python_version = "3.11"
 
 [tool.pytest.ini_options]
