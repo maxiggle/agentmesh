@@ -39,7 +39,8 @@ def test_add_a_second_device_to_a_member(gef: Device) -> None:
     assert roster is not None
     member = roster.member("gef")
     assert member is not None
-    assert [d.label for d in member.devices] == ["gef-phone", "gef"]
+    assert {d.label for d in member.devices} == {"gef", "gef-phone"}
+    assert [d.key for d in member.devices] == sorted(d.key for d in member.devices)
     gef.close()
 
 
