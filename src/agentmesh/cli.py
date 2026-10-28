@@ -15,7 +15,9 @@ from agentmesh.service.config import ConfigError, DeviceConfig, default_home
 from agentmesh.service.daemon import DEFAULT_SYNC_INTERVAL, Daemon
 from agentmesh.service.device import Device
 from agentmesh.service.invite import Invite, InviteError
+from agentmesh.service.lan_sync import DEFAULT_LAN_INTERVAL, LanSync
 from agentmesh.service.rpc import RpcClient, RpcError, default_endpoint
+from agentmesh.transport.lan import ZeroconfDiscovery
 
 PASSPHRASE_ENV = "AGENTMESH_PASSPHRASE"  # noqa: S105 - env var name, not a secret
 
@@ -71,6 +73,8 @@ def _parser() -> argparse.ArgumentParser:
 
     serve = commands.add_parser("serve", help="run the background service")
     serve.add_argument("--interval", type=float, default=DEFAULT_SYNC_INTERVAL)
+    serve.add_argument("--no-lan", action="store_true", help="do not sync over the local network")
+    serve.add_argument("--lan-interval", type=float, default=DEFAULT_LAN_INTERVAL)
     serve.set_defaults(run=_serve)
 
     commands.add_parser("mcp", help="run the MCP server for Claude").set_defaults(run=_mcp)
@@ -166,8 +170,14 @@ def _serve(args: argparse.Namespace) -> int:
     home = _home(args)
     with Device.open(home, _passphrase(confirm=False)) as device:
         sys.stderr.write(f"agentmesh serving {device.config.handle} from {home}\n")
-        asyncio.run(_run_daemon(Daemon(device, default_endpoint(home), args.interval)))
+        lan = None if args.no_lan else _lan_sync(device, args.lan_interval)
+        asyncio.run(_run_daemon(Daemon(device, default_endpoint(home), args.interval, lan)))
     return 0
+
+
+def _lan_sync(device: Device, interval: float) -> LanSync:
+    discovery = ZeroconfDiscovery(device.config.team, device.author)
+    return LanSync(device.sync_node, discovery, interval=interval)
 
 
 async def _run_daemon(daemon: Daemon) -> None:
