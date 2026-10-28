@@ -239,16 +239,34 @@ For `aes256gcm`, the additional authenticated data is the deterministic CBOR of 
 
 The result is a deterministic total order: every device that holds the same set of entries shows them in the same order. `ts` is never used.
 
-## 8. Sync (outline)
+## 8. Sync
 
-The full exchange is specified in Phase 3. In outline:
+Two peers sync over any reliable byte stream (TCP on a LAN in v0). Each message is a 4-byte big-endian length followed by a deterministic CBOR map with a `t` field naming its type. Frames over 1 MiB end the session.
 
-1. Both peers prove control of a roster device key by signing a fresh 32-byte challenge from the other side, with domain prefix `"agentmesh/auth/v0" || 0x00`.
-2. Each side sends its **frontier**: for every author in the channels both may read, the highest `seq` it holds contiguously from 1.
-3. Each side sends the missing entries, per author in ascending `seq`.
-4. Each received entry goes through §5.
+| Type       | Fields | Meaning |
+|------------|--------|---------|
+| `hello`    | `v` (0), `team` bstr (16), `nonce` bstr (32) | Opens the session with a fresh random challenge. |
+| `auth`     | `key` bstr (33), `sig` bstr (64) | Proves control of a device key. |
+| `frontier` | `heads`: array of `[author bstr (33), seq uint]` | Highest stored seq per author, at most 10,000 authors. |
+| `entries`  | `items`: array of encoded entries | At most 48 entries per frame. |
+| `done`     | none | The sender has nothing more to send. |
 
-Sync never depends on the transport. LAN, peer-to-peer and relay transports all carry the same entries.
+The exchange:
+
+1. The side that opened the connection is the **initiator**. Both sides send `hello`. A peer whose `team` differs is disconnected.
+2. Both sides send `auth`. Each signs, with its device key:
+   `"agentmesh/auth/v0" || 0x00 || team || role || initiator_nonce || responder_nonce`
+   where `role` is `I` for the initiator and `R` for the responder, so a signature can never be reflected back to its signer. A bad signature ends the session.
+3. Each side classifies the other by the current roster: a **member** if the key is a roster device, otherwise a **guest**.
+4. Both sides send `frontier`.
+5. Each side sends, per author in ascending `seq`, the stored entries the other's frontier lacks, then `done`. Members receive every log. Guests receive only `roster` entries, which is how a device that has just joined learns the roster that admits it without being sent the team's messages.
+6. Every received entry goes through §5. A roster entry that is authorized but waiting on a gap in its author's log still counts for authorization.
+
+Peers sync again on a timer, whenever a new peer is discovered, and soon after a local write. Entries are self-authenticating, so a peer may forward any author's entries (gossip).
+
+Logs are per author, not per channel, so a member receives every channel's entries; leaving some out would leave gaps that could never be filled. Keeping a channel's content from members outside it is the job of channel encryption (§6), not of sync.
+
+On a LAN, devices find each other with mDNS service type `_agentmesh._tcp.local.`. The TXT record carries `team`, the first 8 bytes of SHA-256 of the team ID in hex, so the team ID itself is not broadcast, and `key`, a short fingerprint of the device key used to skip itself.
 
 ## 9. Domain separation tags
 
@@ -270,5 +288,4 @@ Every hash or signature input starts with its tag and a `0x00` byte, so a value 
 
 - `es256-webauthn` signature wrapping for FIDO2 admin keys (Phase 5).
 - Channel key distribution and rotation format (Phase 4).
-- Sync messages and their framing (Phase 3).
 - Admin recovery when the only admin loses their devices. Proposal: require at least two admins in every roster.
