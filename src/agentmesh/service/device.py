@@ -36,7 +36,12 @@ class Device:
         key = KeyHandle(SoftwareSigner.backend, config.key_label)
         self._store = SqliteStore(home / _DB_FILE)
         self._book = RosterBook(config.genesis)
-        self._book.load(arrival.entry for arrival in self._store.arrivals(kinds=[Kind.ROSTER]))
+        self._book.load(
+            [
+                *(arrival.entry for arrival in self._store.arrivals(kinds=[Kind.ROSTER])),
+                *(e for e in self._store.all_parked() if e.content.kind is Kind.ROSTER),
+            ]
+        )
         verifier = EntryVerifier(config.team)
         local_log = LocalLog(self._store, signer, key, config.team, verifier, authorizer=self._book)
         self._author = local_log.author
