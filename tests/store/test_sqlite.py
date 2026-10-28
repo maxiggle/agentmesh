@@ -213,3 +213,16 @@ def test_failed_append_rolls_back(store: SqliteStore, chain: list[Entry]) -> Non
         store.append(chain[2])
     store.append(chain[1])
     assert store.log(chain[0].author) == chain[:2]
+
+
+def test_frontier_and_entries_after(
+    store: SqliteStore, chain: list[Entry], make_entry: Callable[..., Entry]
+) -> None:
+    assert store.frontier() == {}
+    for entry in chain:
+        store.append(entry)
+    author = chain[0].author
+    assert store.frontier() == {author: 3}
+    assert store.entries_after(author, 1) == chain[1:]
+    assert store.entries_after(author, 3) == []
+    assert store.entries_after(b"\x02" * 33, 0) == []
