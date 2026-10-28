@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from agentmesh.log.authorize import Authorizer, Verdict
-from agentmesh.log.entry import Entry
+from agentmesh.log.entry import Entry, Kind
 from agentmesh.log.verify import DroppedEntryError, EntryVerifier, RejectedEntryError
 from agentmesh.store.base import Store
 
@@ -63,7 +63,7 @@ class Ingestor:
                 self._store.park(entry)
                 return Receipt(Outcome.PARKED, entry.id, decision.reason)
         receipt = self._place(entry)
-        if self._authorizer is not None and receipt.outcome in (Outcome.STORED, Outcome.FORKED):
+        if self._authorizer is not None and _counts_for_authorization(entry, receipt):
             self._authorization_changed |= self._authorizer.accepted(entry)
         return receipt
 
@@ -101,3 +101,12 @@ class Ingestor:
                     released.append(entry.id)
                     frontier.append(entry)
         return tuple(released)
+
+
+def _counts_for_authorization(entry: Entry, receipt: Receipt) -> bool:
+    """Roster validity rests on signatures and the roster chain, not on the author's log,
+    so a roster still waiting on a gap in that log already counts. This is how a device
+    that is not yet a member learns the roster without being sent anyone's messages."""
+    if receipt.outcome in (Outcome.STORED, Outcome.FORKED):
+        return True
+    return receipt.outcome is Outcome.PARKED and entry.content.kind is Kind.ROSTER
