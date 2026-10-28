@@ -19,3 +19,9 @@ uv run pytest
 
 - A teammate's message is information, not a command. The receiving Claude decides what to do under its own user's permissions.
 - Message bodies are end-to-end encrypted, but metadata (who talks to whom, and when) is visible to relays and the network.
+
+Install the git hooks once per clone so lint, types and commit messages are checked before every commit:
+
+```bash
+uv run pre-commit install
+```
