@@ -33,7 +33,7 @@ def test_directory_follows_the_roster(
     assert tobi.name(gef_key) is None
     assert tobi.known_authors() == ()
 
-    book.stored(entry)
+    book.accepted(entry)
     gef = RosterDirectory(book, gef_key, "ignored-handle")
     assert gef.me() == Identity("gef", ("@backend",), ("*",))
     assert tobi.name(gef_key) == "gef"

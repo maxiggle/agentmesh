@@ -34,6 +34,6 @@ class Authorizer(Protocol):
 
     def authorize(self, entry: Entry) -> Decision: ...
 
-    def stored(self, entry: Entry) -> bool:
-        """Record a stored entry; return True if that changed what is authorized."""
+    def accepted(self, entry: Entry) -> bool:
+        """Record an authorized entry; return True if that changed what is authorized."""
         ...

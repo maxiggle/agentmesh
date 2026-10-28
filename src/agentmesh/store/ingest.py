@@ -64,7 +64,7 @@ class Ingestor:
                 return Receipt(Outcome.PARKED, entry.id, decision.reason)
         receipt = self._place(entry)
         if self._authorizer is not None and receipt.outcome in (Outcome.STORED, Outcome.FORKED):
-            self._authorization_changed |= self._authorizer.stored(entry)
+            self._authorization_changed |= self._authorizer.accepted(entry)
         return receipt
 
     def _place(self, entry: Entry) -> Receipt:

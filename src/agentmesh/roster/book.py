@@ -40,7 +40,7 @@ class RosterBook:
             for entry in list(pending):
                 if self.authorize(entry).verdict is not Verdict.WAIT:
                     pending.remove(entry)
-                    progress = self.stored(entry) or progress
+                    progress = self.accepted(entry) or progress
 
     def member_for_key(self, key: bytes) -> Member | None:
         current = self.current
@@ -70,7 +70,7 @@ class RosterBook:
             return Decision.allow()
         return Decision.wait(f"{member.handle} may not post in {channel}")
 
-    def stored(self, entry: Entry) -> bool:
+    def accepted(self, entry: Entry) -> bool:
         if entry.content.kind is not Kind.ROSTER or entry.id in self._rosters:
             return False
         if self._authorize_roster(entry).verdict is not Verdict.ALLOW:
