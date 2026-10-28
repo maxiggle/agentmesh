@@ -205,3 +205,11 @@ def test_upgrading_from_version_1_indexes_existing_entries(
         assert store.schema_version == len(MIGRATIONS)
         assert [a.entry for a in store.arrivals()] == [chain[0], reply]
         assert store.referencing(chain[0].id) == [reply]
+
+
+def test_failed_append_rolls_back(store: SqliteStore, chain: list[Entry]) -> None:
+    store.append(chain[0])
+    with pytest.raises(ChainError):
+        store.append(chain[2])
+    store.append(chain[1])
+    assert store.log(chain[0].author) == chain[:2]
