@@ -184,3 +184,11 @@ def test_does_not_inspect_encrypted_bodies(
     body = Envelope(Encryption.AES256GCM, 1, b"opaque", b"\x00" * 12).encode()
     entry = make_entry(body=body)
     assert verifier.verify(entry.encode()) == entry
+
+
+def test_rejects_malformed_roster_body(
+    verifier: EntryVerifier, make_entry: Callable[..., Entry]
+) -> None:
+    entry = make_entry(kind=Kind.ROSTER, channel="_team", body=encode({"version": 1}))
+    with pytest.raises(RejectedEntryError, match="bad roster"):
+        verifier.verify(entry.encode())

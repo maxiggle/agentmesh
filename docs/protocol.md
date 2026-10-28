@@ -173,6 +173,7 @@ A message's current state is that of the status entry for it that no other statu
 Roster rules:
 
 - The `version == 1` roster is the **genesis roster**. Its author MUST be one of its own admin devices. The `team` ID is fixed by it.
+- A device learns the genesis roster's entry ID from its invite and accepts no other genesis roster. Without this pin, anyone who knows the team ID could publish a rival genesis roster.
 - Any later roster MUST be authored by a device of an admin listed in the roster it replaces (`previous`).
 - Rosters form a chain through `previous`. A device accepts a roster only if it can verify the whole chain back to genesis.
 - If two valid rosters claim the same `version`, that is a **roster fork**: both are kept, neither is applied, and the conflict is surfaced to every admin. The team stays on the last unforked roster until an admin publishes a roster at `version + 1` that names one of them as `previous`.

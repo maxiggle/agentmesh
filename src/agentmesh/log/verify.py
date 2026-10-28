@@ -9,6 +9,7 @@ from agentmesh.log.entry import (
 )
 from agentmesh.log.envelope import Encryption, Envelope, EnvelopeError
 from agentmesh.log.names import CONTROL_CHANNEL, TEAM_CHANNEL, dm_members
+from agentmesh.log.roster import Roster, RosterError
 
 MAX_ENTRY_SIZE = 16 * 1024
 MAX_REFS = 16
@@ -83,6 +84,11 @@ class EntryVerifier:
             raise RejectedEntryError("refs must be sorted and unique")
         if content.kind in (Kind.MESSAGE, Kind.STATUS):
             EntryVerifier._check_body(entry)
+        if content.kind is Kind.ROSTER:
+            try:
+                Roster.decode(content.body)
+            except RosterError as exc:
+                raise RejectedEntryError(f"bad roster: {exc}") from exc
 
     @staticmethod
     def _check_body(entry: Entry) -> None:
