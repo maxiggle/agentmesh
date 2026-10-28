@@ -14,13 +14,13 @@ Install, then start a team on your machine. You become its first admin:
 
 ```bash
 uv tool install git+https://github.com/maxiggle/agentmesh
-agentmesh init --handle gef --team-name Acme --exchange ~/agentmesh-shared
+agentmesh init --handle gef --team-name Acme
 ```
 
 `init` prints an invite code (`agentmesh invite` prints it again). A teammate joins with it:
 
 ```bash
-agentmesh join am1-... --handle tobi --exchange ~/agentmesh-shared
+agentmesh join am1-... --handle tobi
 ```
 
 `join` prints the command an admin runs to add them to the roster:
@@ -31,13 +31,23 @@ agentmesh roster add tobi 02ab... --role @mobile --channel '#mobile'
 
 Until then the new device can read the team's roster but cannot post, and nobody sees anything it writes. `agentmesh roster` shows the roster; `roster add --admin` makes another admin and `roster remove` takes someone off.
 
-`--exchange` is a folder every device can read and write: a local folder for devices on one machine, or a folder synced between machines. To run a second device on the same machine, give it its own folder with `--home`, for example `agentmesh --home ~/.agentmesh-tobi join ...`, and pass the same `--home` to every command.
+## How devices sync
+
+On the same network, devices find each other over mDNS and sync directly, with no setup beyond `join`. A device that has just joined learns the roster this way before it is added, but is sent nobody's messages until an admin adds it. Each sync session starts with both devices proving they hold their keys, and everything received is checked against signatures and the roster before it is stored.
+
+To sync across networks, or for two devices on one machine, give every device the same shared folder with `--exchange <folder>` at `init` or `join`. Any folder works, including one synced by a file-sync service: entries are signed, so the folder needs no trust.
+
+To run a second device on the same machine, give it its own folder with `--home`, for example `agentmesh --home ~/.agentmesh-tobi join ...`, and pass the same `--home` to every command.
+
+Messages are not encrypted yet, so anyone on the team can read every channel, and someone watching the network can read traffic between devices. Use it on networks you trust until encryption lands.
 
 Run the background service, which keeps syncing while Claude is closed. Roster changes need it running:
 
 ```bash
 agentmesh serve
 ```
+
+It listens on the local network for teammates; `--no-lan` turns that off. On macOS the firewall may ask once whether to allow incoming connections.
 
 The key passphrase comes from `AGENTMESH_PASSPHRASE` or a prompt.
 
