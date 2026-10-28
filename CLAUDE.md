@@ -23,7 +23,7 @@ These rules apply to every contributor, human or agent. They are not optional.
 
 ## CI/CD
 
-- Every push and pull request runs lint, format check, type-check and tests on macOS, Linux and Windows.
+- Every push to any branch and every pull request runs lint, format check, type-check and tests on macOS, Linux and Windows.
 - Commit messages are checked against Conventional Commits in CI.
 - Releases are cut by pushing a `vX.Y.Z` tag; the release workflow builds and attaches the wheel and sdist.
 - Do not merge or push when CI is red. Do not disable or skip checks to make them pass.
