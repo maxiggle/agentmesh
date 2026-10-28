@@ -26,6 +26,10 @@ class PeerAddress:
 class Discovery(Protocol):
     async def start(self, port: int) -> None: ...
 
+    def subscribe(self, on_found: Callable[[], None]) -> None:
+        """Call `on_found` whenever a new teammate appears."""
+        ...
+
     def peers(self) -> tuple[PeerAddress, ...]: ...
 
     async def close(self) -> None: ...
@@ -74,6 +78,9 @@ class StaticDiscovery:
     async def start(self, port: int) -> None:
         return None
 
+    def subscribe(self, on_found: Callable[[], None]) -> None:
+        return None
+
     def peers(self) -> tuple[PeerAddress, ...]:
         return self._peers
 
@@ -87,12 +94,10 @@ class StaticDiscovery:
 class ZeroconfDiscovery:
     """Advertises this device over mDNS and tracks teammates doing the same."""
 
-    def __init__(
-        self, team: bytes, author: bytes, on_found: Callable[[], None] | None = None
-    ) -> None:
+    def __init__(self, team: bytes, author: bytes) -> None:
         self._team = team
         self._author = author
-        self._on_found = on_found
+        self._listeners: list[Callable[[], None]] = []
         self._found: dict[str, PeerAddress] = {}
         self._tasks: set[asyncio.Task[None]] = set()
         self._zeroconf: AsyncZeroconf | None = None
@@ -113,6 +118,9 @@ class ZeroconfDiscovery:
         self._browser = AsyncServiceBrowser(
             self._zeroconf.zeroconf, SERVICE_TYPE, handlers=[self._on_change]
         )
+
+    def subscribe(self, on_found: Callable[[], None]) -> None:
+        self._listeners.append(on_found)
 
     def peers(self) -> tuple[PeerAddress, ...]:
         return tuple(self._found.values())
@@ -157,5 +165,6 @@ class ZeroconfDiscovery:
         is_new = name not in self._found
         self._found[name] = peer
         _log.info("found teammate %s at %s:%s", peer.key_hint, peer.host, peer.port)
-        if is_new and self._on_found is not None:
-            self._on_found()
+        if is_new:
+            for listener in self._listeners:
+                listener()

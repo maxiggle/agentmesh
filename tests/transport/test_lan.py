@@ -56,6 +56,7 @@ def test_local_address_is_an_ipv4_address() -> None:
 
 def test_static_discovery() -> None:
     discovery = StaticDiscovery()
+    discovery.subscribe(lambda: None)
     asyncio.run(discovery.start(1))
     assert discovery.peers() == ()
     peer = PeerAddress("127.0.0.1", 9, "x")
@@ -66,7 +67,8 @@ def test_static_discovery() -> None:
 
 async def _find_each_other() -> tuple[tuple[PeerAddress, ...], tuple[PeerAddress, ...]]:
     found = asyncio.Event()
-    first = ZeroconfDiscovery(TEAM, ME, on_found=found.set)
+    first = ZeroconfDiscovery(TEAM, ME)
+    first.subscribe(found.set)
     second = ZeroconfDiscovery(TEAM, THEM)
     await first.start(40001)
     await second.start(40002)
