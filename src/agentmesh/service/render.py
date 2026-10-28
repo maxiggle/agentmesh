@@ -79,13 +79,13 @@ def detail(view: MessageDetail, me: bytes) -> str:
 
 def digest(summary: Digest) -> str:
     parts = [
-        (summary.new, "new"),
-        (summary.blocked_on_you, "blocked on you"),
-        (summary.questions, "questions"),
-        (summary.shipped, "shipped"),
-        (summary.open_requests, "open requests for you"),
+        (summary.new, "new", "new"),
+        (summary.blocked_on_you, "blocked on you", "blocked on you"),
+        (summary.questions, "question", "questions"),
+        (summary.shipped, "shipped", "shipped"),
+        (summary.open_requests, "open request for you", "open requests for you"),
     ]
-    shown = [f"{count} {label}" for count, label in parts if count]
+    shown = [_count(count, one, many) for count, one, many in parts if count]
     return SEP.join(shown) if shown else "nothing new"
 
 
@@ -97,7 +97,7 @@ def team(me: Identity, author: bytes, teammates: tuple[Teammate, ...]) -> str:
         if mate.author == author:
             continue
         line = (
-            f"{fingerprint(mate.author, author)}{SEP}{mate.messages} messages"
+            f"{fingerprint(mate.author, author)}{SEP}{_count(mate.messages, 'message', 'messages')}"
             f"{SEP}last {timestamp(mate.last_ts)}"
         )
         if mate.claimed:
@@ -138,3 +138,7 @@ def _status_line(change: StatusChange, me: bytes) -> str:
     if change.body.note:
         parts.append(quote(change.body.note))
     return SEP.join(parts)
+
+
+def _count(count: int, one: str, many: str) -> str:
+    return f"{count} {one if count == 1 else many}"
