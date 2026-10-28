@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from agentmesh.cli import main
+from agentmesh.service.invite import Invite
 
 
 @pytest.fixture(autouse=True)
@@ -59,3 +60,36 @@ def test_init_refuses_an_existing_device(
 def test_serve_needs_a_device(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["--home", str(tmp_path), "serve"]) == 1
     assert "agentmesh init" in capsys.readouterr().err
+
+
+def test_invite_then_join(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    gef, tobi = str(tmp_path / "gef"), str(tmp_path / "tobi")
+    main(["--home", gef, "init", "--handle", "gef"])
+    capsys.readouterr()
+    assert main(["--home", gef, "invite"]) == 0
+    code = capsys.readouterr().out.split()[0]
+    assert code.startswith("am1-")
+    assert main(["--home", tobi, "join", code, "--handle", "tobi"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith(f"joined as tobi in {tobi}\nask an admin to run:\n")
+    assert "  agentmesh roster add tobi 0" in out
+    config = json.loads((tmp_path / "tobi" / "config.json").read_text())
+    invite = Invite.decode(code)
+    assert (config["team"], config["genesis"]) == (invite.team.hex(), invite.genesis.hex())
+
+
+@pytest.mark.parametrize(
+    ("args", "error"),
+    [
+        (["join", "nonsense", "--handle", "tobi"], "invite codes start with"),
+        (["invite"], "agentmesh init"),
+        (["roster"], "not running"),
+        (["roster", "add", "tobi", "00"], "not running"),
+        (["roster", "remove", "tobi"], "not running"),
+    ],
+)
+def test_team_command_errors(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], args: list[str], error: str
+) -> None:
+    assert main(["--home", str(tmp_path), *args]) == 1
+    assert error in capsys.readouterr().err
