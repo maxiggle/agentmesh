@@ -15,6 +15,7 @@ classifiers = [
 dependencies = [
     "cbor2>=6.1.5",
     "cryptography>=50.0.2",
+    "mcp>=2.3.0",
 ]
 
 [build-system]
