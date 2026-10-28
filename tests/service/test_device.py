@@ -6,13 +6,15 @@ from pathlib import Path
 
 import pytest
 
+from agentmesh.service.api import ApiError
 from agentmesh.service.config import ConfigError, DeviceConfig, default_home
 from agentmesh.service.daemon import Daemon
 from agentmesh.service.device import Device
 from agentmesh.service.rpc import RpcClient, TcpEndpoint
 
-TEAM = b"\x09" * 16
 PASSPHRASE = b"test passphrase"
+TEAM = b"\x09" * 16
+GENESIS = b"\x07" * 32
 
 
 @pytest.fixture
@@ -21,14 +23,17 @@ def short_dir() -> Iterator[Path]:
         yield Path(directory)
 
 
-def _config(handle: str, exchange: Path | None = None) -> DeviceConfig:
-    return DeviceConfig(handle=handle, team=TEAM, exchange=exchange)
+def _post(device: Device, to: str, summary: str, kind: str = "fyi") -> str:
+    return device.call("post", {"to": [to], "type": kind, "summary": summary})
+
+
+def _add(by: Device, member: Device, **extra: object) -> str:
+    params = {"handle": member.config.handle, "key": member.author.hex(), **extra}
+    return by.call("roster.add", params)
 
 
 def test_config_round_trip(tmp_path: Path) -> None:
-    config = DeviceConfig(
-        "gef", TEAM, roles=("@backend",), channels=("#backend",), exchange=tmp_path / "x"
-    )
+    config = DeviceConfig("gef", TEAM, GENESIS, exchange=tmp_path / "x")
     config.save(tmp_path)
     assert DeviceConfig.load(tmp_path) == config
 
@@ -38,12 +43,11 @@ def test_config_round_trip(tmp_path: Path) -> None:
     [
         ({"handle": "Gef"}, "handle"),
         ({"team": b"\x00"}, "team id"),
-        ({"roles": ("backend",)}, "role"),
-        ({"channels": ("backend",)}, "channel"),
+        ({"genesis": b"\x00"}, "genesis"),
     ],
 )
 def test_config_rejects_bad_values(kwargs: dict[str, object], error: str) -> None:
-    fields: dict[str, object] = {"handle": "gef", "team": TEAM}
+    fields: dict[str, object] = {"handle": "gef", "team": TEAM, "genesis": GENESIS}
     fields.update(kwargs)
     with pytest.raises(ConfigError, match=error):
         DeviceConfig(**fields)  # type: ignore[arg-type]  # built from a dict on purpose
@@ -64,46 +68,96 @@ def test_home_can_be_overridden(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
     assert default_home().name == ".agentmesh"
 
 
-def test_create_then_open(tmp_path: Path) -> None:
-    home = tmp_path / "gef"
-    with Device.create(home, _config("gef"), PASSPHRASE) as device:
-        author = device.author
-        assert device.call("post", {"to": ["tobi"], "type": "fyi", "summary": "hi"}).startswith(
-            "posted"
-        )
-    with Device.open(home, PASSPHRASE) as device:
-        assert device.author == author
-        assert device.config.handle == "gef"
-        assert device.call("team", {}).startswith("me gef")
-        assert device.call("post", {"to": ["tobi"], "type": "fyi", "summary": "again"}).startswith(
-            "posted"
-        )
+def test_create_team_then_reopen(tmp_path: Path) -> None:
+    with Device.create_team(tmp_path, "gef", PASSPHRASE, team_name="Acme") as device:
+        invite = device.invite
+        assert device.call("roster.show", {}).startswith("Acme · roster v1\ngef (admin)")
+    with Device.open(tmp_path, PASSPHRASE) as device:
+        assert device.invite == invite
+        assert device.roster.current is not None
+        assert _post(device, "#backend", "hi").startswith("posted")
 
 
-def test_create_refuses_to_overwrite(tmp_path: Path) -> None:
-    Device.create(tmp_path, _config("gef"), PASSPHRASE).close()
+def test_setup_refuses_an_existing_device(tmp_path: Path) -> None:
+    Device.create_team(tmp_path, "gef", PASSPHRASE).close()
     with pytest.raises(ConfigError, match="already exists"):
-        Device.create(tmp_path, _config("gef"), PASSPHRASE)
+        Device.create_team(tmp_path, "gef", PASSPHRASE)
 
 
-def test_devices_message_each_other_through_a_folder(tmp_path: Path) -> None:
+def test_joining_member_waits_for_an_admin(tmp_path: Path) -> None:
     shared = tmp_path / "shared"
     with (
-        Device.create(tmp_path / "gef", _config("gef", shared), PASSPHRASE) as gef,
-        Device.create(tmp_path / "tobi", _config("tobi", shared), PASSPHRASE) as tobi,
+        Device.create_team(tmp_path / "gef", "gef", PASSPHRASE, exchange=shared) as gef,
+        Device.join(tmp_path / "tobi", gef.invite, "tobi", PASSPHRASE, exchange=shared) as tobi,
     ):
-        gef.call("post", {"to": ["tobi"], "type": "question", "summary": "Sync done?"})
-        inbox = tobi.call("inbox", {})
-        assert '· question · "Sync done?"' in inbox
-        message_id = inbox.splitlines()[1].split()[0]
-        tobi.call("reply", {"id": message_id, "summary": "Yes"})
-        assert f'"Yes" · re {message_id}' in gef.call("inbox", {})
+        gef.sync()
+        with pytest.raises(ApiError, match="cannot post"):
+            _post(tobi, "gef", "let me in")
+        assert "roster v1" in tobi.call("roster.show", {})
+        _add(gef, tobi, roles=["@mobile"])
+        assert _post(tobi, "gef", "thanks").startswith("posted")
+        inbox = gef.call("inbox", {})
+        assert '· tobi · fyi · "thanks"' in inbox
+        assert tobi.call("team", {}).startswith("me tobi · roles @mobile · channels *")
+
+
+def test_only_admins_change_the_roster(tmp_path: Path) -> None:
+    shared = tmp_path / "shared"
+    with (
+        Device.create_team(tmp_path / "gef", "gef", PASSPHRASE, exchange=shared) as gef,
+        Device.join(tmp_path / "tobi", gef.invite, "tobi", PASSPHRASE, exchange=shared) as tobi,
+        Device.join(tmp_path / "lee", gef.invite, "lee", PASSPHRASE, exchange=shared) as lee,
+    ):
+        gef.sync()
+        _add(gef, tobi)
+        tobi.sync()
+        with pytest.raises(ApiError, match="only admins"):
+            _add(tobi, lee)
+        _add(gef, lee, admin=True)
+        lee.sync()
+        assert lee.call("roster.remove", {"handle": "tobi"}).startswith("removed tobi")
+
+
+def test_a_rival_team_with_the_same_id_is_ignored(tmp_path: Path) -> None:
+    shared = tmp_path / "shared"
+    with (
+        Device.create_team(tmp_path / "gef", "gef", PASSPHRASE, exchange=shared) as gef,
+        Device.join(tmp_path / "tobi", gef.invite, "tobi", PASSPHRASE, exchange=shared) as tobi,
+    ):
+        gef.sync()
+        rival_config = DeviceConfig("mallory", gef.config.team, b"\x01" * 32, exchange=shared)
+        rival_home = tmp_path / "mallory"
+        Device.create_team(rival_home, "mallory", PASSPHRASE).close()
+        rival_config.save(rival_home)
+        with Device.open(rival_home, PASSPHRASE) as mallory:
+            mallory.sync()
+        tobi.sync()
+        assert tobi.roster.current is not None
+        assert [m.handle for m in tobi.roster.current.members] == ["gef"]
+
+
+def test_removed_members_are_held_back(tmp_path: Path) -> None:
+    shared = tmp_path / "shared"
+    with (
+        Device.create_team(tmp_path / "gef", "gef", PASSPHRASE, exchange=shared) as gef,
+        Device.join(tmp_path / "tobi", gef.invite, "tobi", PASSPHRASE, exchange=shared) as tobi,
+    ):
+        gef.sync()
+        _add(gef, tobi)
+        tobi.sync()
+        gef.call("roster.remove", {"handle": "tobi"})
+        tobi.sync()
+        with pytest.raises(ApiError, match="cannot post"):
+            _post(tobi, "gef", "still here?")
+        with pytest.raises(ApiError, match="last admin"):
+            gef.call("roster.remove", {"handle": "gef"})
 
 
 async def _daemons_talk(root: Path) -> tuple[str, str]:
     shared = root / "shared"
-    gef = Device.create(root / "gef", _config("gef", shared), PASSPHRASE)
-    tobi = Device.create(root / "tobi", _config("tobi", shared), PASSPHRASE)
+    gef = Device.create_team(root / "gef", "gef", PASSPHRASE, exchange=shared)
+    tobi = Device.join(root / "tobi", gef.invite, "tobi", PASSPHRASE, exchange=shared)
+    _add(gef, tobi)
     gef_endpoint = TcpEndpoint(root / "gef.json")
     tobi_endpoint = TcpEndpoint(root / "tobi.json")
     stop = asyncio.Event()

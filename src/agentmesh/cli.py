@@ -4,19 +4,16 @@ import contextlib
 import getpass
 import logging
 import os
-import secrets
 import signal
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 from agentmesh.identity import IdentityError
-from agentmesh.log.entry import TEAM_ID_SIZE
 from agentmesh.mcp.server import build_server
-from agentmesh.service.config import ConfigError, DeviceConfig, default_home
+from agentmesh.service.config import ConfigError, default_home
 from agentmesh.service.daemon import DEFAULT_SYNC_INTERVAL, Daemon
 from agentmesh.service.device import Device
-from agentmesh.service.messenger import ALL_CHANNELS
 from agentmesh.service.rpc import RpcClient, RpcError, default_endpoint
 
 PASSPHRASE_ENV = "AGENTMESH_PASSPHRASE"  # noqa: S105 - env var name, not a secret
@@ -42,11 +39,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--home", type=Path, default=None, help="device folder")
     commands = parser.add_subparsers(required=True, metavar="command")
 
-    init = commands.add_parser("init", help="create this device")
+    init = commands.add_parser("init", help="start a new team on this device")
     init.add_argument("--handle", required=True, help="your short name, e.g. gef")
-    init.add_argument("--team", help="team id (hex) to join; omit to start a new team")
-    init.add_argument("--role", action="append", default=[], help="a role such as @backend")
-    init.add_argument("--channel", action="append", default=[], help="a channel such as #backend")
+    init.add_argument("--team-name", default="", help="display name for the team")
     init.add_argument("--exchange", type=Path, help="shared folder for swapping entries")
     init.set_defaults(run=_init)
 
@@ -78,23 +73,14 @@ def _passphrase(*, confirm: bool) -> bytes:
 
 
 def _init(args: argparse.Namespace) -> int:
-    try:
-        team = bytes.fromhex(args.team) if args.team else secrets.token_bytes(TEAM_ID_SIZE)
-    except ValueError as exc:
-        raise CliError("team id must be hex") from exc
-    config = DeviceConfig(
-        handle=args.handle,
-        team=team,
-        roles=tuple(args.role),
-        channels=tuple(args.channel) or (ALL_CHANNELS,),
-        exchange=None if args.exchange is None else args.exchange.resolve(),
-    )
     home = _home(args)
-    with Device.create(home, config, _passphrase(confirm=True)) as device:
+    exchange = None if args.exchange is None else args.exchange.resolve()
+    with Device.create_team(
+        home, args.handle, _passphrase(confirm=True), team_name=args.team_name, exchange=exchange
+    ) as device:
         sys.stdout.write(
-            f"created device {config.handle} in {home}\n"
-            f"team  {team.hex()}\n"
-            f"key   {device.author.hex()}\n"
+            f"created team with {args.handle} as admin in {home}\n"
+            f"invite  {device.invite.encode()}\n"
             "next: run `agentmesh serve`, then add `agentmesh mcp` to Claude\n"
         )
     return 0
