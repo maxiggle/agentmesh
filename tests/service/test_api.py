@@ -6,7 +6,7 @@ from agentmesh.identity import KeyHandle
 from agentmesh.identity.software import SoftwareSigner
 from agentmesh.log.verify import EntryVerifier
 from agentmesh.service.api import ApiError, ToolApi
-from agentmesh.service.messenger import Identity, Messenger
+from agentmesh.service.messenger import Identity, Messenger, StaticDirectory
 from agentmesh.store.local_log import LocalLog
 from agentmesh.store.sqlite import SqliteStore
 
@@ -15,7 +15,7 @@ from agentmesh.store.sqlite import SqliteStore
 def api(tmp_db: Path, signer: SoftwareSigner, handle: KeyHandle, team: bytes) -> ToolApi:
     store = SqliteStore(tmp_db)
     local_log = LocalLog(store, signer, handle, team, EntryVerifier(team))
-    return ToolApi(Messenger(store, local_log, Identity("gef")))
+    return ToolApi(Messenger(store, local_log, StaticDirectory(Identity("gef"))))
 
 
 def test_exposes_the_seven_tools(api: ToolApi) -> None:

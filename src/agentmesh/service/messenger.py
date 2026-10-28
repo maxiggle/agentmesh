@@ -1,6 +1,7 @@
 import unicodedata
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from typing import Protocol
 
 from agentmesh.log.body import (
     BodyError,
@@ -13,7 +14,7 @@ from agentmesh.log.entry import Entry, Kind
 from agentmesh.log.envelope import Encryption, Envelope, EnvelopeError
 from agentmesh.log.names import HANDLE, ROLE, TEAM_CHANNEL, dm_channel, dm_members
 from agentmesh.store.base import Store
-from agentmesh.store.local_log import LocalLog
+from agentmesh.store.local_log import LocalLog, NotAuthorizedError
 
 DEFAULT_CHANNEL = "#general"
 INBOX_DEFAULT_LIMIT = 10
@@ -80,17 +81,51 @@ class Teammate:
     claimed: tuple[Message, ...]
 
 
+class Directory(Protocol):
+    """Who this device is, and what to call other authors."""
+
+    def me(self) -> Identity: ...
+
+    def name(self, author: bytes) -> str | None: ...
+
+    def known_authors(self) -> tuple[bytes, ...]: ...
+
+
+class StaticDirectory:
+    def __init__(self, me: Identity, names: dict[bytes, str] | None = None) -> None:
+        self._me = me
+        self._names = dict(names or {})
+
+    def me(self) -> Identity:
+        return self._me
+
+    def name(self, author: bytes) -> str | None:
+        return self._names.get(author)
+
+    def known_authors(self) -> tuple[bytes, ...]:
+        return tuple(self._names)
+
+
 class Messenger:
     """The operations behind the MCP tools, independent of how results are shown."""
 
-    def __init__(self, store: Store, local_log: LocalLog, me: Identity) -> None:
+    def __init__(self, store: Store, local_log: LocalLog, directory: Directory) -> None:
         self._store = store
         self._log = local_log
-        self._me = me
+        self._directory = directory
 
     @property
     def me(self) -> Identity:
-        return self._me
+        return self._directory.me()
+
+    @property
+    def _me(self) -> Identity:
+        return self._directory.me()
+
+    def display_name(self, author: bytes) -> str:
+        if author == self.author:
+            return "me"
+        return self._directory.name(author) or author[1:4].hex()
 
     @property
     def author(self) -> bytes:
@@ -206,9 +241,12 @@ class Messenger:
         return Digest(new, blocked, questions, shipped, open_requests)
 
     def team(self) -> tuple[Teammate, ...]:
-        seen: dict[bytes, list[Entry]] = {}
+        seen: dict[bytes, list[Entry]] = {
+            author: [] for author in self._directory.known_authors() if author != self.author
+        }
         for arrival in self._store.arrivals(kinds=[Kind.MESSAGE, Kind.STATUS]):
-            seen.setdefault(arrival.entry.author, []).append(arrival.entry)
+            if arrival.entry.author != self.author:
+                seen.setdefault(arrival.entry.author, []).append(arrival.entry)
         teammates = []
         for author, entries in seen.items():
             claimed = tuple(
@@ -222,12 +260,15 @@ class Messenger:
                 and message.status is Status.CLAIMED
             )
             messages = sum(entry.content.kind is Kind.MESSAGE for entry in entries)
-            last_ts = max(entry.content.ts for entry in entries)
+            last_ts = max((entry.content.ts for entry in entries), default=0)
             teammates.append(Teammate(author, messages, last_ts, claimed))
-        return tuple(sorted(teammates, key=lambda t: t.last_ts, reverse=True))
+        return tuple(sorted(teammates, key=lambda t: (-t.last_ts, self.display_name(t.author))))
 
     def _append(self, channel: str, kind: Kind, body: bytes, refs: Iterable[bytes]) -> Entry:
-        return self._log.append(channel, kind, Envelope.plain(body).encode(), refs)
+        try:
+            return self._log.append(channel, kind, Envelope.plain(body).encode(), refs)
+        except NotAuthorizedError as exc:
+            raise MessengerError(f"cannot post: {exc}") from exc
 
     def _build_message(
         self,

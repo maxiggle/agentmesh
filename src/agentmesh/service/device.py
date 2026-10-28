@@ -8,7 +8,7 @@ from agentmesh.identity.software import SoftwareSigner
 from agentmesh.log.verify import EntryVerifier
 from agentmesh.service.api import ToolApi
 from agentmesh.service.config import CONFIG_FILE, ConfigError, DeviceConfig
-from agentmesh.service.messenger import Messenger
+from agentmesh.service.messenger import Messenger, StaticDirectory
 from agentmesh.store.ingest import Ingestor
 from agentmesh.store.local_log import LocalLog
 from agentmesh.store.sqlite import SqliteStore
@@ -28,7 +28,7 @@ class Device:
         verifier = EntryVerifier(config.team)
         local_log = LocalLog(self._store, signer, key, config.team, verifier)
         self._author = local_log.author
-        self._api = ToolApi(Messenger(self._store, local_log, config.identity))
+        self._api = ToolApi(Messenger(self._store, local_log, StaticDirectory(config.identity)))
         self._exchange = (
             None
             if config.exchange is None
