@@ -1,5 +1,3 @@
-import re
-
 from agentmesh.identity import es256
 from agentmesh.log.entry import (
     PROTOCOL_VERSION,
@@ -8,14 +6,10 @@ from agentmesh.log.entry import (
     EntryFormatError,
     Kind,
 )
+from agentmesh.log.names import CONTROL_CHANNEL, TEAM_CHANNEL, dm_members
 
 MAX_ENTRY_SIZE = 16 * 1024
 MAX_REFS = 16
-CONTROL_CHANNEL = "_team"
-
-_HANDLE = r"[a-z0-9][a-z0-9_-]{0,31}"
-_TEAM_CHANNEL = re.compile(r"#[a-z0-9][a-z0-9-]{0,31}")
-_DM_CHANNEL = re.compile(rf"dm:({_HANDLE})\+({_HANDLE})")
 _CONTROL_KINDS = frozenset({Kind.ROSTER, Kind.KEY_ANNOUNCE})
 
 
@@ -30,10 +24,7 @@ class RejectedEntryError(Exception):
 def is_valid_channel(channel: str, kind: Kind) -> bool:
     if kind in _CONTROL_KINDS:
         return channel == CONTROL_CHANNEL
-    if _TEAM_CHANNEL.fullmatch(channel):
-        return True
-    dm = _DM_CHANNEL.fullmatch(channel)
-    return dm is not None and dm.group(1) < dm.group(2)
+    return TEAM_CHANNEL.fullmatch(channel) is not None or dm_members(channel) is not None
 
 
 class EntryVerifier:
