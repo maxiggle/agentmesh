@@ -1,6 +1,5 @@
 import sqlite3
-from collections.abc import Callable, Iterable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
@@ -8,6 +7,24 @@ from typing import Self
 
 from agentmesh.log.entry import Entry, Kind
 from agentmesh.store.base import Arrival, ChainError, DuplicateEntryError
+
+
+class _Transaction:
+    """Takes the write lock up front so a read-then-write cannot race another writer."""
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+
+    def __enter__(self) -> None:
+        self._conn.execute("BEGIN IMMEDIATE")
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self._conn.execute("COMMIT" if exc_type is None else "ROLLBACK")
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,15 +250,8 @@ class SqliteStore:
     def _entries(self, query: str, params: tuple[object, ...]) -> list[Entry]:
         return [Entry.decode(row[0]) for row in self._conn.execute(query, params)]
 
-    @contextmanager
-    def _transaction(self) -> Iterator[None]:
-        self._conn.execute("BEGIN IMMEDIATE")
-        try:
-            yield
-        except BaseException:
-            self._conn.execute("ROLLBACK")
-            raise
-        self._conn.execute("COMMIT")
+    def _transaction(self) -> "_Transaction":
+        return _Transaction(self._conn)
 
     def _migrate(self) -> None:
         for version in range(self.schema_version + 1, len(MIGRATIONS) + 1):
