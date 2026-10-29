@@ -1,9 +1,9 @@
 import asyncio
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 
 from agentmesh.service.api import ApiError
 from agentmesh.service.device import Device
-from agentmesh.service.lan_sync import LanSync
+from agentmesh.service.peer_sync import PeerSync
 from agentmesh.service.rpc import Endpoint, RpcServer
 
 DEFAULT_SYNC_INTERVAL = 2.0
@@ -17,19 +17,19 @@ class Daemon:
         device: Device,
         endpoint: Endpoint,
         interval: float = DEFAULT_SYNC_INTERVAL,
-        lan: LanSync | None = None,
+        peers: Sequence[PeerSync] = (),
     ) -> None:
         self._device = device
         self._endpoint = endpoint
         self._interval = interval
-        self._lan = lan
+        self._peers = tuple(peers)
 
     async def run(self, stop: asyncio.Event) -> None:
         server = await RpcServer(self._endpoint, self._dispatch, (ApiError,)).start()
         try:
             await asyncio.gather(
                 self._sync_folder(stop),
-                *([self._lan.run(stop)] if self._lan is not None else []),
+                *(peer.run(stop) for peer in self._peers),
             )
         finally:
             server.close()
@@ -37,8 +37,8 @@ class Daemon:
 
     def _dispatch(self, method: str, params: Mapping[str, object]) -> str:
         result = self._device.call(method, params)
-        if self._lan is not None:
-            self._lan.poke()
+        for peer in self._peers:
+            peer.poke()
         return result
 
     async def _sync_folder(self, stop: asyncio.Event) -> None:
