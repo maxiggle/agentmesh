@@ -6,6 +6,7 @@ from agentmesh.identity import KeyHandle
 from agentmesh.identity.software import SoftwareSigner
 from agentmesh.log.authorize import Verdict
 from agentmesh.log.entry import Entry, EntryContent, Kind
+from agentmesh.log.envelope import Encryption, Envelope
 from agentmesh.log.roster import Member, Roster, RosterDevice, Trust
 from agentmesh.roster.book import RosterBook
 
@@ -184,3 +185,24 @@ def test_non_roster_entries_do_not_change_state(team: Team, genesis: tuple[Entry
     book.accepted(genesis[0])
     assert not book.accepted(team.message("gef"))
     assert not book.accepted(genesis[0])
+
+
+def test_plaintext_is_denied_when_the_roster_requires_encryption(team: Team) -> None:
+    roster = Roster(1, None, "Acme", ("gef",), (team.member("gef"),), require_encryption=True)
+    entry = team.roster_entry("gef", roster)
+    book = RosterBook(entry.id)
+    book.accepted(entry)
+    decision = book.authorize(team.message("gef"))
+    assert decision.verdict is Verdict.DENY
+    assert "encrypted" in decision.reason
+    sealed = Envelope(
+        Encryption.SEALED,
+        1,
+        b"cipher",
+        ephemeral=b"\x05" * 32,
+        keys=((b"\x01" * 8, b"\x02" * 48),),
+        nonce=b"\x00" * 12,
+    )
+    content = team.make_content(author=team.keys["gef"], body=sealed.encode())
+    encrypted = content.sign(team.signer, team.handles["gef"])
+    assert book.authorize(encrypted).verdict is Verdict.ALLOW
