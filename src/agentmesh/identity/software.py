@@ -1,5 +1,4 @@
 import os
-import re
 from pathlib import Path
 
 from cryptography.hazmat.primitives import hashes, serialization
@@ -7,14 +6,13 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from agentmesh.identity.base import (
     IdentityError,
-    InvalidLabelError,
     KeyExistsError,
     KeyHandle,
     KeyNotFoundError,
+    key_path,
 )
 from agentmesh.identity.es256 import compress_public_key, raw_signature
 
-_LABEL = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 _KEY_FILE_MODE = 0o600
 
 
@@ -81,6 +79,4 @@ class SoftwareSigner:
         return key
 
     def _path(self, label: str) -> Path:
-        if not _LABEL.fullmatch(label):
-            raise InvalidLabelError(label)
-        return self._directory / f"{label}.key"
+        return key_path(self._directory, label, ".key")
