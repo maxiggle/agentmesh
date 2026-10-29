@@ -9,6 +9,7 @@ from agentmesh.log.body import MessageBody, MessageType, Status, StatusBody
 from agentmesh.log.canonical import decode, encode
 from agentmesh.log.entry import Entry, EntryContent, Kind, Signature
 from agentmesh.log.envelope import Encryption, Envelope
+from agentmesh.log.roster import Member, Roster, RosterDevice, Trust
 from agentmesh.log.verify import (
     MAX_ENTRY_SIZE,
     DroppedEntryError,
@@ -16,6 +17,7 @@ from agentmesh.log.verify import (
     RejectedEntryError,
     is_valid_channel,
 )
+from security_key_emulator import SoftwareAuthenticator
 
 ID_A = b"\x01" * 32
 ID_B = b"\x02" * 32
@@ -210,3 +212,100 @@ def test_checks_key_announce_bodies(
     bad = make_entry(kind=Kind.KEY_ANNOUNCE, channel="_team", body=encode({"x25519": b"\x01"}))
     with pytest.raises(RejectedEntryError, match="bad key_announce"):
         verifier.verify(bad.encode())
+
+
+def _roster_content(
+    make_content: Callable[..., EntryContent], key: SoftwareAuthenticator, **overrides: object
+) -> EntryContent:
+    device = RosterDevice(key.public_key, Trust.HARDWARE, "yubikey")
+    roster = Roster(1, None, "Acme", ("gef",), (Member("gef", (), ("*",), (device,)),))
+    fields: dict[str, object] = {
+        "author": key.public_key,
+        "kind": Kind.ROSTER,
+        "channel": "_team",
+        "body": roster.encode(),
+        **overrides,
+    }
+    return make_content(**fields)
+
+
+def test_accepts_a_roster_signed_by_a_security_key(
+    verifier: EntryVerifier, make_content: Callable[..., EntryContent]
+) -> None:
+    key = SoftwareAuthenticator()
+    content = _roster_content(make_content, key)
+    entry = content.with_assertion(key.sign(content.signing_input))
+    assert verifier.verify(entry.encode()) == entry
+
+
+def test_rejects_security_key_signature_with_tampered_auth_data(
+    verifier: EntryVerifier, make_content: Callable[..., EntryContent]
+) -> None:
+    key = SoftwareAuthenticator()
+    content = _roster_content(make_content, key)
+    entry = content.with_assertion(key.sign(content.signing_input))
+    auth_data = entry.sig.auth_data
+    assert auth_data is not None
+    tampered = replace(entry, sig=replace(entry.sig, auth_data=auth_data[:-1] + b"\xff"))
+    with pytest.raises(RejectedEntryError, match="bad security key signature: bad signature"):
+        verifier.verify(tampered.encode())
+
+
+def test_rejects_security_key_signature_without_user_presence(
+    verifier: EntryVerifier, make_content: Callable[..., EntryContent]
+) -> None:
+    key = SoftwareAuthenticator(flags=0)
+    content = _roster_content(make_content, key)
+    entry = content.with_assertion(key.sign(content.signing_input))
+    with pytest.raises(RejectedEntryError, match="user presence flag not set"):
+        verifier.verify(entry.encode())
+
+
+def test_rejects_security_key_signature_for_another_rp_id(
+    verifier: EntryVerifier, make_content: Callable[..., EntryContent]
+) -> None:
+    key = SoftwareAuthenticator(rp_id="agentmesh.example.com")
+    content = _roster_content(make_content, key)
+    entry = content.with_assertion(key.sign(content.signing_input))
+    with pytest.raises(RejectedEntryError, match="wrong rpId"):
+        verifier.verify(entry.encode())
+
+
+def test_rejects_security_key_signature_over_other_content(
+    verifier: EntryVerifier, make_content: Callable[..., EntryContent]
+) -> None:
+    key = SoftwareAuthenticator()
+    content = _roster_content(make_content, key)
+    signed = key.sign(_roster_content(make_content, key, ts=1).signing_input)
+    with pytest.raises(RejectedEntryError, match="bad signature"):
+        verifier.verify(content.with_assertion(signed).encode())
+
+
+def test_rejects_a_security_key_signing_a_message(
+    verifier: EntryVerifier, make_content: Callable[..., EntryContent]
+) -> None:
+    key = SoftwareAuthenticator()
+    content = make_content(author=key.public_key)
+    entry = content.with_assertion(key.sign(content.signing_input))
+    with pytest.raises(RejectedEntryError, match="only sign roster entries"):
+        verifier.verify(entry.encode())
+
+
+def test_rejects_es256_fido2_without_auth_data(
+    verifier: EntryVerifier, make_content: Callable[..., EntryContent]
+) -> None:
+    key = SoftwareAuthenticator()
+    content = _roster_content(make_content, key)
+    entry = content.with_assertion(key.sign(content.signing_input))
+    stripped = replace(entry, sig=replace(entry.sig, auth_data=None))
+    with pytest.raises(RejectedEntryError, match="need auth_data"):
+        verifier.verify(stripped.encode())
+
+
+def test_rejects_es256_with_auth_data(
+    verifier: EntryVerifier, make_entry: Callable[..., Entry]
+) -> None:
+    entry = make_entry()
+    padded = replace(entry, sig=replace(entry.sig, auth_data=b"\x00" * 37))
+    with pytest.raises(RejectedEntryError, match="no auth_data"):
+        verifier.verify(padded.encode())

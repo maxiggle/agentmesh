@@ -59,10 +59,12 @@ ban-relative-imports = "all"
 [tool.mypy]
 strict = true
 files = ["src", "tests", "scripts"]
+mypy_path = "tests"
 python_version = "3.11"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["tests"]
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 xfail_strict = true
 

@@ -78,21 +78,53 @@ The ID covers the signed content but **not** the signature. ECDSA signatures are
 ### 3.2 Signature
 
 ```
-sig = { "alg": tstr, "value": bstr }
+sig = { "alg": tstr, "value": bstr, ? "auth_data": bstr }
 ```
 
-The message signed is:
+The signature input is:
 
 ```
-"agentmesh/sig/v0" || 0x00 || signed_bytes
+signing_input = "agentmesh/sig/v0" || 0x00 || signed_bytes
 ```
 
-| `alg`   | `value` | Status |
-|---------|---------|--------|
-| `es256` | 64 bytes, `r || s`, each big-endian and left-padded to 32 bytes | v0 |
-| `es256-webauthn` | FIDO2 assertion; wrapped format to be defined in Phase 5 | reserved |
+| `alg`         | `value` | `auth_data` |
+|---------------|---------|-------------|
+| `es256`       | 64 bytes, `r || s`, each big-endian and left-padded to 32 bytes, over `signing_input` | MUST be absent |
+| `es256-fido2` | 64 bytes, `r || s` as above, over `auth_data || SHA-256(signing_input)` | Required (§3.2.1) |
 
 Verifiers MUST accept both low-S and high-S signatures, because some hardware backends do not normalize S. This is safe because the entry ID does not depend on the signature.
+
+#### 3.2.1 FIDO2 security keys
+
+A FIDO2 authenticator (a security key such as a YubiKey) cannot sign arbitrary bytes. CTAP2 `authenticatorGetAssertion` signs `authenticatorData || clientDataHash`, and the authenticator chooses `authenticatorData`. An `es256-fido2` signature is such an assertion with:
+
+```
+clientDataHash = SHA-256(signing_input)
+rpId           = "agentmesh:"
+```
+
+`clientDataHash` is the hash of `signing_input` itself, not of a WebAuthn `clientDataJSON`. The `rpId` ends in a colon so it is not a valid web domain: no website can get a browser to request an assertion for it. `author` is the credential's public key in compressed form (§2.2). The authenticator returns a DER signature, which writers convert to `r || s`.
+
+`auth_data` is the authenticator data exactly as the authenticator returned it:
+
+| Bytes   | Content |
+|---------|---------|
+| 0–31    | `rpIdHash`, SHA-256 of the UTF-8 `rpId` |
+| 32      | Flags. Bit 0 (`UP`) is user presence; bit 6 (`AT`) is attested credential data; bit 7 (`ED`) is extension data. |
+| 33–36   | Signature counter, big-endian |
+| 37–     | Extension outputs, present iff `ED` is set |
+
+A verifier MUST check, and reject the entry unless:
+
+1. `kind` is `roster`. Security keys sign roster entries only.
+2. `auth_data` is at least 37 bytes, `AT` is clear, and `auth_data` is longer than 37 bytes iff `ED` is set.
+3. `rpIdHash` equals SHA-256(`"agentmesh:"`).
+4. `UP` is set. This is what makes a roster change need a physical touch.
+5. `value` verifies under `author` over `auth_data || SHA-256(signing_input)`.
+
+The `UV` flag (PIN or biometric) is not required. The signature counter is not checked: devices see entries in different orders and some authenticators always report zero.
+
+`auth_data` is part of `sig`, so like the rest of the signature it is not covered by the entry ID (§3.1). Two assertions over the same content are the same entry.
 
 ### 3.3 Channels
 
@@ -203,7 +235,7 @@ A receiver runs these checks, in order, on every entry before storing it. The fi
 2. **Decode**: valid CBOR, re-encodes to identical bytes (§2.1), all fields present with correct types and lengths. Otherwise **reject**.
 3. **Version**: `v == 0`. Otherwise **reject**.
 4. **Duplicate**: if an entry with this ID is already stored, **ignore**.
-5. **Signature**: `sig` verifies under `author` (§3.2). Otherwise **reject**.
+5. **Signature**: `sig` verifies under `author` (§3.2), including the `es256-fido2` checks of §3.2.1. Otherwise **reject**.
 6. **Team**: `team` matches the local team. Otherwise **reject**.
 7. **Shape**: `seq`/`prev` agree (`prev` is `null` iff `seq == 1`), `channel` matches §3.3 for the `kind`, `refs` are sorted and unique, the body decodes and meets §4. Otherwise **reject**.
 8. **Authorization**: `author` is a device on the current roster, and that member may post in `channel`. A `roster` entry instead follows §4.3: its author is an admin device of the roster it replaces, or of itself for the genesis roster. A `dm:` channel requires `author` to belong to one of its two members. Otherwise **park** (the roster that admits it may not have arrived yet). Parked entries that are still unauthorized once the roster is up to date are **rejected**.
@@ -311,5 +343,4 @@ Every hash or signature input starts with its tag and a `0x00` byte, so a value 
 
 ## 11. Open items
 
-- `es256-webauthn` signature wrapping for FIDO2 admin keys (Phase 5).
 - Admin recovery when the only admin loses their devices. Proposal: require at least two admins in every roster.

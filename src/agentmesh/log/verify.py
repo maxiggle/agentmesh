@@ -1,8 +1,10 @@
 from agentmesh.identity import es256
+from agentmesh.identity.assertion import Assertion, InvalidAssertionError, check_assertion
 from agentmesh.log.body import BodyError, MessageBody, StatusBody
 from agentmesh.log.entry import (
     PROTOCOL_VERSION,
     SIG_ALG_ES256,
+    SIG_ALG_FIDO2,
     Entry,
     EntryFormatError,
     Kind,
@@ -65,10 +67,24 @@ class EntryVerifier:
 
     @staticmethod
     def _check_signature(entry: Entry) -> None:
-        if entry.sig.alg != SIG_ALG_ES256:
-            raise RejectedEntryError(f"unsupported signature algorithm {entry.sig.alg!r}")
-        if not es256.verify(entry.author, entry.sig.value, entry.content.signing_input):
-            raise RejectedEntryError("bad signature")
+        sig = entry.sig
+        if sig.alg == SIG_ALG_ES256:
+            if sig.auth_data is not None:
+                raise RejectedEntryError("es256 signatures carry no auth_data")
+            if not es256.verify(entry.author, sig.value, entry.content.signing_input):
+                raise RejectedEntryError("bad signature")
+            return
+        if sig.alg != SIG_ALG_FIDO2:
+            raise RejectedEntryError(f"unsupported signature algorithm {sig.alg!r}")
+        if entry.content.kind is not Kind.ROSTER:
+            raise RejectedEntryError("security keys only sign roster entries")
+        if sig.auth_data is None:
+            raise RejectedEntryError("es256-fido2 signatures need auth_data")
+        assertion = Assertion(sig.auth_data, sig.value)
+        try:
+            check_assertion(entry.author, assertion, entry.content.signing_input)
+        except InvalidAssertionError as exc:
+            raise RejectedEntryError(f"bad security key signature: {exc}") from exc
 
     @staticmethod
     def _check_shape(entry: Entry) -> None:
