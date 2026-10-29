@@ -217,7 +217,7 @@ def test_checks_key_announce_bodies(
 def _roster_content(
     make_content: Callable[..., EntryContent], key: SoftwareAuthenticator, **overrides: object
 ) -> EntryContent:
-    device = RosterDevice(key.public_key, Trust.HARDWARE, "yubikey")
+    device = RosterDevice(key.public_key, Trust.SECURITY_KEY, "yubikey")
     roster = Roster(1, None, "Acme", ("gef",), (Member("gef", (), ("*",), (device,)),))
     fields: dict[str, object] = {
         "author": key.public_key,

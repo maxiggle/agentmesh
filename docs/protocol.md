@@ -200,7 +200,7 @@ A message's current state is that of the status entry for it that no other statu
 | Field   | Type      | Rules |
 |---------|-----------|-------|
 | `key`   | bstr (33) | Compressed P-256 signing key. A key MUST NOT appear under two members. |
-| `trust` | tstr      | `hardware` or `software`. Software keys are allowed but marked lower trust. Set by the admin who adds the device, from what the device reports; nothing attests to it, so implementations MUST NOT treat it as proof. |
+| `trust` | tstr      | `hardware`, `software` or `security-key`. Software keys are allowed but marked lower trust. `hardware` and `software` are set by the admin who adds the device, from what the device reports; nothing attests to them, so implementations MUST NOT treat them as proof. `security-key` marks a FIDO2 credential and is enforced (see below). |
 | `label` | tstr      | At most 64 characters, e.g. `godwin-macbook`. Display only. |
 
 `relay`:
@@ -215,6 +215,8 @@ Roster rules:
 - The `version == 1` roster is the **genesis roster**. Its author MUST be one of its own admin devices. The `team` ID is fixed by it.
 - A device learns the genesis roster's entry ID from its invite and accepts no other genesis roster. Without this pin, anyone who knows the team ID could publish a rival genesis roster.
 - Any later roster MUST be authored by a device of an admin listed in the roster it replaces (`previous`).
+- A device with trust `security-key` MUST sign with `es256-fido2` (§3.2.1) and MUST NOT author anything but `roster` entries. No other device may sign with `es256-fido2`.
+- If the authoring admin has at least one `security-key` device in the roster that authorizes the entry (`previous`, or the genesis roster itself), the entry MUST be authored by one of those devices. Once an admin enrolls a security key, every roster change they make needs a physical touch, and a stolen laptop key cannot change membership.
 - Rosters form a chain through `previous`. A device accepts a roster only if it can verify the whole chain back to genesis.
 - If two valid rosters claim the same `version`, that is a **roster fork**: both are kept, neither is applied, and the conflict is surfaced to every admin. The team stays on the last unforked roster until an admin publishes a roster at `version + 1` that names one of them as `previous`.
 - The **current roster** is the valid, unforked roster with the highest `version`.
@@ -238,7 +240,7 @@ A receiver runs these checks, in order, on every entry before storing it. The fi
 5. **Signature**: `sig` verifies under `author` (§3.2), including the `es256-fido2` checks of §3.2.1. Otherwise **reject**.
 6. **Team**: `team` matches the local team. Otherwise **reject**.
 7. **Shape**: `seq`/`prev` agree (`prev` is `null` iff `seq == 1`), `channel` matches §3.3 for the `kind`, `refs` are sorted and unique, the body decodes and meets §4. Otherwise **reject**.
-8. **Authorization**: `author` is a device on the current roster, and that member may post in `channel`. A `roster` entry instead follows §4.3: its author is an admin device of the roster it replaces, or of itself for the genesis roster. A `dm:` channel requires `author` to belong to one of its two members. Otherwise **park** (the roster that admits it may not have arrived yet). Parked entries that are still unauthorized once the roster is up to date are **rejected**.
+8. **Authorization**: `author` is a device on the current roster, and that member may post in `channel`. A `roster` entry instead follows §4.3: its author is an admin device of the roster it replaces, or of itself for the genesis roster, and the `security-key` rules hold. A `security-key` device authoring any other kind is **rejected**. A `dm:` channel requires `author` to belong to one of its two members. Otherwise **park** (the roster that admits it may not have arrived yet). Parked entries that are still unauthorized once the roster is up to date are **rejected**.
 9. **Fork**: another stored entry has the same `author` and `seq` but a different ID. **Store both**, mark the author's device as forked, and alert the admins. Entries from a forked device after the fork point are not shown until an admin resolves it by removing or re-adding the device.
 10. **Chain**: if `seq > 1` and the entry at `seq - 1` is stored, its ID MUST equal `prev`. Otherwise **reject**. If the entry at `seq - 1` is not stored yet, **park** this entry and request the gap from peers.
 11. **Store**: write the entry as received. Entries are immutable from here on.
@@ -343,4 +345,4 @@ Every hash or signature input starts with its tag and a `0x00` byte, so a value 
 
 ## 11. Open items
 
-- Admin recovery when the only admin loses their devices. Proposal: require at least two admins in every roster.
+- Admin recovery when the only admin loses their devices or, once enrolled, all their security keys. Proposal: require at least two admins in every roster.

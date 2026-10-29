@@ -19,6 +19,7 @@ class RosterError(ValueError):
 class Trust(StrEnum):
     HARDWARE = "hardware"
     SOFTWARE = "software"
+    SECURITY_KEY = "security-key"
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +75,10 @@ class Member:
 
     def can_use(self, channel: str) -> bool:
         return ALL_CHANNELS in self.channels or channel in self.channels
+
+    @property
+    def has_security_key(self) -> bool:
+        return any(device.trust is Trust.SECURITY_KEY for device in self.devices)
 
     def to_cbor(self) -> CborValue:
         return {
@@ -162,6 +167,12 @@ class Roster:
     def member_for_key(self, key: bytes) -> Member | None:
         return next(
             (m for m in self.members if any(device.key == key for device in m.devices)), None
+        )
+
+    def device(self, key: bytes) -> RosterDevice | None:
+        return next(
+            (device for member in self.members for device in member.devices if device.key == key),
+            None,
         )
 
     def relay_for_key(self, key: bytes) -> RelayInfo | None:

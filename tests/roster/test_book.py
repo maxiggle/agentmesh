@@ -1,14 +1,16 @@
 from collections.abc import Callable
+from dataclasses import replace
 
 import pytest
 
 from agentmesh.identity import KeyHandle
 from agentmesh.identity.software import SoftwareSigner
 from agentmesh.log.authorize import Verdict
-from agentmesh.log.entry import Entry, EntryContent, Kind
+from agentmesh.log.entry import Entry, EntryContent, Kind, Signature
 from agentmesh.log.envelope import Encryption, Envelope
 from agentmesh.log.roster import Member, RelayInfo, Roster, RosterDevice, Trust
 from agentmesh.roster.book import RosterBook
+from security_key_emulator import SoftwareAuthenticator
 
 
 class Team:
@@ -220,3 +222,131 @@ def test_members_and_relays_may_receive_logs(team: Team, genesis: tuple[Entry, R
     book.accepted(team.roster_entry("gef", with_relay, 2))
     assert book.may_receive_logs(relay_key)
     assert not book.may_receive_logs(team.keys["tobi"])
+
+
+def _enroll(
+    team: Team,
+    entry: Entry,
+    roster: Roster,
+    key: SoftwareAuthenticator,
+    *,
+    handle: str = "gef",
+    trust: Trust = Trust.SECURITY_KEY,
+) -> tuple[Entry, Roster]:
+    member = roster.member(handle)
+    assert member is not None
+    device = RosterDevice(key.public_key, trust, "yubikey")
+    devices = tuple(sorted((*member.devices, device), key=lambda d: d.key))
+    members = (*(m for m in roster.members if m.handle != handle), replace(member, devices=devices))
+    nxt = roster.successor(entry.id, members=members)
+    return team.roster_entry("gef", nxt, seq=nxt.version), nxt
+
+
+def _signed_by(team: Team, key: SoftwareAuthenticator, roster: Roster, seq: int = 1) -> Entry:
+    content = team.make_content(
+        author=key.public_key,
+        seq=seq,
+        prev=None if seq == 1 else b"\x00" * 32,
+        kind=Kind.ROSTER,
+        channel="_team",
+        body=roster.encode(),
+    )
+    return content.with_assertion(key.sign(content.signing_input))
+
+
+def _book(*entries: Entry) -> RosterBook:
+    book = RosterBook(entries[0].id)
+    for entry in entries:
+        assert book.accepted(entry)
+    return book
+
+
+def test_admin_signs_rosters_with_an_enrolled_security_key(
+    team: Team, genesis: tuple[Entry, Roster]
+) -> None:
+    key = SoftwareAuthenticator()
+    enrolled, roster = _enroll(team, *genesis, key)
+    book = _book(genesis[0], enrolled)
+    nxt = roster.successor(enrolled.id, members=(*roster.members, team.member("tobi")))
+    by_key = _signed_by(team, key, nxt)
+    assert book.authorize(by_key).verdict is Verdict.ALLOW
+    assert book.accepted(by_key)
+    assert book.current == nxt
+
+
+def test_admin_with_a_security_key_cannot_use_the_device_key(
+    team: Team, genesis: tuple[Entry, Roster]
+) -> None:
+    enrolled, roster = _enroll(team, *genesis, SoftwareAuthenticator())
+    book = _book(genesis[0], enrolled)
+    nxt = roster.successor(enrolled.id, members=(*roster.members, team.member("tobi")))
+    decision = book.authorize(team.roster_entry("gef", nxt, seq=3))
+    assert decision.verdict is Verdict.DENY
+    assert decision.reason == "gef must sign roster changes with a security key"
+
+
+def test_a_security_key_cannot_enroll_itself(team: Team, genesis: tuple[Entry, Roster]) -> None:
+    key = SoftwareAuthenticator()
+    _, roster = _enroll(team, *genesis, key)
+    decision = _book(genesis[0]).authorize(_signed_by(team, key, roster))
+    assert decision.verdict is Verdict.DENY
+    assert "admin" in decision.reason
+
+
+def test_a_non_admin_security_key_cannot_change_the_roster(
+    team: Team, genesis: tuple[Entry, Roster]
+) -> None:
+    second, roster = _add(team, *genesis, "tobi")
+    key = SoftwareAuthenticator()
+    enrolled, roster = _enroll(team, second, roster, key, handle="tobi")
+    book = _book(genesis[0], second, enrolled)
+    nxt = roster.successor(enrolled.id, members=(*roster.members, team.member("lee")))
+    decision = book.authorize(_signed_by(team, key, nxt))
+    assert decision.verdict is Verdict.DENY
+    assert "admin" in decision.reason
+
+
+def test_a_security_key_cannot_post_messages(team: Team, genesis: tuple[Entry, Roster]) -> None:
+    key = SoftwareAuthenticator()
+    enrolled, _ = _enroll(team, *genesis, key)
+    content = team.make_content(author=key.public_key)
+    message = content.with_assertion(key.sign(content.signing_input))
+    decision = _book(genesis[0], enrolled).authorize(message)
+    assert decision.verdict is Verdict.DENY
+    assert "only sign roster changes" in decision.reason
+
+
+def test_a_security_key_device_must_use_es256_fido2(
+    team: Team, genesis: tuple[Entry, Roster]
+) -> None:
+    key = SoftwareAuthenticator()
+    enrolled, roster = _enroll(team, *genesis, key)
+    signed = _signed_by(team, key, roster.successor(enrolled.id))
+    plain = replace(signed, sig=Signature("es256", bytes(64)))
+    decision = _book(genesis[0], enrolled).authorize(plain)
+    assert decision.verdict is Verdict.DENY
+    assert "es256-fido2" in decision.reason
+
+
+def test_es256_fido2_needs_a_device_marked_security_key(
+    team: Team, genesis: tuple[Entry, Roster]
+) -> None:
+    key = SoftwareAuthenticator()
+    enrolled, roster = _enroll(team, *genesis, key, trust=Trust.HARDWARE)
+    decision = _book(genesis[0], enrolled).authorize(
+        _signed_by(team, key, roster.successor(enrolled.id))
+    )
+    assert decision.verdict is Verdict.DENY
+    assert "es256-fido2" in decision.reason
+
+
+def test_genesis_admin_with_a_security_key_must_sign_with_it(team: Team) -> None:
+    key = SoftwareAuthenticator()
+    device = RosterDevice(key.public_key, Trust.SECURITY_KEY, "yubikey")
+    gef = team.member("gef")
+    devices = tuple(sorted((*gef.devices, device), key=lambda d: d.key))
+    roster = Roster(1, None, "Acme", ("gef",), (replace(gef, devices=devices),))
+    by_device = team.roster_entry("gef", roster)
+    assert RosterBook(by_device.id).authorize(by_device).verdict is Verdict.DENY
+    by_key = _signed_by(team, key, roster)
+    assert RosterBook(by_key.id).authorize(by_key).verdict is Verdict.ALLOW

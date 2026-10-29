@@ -163,3 +163,15 @@ def test_relay_rules(relays: tuple[RelayInfo, ...], error: str) -> None:
 def test_relay_info_rules(key: bytes, address: str) -> None:
     with pytest.raises(RosterError):
         RelayInfo(key, address)
+
+
+def test_security_key_devices_round_trip_and_are_found() -> None:
+    key = RosterDevice(KEY_C, Trust.SECURITY_KEY, "yubikey")
+    gef = Member("gef", (), ("*",), (RosterDevice(KEY_A, Trust.SOFTWARE, "mac"), key))
+    roster = replace(genesis(), members=(gef, member("tobi", KEY_B)))
+    decoded = Roster.decode(roster.encode())
+    assert decoded == roster
+    assert decoded.device(KEY_C) == key
+    assert decoded.device(b"\x02" + b"\x09" * 32) is None
+    assert gef.has_security_key
+    assert not member("tobi", KEY_B).has_security_key
