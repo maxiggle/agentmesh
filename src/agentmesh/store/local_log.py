@@ -17,7 +17,8 @@ def wall_clock_ms() -> int:
 
 
 class LocalLog:
-    """Writes this device's own append-only log."""
+    """Writes the logs this device authors: its own key's, and those of security keys
+    plugged into it, which sign outside the device (see `draft` and `commit`)."""
 
     def __init__(
         self,
@@ -44,9 +45,23 @@ class LocalLog:
         return self._author
 
     def append(self, channel: str, kind: Kind, body: bytes, refs: Iterable[bytes] = ()) -> Entry:
-        head = self._store.head(self._author)
-        content = EntryContent(
-            author=self._author,
+        content = self.draft(channel, kind, body, refs)
+        return self.commit(content.sign(self._signer, self._handle))
+
+    def draft(
+        self,
+        channel: str,
+        kind: Kind,
+        body: bytes,
+        refs: Iterable[bytes] = (),
+        *,
+        author: bytes | None = None,
+    ) -> EntryContent:
+        """The next entry in `author`'s log (this device's by default), not yet signed."""
+        author = self._author if author is None else author
+        head = self._store.head(author)
+        return EntryContent(
+            author=author,
             seq=1 if head is None else head.seq + 1,
             prev=None if head is None else head.id,
             team=self._team,
@@ -56,7 +71,9 @@ class LocalLog:
             ts=self._clock(),
             body=body,
         )
-        entry = content.sign(self._signer, self._handle)
+
+    def commit(self, entry: Entry) -> Entry:
+        """Validate and store a signed draft. Fails if the author's log moved on meanwhile."""
         self._verifier.verify(entry.encode())
         if self._authorizer is not None:
             decision = self._authorizer.authorize(entry)
