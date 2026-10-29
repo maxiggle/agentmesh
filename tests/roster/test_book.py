@@ -7,7 +7,7 @@ from agentmesh.identity.software import SoftwareSigner
 from agentmesh.log.authorize import Verdict
 from agentmesh.log.entry import Entry, EntryContent, Kind
 from agentmesh.log.envelope import Encryption, Envelope
-from agentmesh.log.roster import Member, Roster, RosterDevice, Trust
+from agentmesh.log.roster import Member, RelayInfo, Roster, RosterDevice, Trust
 from agentmesh.roster.book import RosterBook
 
 
@@ -206,3 +206,17 @@ def test_plaintext_is_denied_when_the_roster_requires_encryption(team: Team) -> 
     content = team.make_content(author=team.keys["gef"], body=sealed.encode())
     encrypted = content.sign(team.signer, team.handles["gef"])
     assert book.authorize(encrypted).verdict is Verdict.ALLOW
+
+
+def test_members_and_relays_may_receive_logs(team: Team, genesis: tuple[Entry, Roster]) -> None:
+    entry, roster = genesis
+    relay_key = team.keys["lee"]
+    book = RosterBook(entry.id)
+    assert not book.may_receive_logs(team.keys["gef"])
+    book.accepted(entry)
+    assert book.may_receive_logs(team.keys["gef"])
+    assert not book.may_receive_logs(relay_key)
+    with_relay = roster.successor(entry.id, relays=(RelayInfo(relay_key, "relay:7447"),))
+    book.accepted(team.roster_entry("gef", with_relay, 2))
+    assert book.may_receive_logs(relay_key)
+    assert not book.may_receive_logs(team.keys["tobi"])
