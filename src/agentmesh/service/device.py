@@ -74,7 +74,13 @@ class Device:
         self._exchange = (
             None
             if config.exchange is None
-            else DirectoryExchange(config.exchange, self._store, ingestor, self._author)
+            else DirectoryExchange(
+                config.exchange,
+                self._store,
+                ingestor,
+                self._author,
+                signed_here=self._security_keys,
+            )
         )
 
     @classmethod
@@ -195,6 +201,13 @@ class Device:
     def sync(self) -> int:
         self.announce_key()
         return 0 if self._exchange is None else self._exchange.sync()
+
+    def _security_keys(self) -> list[bytes]:
+        """This member's security keys, whose roster changes this device stores and shares."""
+        member = self._book.member_for_key(self._author)
+        if member is None:
+            return []
+        return [device.key for device in member.devices if device.trust is Trust.SECURITY_KEY]
 
     def announce_key(self) -> bool:
         """Publish this device's encryption key once it is on the roster, or when it changes."""
