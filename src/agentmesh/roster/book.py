@@ -2,6 +2,7 @@ from collections.abc import Iterable
 
 from agentmesh.log.authorize import Decision, Verdict
 from agentmesh.log.entry import Entry, Kind
+from agentmesh.log.envelope import Encryption, Envelope, EnvelopeError
 from agentmesh.log.names import CONTROL_CHANNEL, dm_members
 from agentmesh.log.roster import Member, Roster, RosterError
 
@@ -55,6 +56,8 @@ class RosterBook:
         member = current.member_for_key(entry.author)
         if member is None:
             return Decision.wait("author is not on the roster")
+        if current.require_encryption and _is_plaintext(entry):
+            return Decision.deny("this team requires encrypted messages")
         return self._authorize_channel(member, entry.content.channel)
 
     @staticmethod
@@ -122,3 +125,12 @@ class RosterBook:
             forked = True
             break
         self._current_id, self._forked = node, forked
+
+
+def _is_plaintext(entry: Entry) -> bool:
+    if entry.content.kind not in (Kind.MESSAGE, Kind.STATUS):
+        return False
+    try:
+        return Envelope.decode(entry.content.body).enc is Encryption.NONE
+    except EnvelopeError:
+        return False
