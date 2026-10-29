@@ -168,7 +168,7 @@ A message's current state is that of the status entry for it that no other statu
 | Field   | Type      | Rules |
 |---------|-----------|-------|
 | `key`   | bstr (33) | Compressed P-256 signing key. A key MUST NOT appear under two members. |
-| `trust` | tstr      | `hardware` or `software`. Software keys are allowed but marked lower trust. |
+| `trust` | tstr      | `hardware` or `software`. Software keys are allowed but marked lower trust. Set by the admin who adds the device, from what the device reports; nothing attests to it, so implementations MUST NOT treat it as proof. |
 | `label` | tstr      | At most 64 characters, e.g. `godwin-macbook`. Display only. |
 
 `relay`:
