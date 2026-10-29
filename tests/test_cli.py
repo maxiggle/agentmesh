@@ -1,14 +1,22 @@
+import io
 import json
+import sys
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 
 import pytest
 
+from agentmesh import cli as cli_module
 from agentmesh.cli import main
 from agentmesh.identity import Signer
 from agentmesh.identity.backends import Backend
 from agentmesh.identity.software import SoftwareSigner
 from agentmesh.service import device as device_module
+from agentmesh.service.api import ApiError
+from agentmesh.service.device import Device
 from agentmesh.service.invite import Invite
+from agentmesh.service.rpc import RpcError
+from security_key_emulator import SoftwareAuthenticator
 
 
 @pytest.fixture(autouse=True)
@@ -193,3 +201,112 @@ def test_join_with_a_named_key_backend(tmp_path: Path, capsys: pytest.CaptureFix
 def test_unknown_key_backend_is_refused(tmp_path: Path) -> None:
     with pytest.raises(SystemExit):
         main(["--home", str(tmp_path), "init", "--handle", "gef", "--key", "yubikey"])
+
+
+TOBI_KEY = "02" + "11" * 32
+
+
+@pytest.fixture
+def security_key(monkeypatch: pytest.MonkeyPatch) -> SoftwareAuthenticator:
+    """Stands in for whichever USB key is plugged in; it holds every credential made."""
+    key = SoftwareAuthenticator()
+    monkeypatch.setattr(cli_module, "_connect_security_key", lambda: key)
+    monkeypatch.setattr(sys, "stdin", io.StringIO("\n" * 4))
+    return key
+
+
+@pytest.fixture
+def service(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Device]:
+    """Runs the admin's service in-process behind the CLI's RPC client."""
+    with Device.create_team(tmp_path / "gef", "gef", b"test passphrase", team_name="Acme") as gef:
+
+        class InProcessClient:
+            def __init__(self, endpoint: object) -> None:
+                self.endpoint = endpoint
+
+            async def call(self, method: str, params: Mapping[str, object] | None = None) -> str:
+                try:
+                    return gef.call(method, dict(params or {}))
+                except ApiError as exc:
+                    raise RpcError(str(exc)) from exc
+
+        monkeypatch.setattr(cli_module, "RpcClient", InProcessClient)
+        yield gef
+
+
+def _gef(tmp_path: Path, *args: str) -> int:
+    return main(["--home", str(tmp_path / "gef"), *args])
+
+
+def test_enrolled_security_key_signs_roster_changes(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    service: Device,
+    security_key: SoftwareAuthenticator,
+) -> None:
+    assert _gef(tmp_path, "roster", "enroll-key", "--label", "yubikey") == 0
+    out, err = capsys.readouterr()
+    assert out.startswith("enrolled the security key\nAcme · roster v2")
+    assert "security-key" in out
+    assert out.endswith("roster changes by you now need a touch of 'yubikey'\n")
+    assert "touch the new security key" in err
+    assert (tmp_path / "gef" / "keys" / "yubikey.fido2").exists()
+
+    assert _gef(tmp_path, "roster", "add", "tobi", TOBI_KEY) == 0
+    out, err = capsys.readouterr()
+    assert err == "touch your security key 'yubikey' to sign roster v3\n"
+    assert out.startswith("signed with the security key\nAcme · roster v3")
+    assert "tobi · channels *" in out
+    assert security_key.touches == 1
+
+    assert _gef(tmp_path, "roster", "remove", "tobi") == 0
+    assert "tobi" not in capsys.readouterr().out
+    assert security_key.touches == 2
+
+
+def test_a_second_key_is_enrolled_by_touching_the_first(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    service: Device,
+    security_key: SoftwareAuthenticator,
+) -> None:
+    assert _gef(tmp_path, "roster", "enroll-key", "--label", "yubikey") == 0
+    assert _gef(tmp_path, "roster", "enroll-key", "--label", "backup") == 0
+    out, err = capsys.readouterr()
+    assert "plug in only your enrolled security key 'yubikey'" in err
+    assert out.count("security-key") >= 2
+    assert security_key.touches == 1
+
+    assert _gef(tmp_path, "roster", "relay-add", "relay:1", "03" + "22" * 32) == 1
+    assert "pick a security key with --security-key: backup, yubikey" in capsys.readouterr().err
+    args = ("roster", "relay-add", "relay:1", "03" + "22" * 32, "--security-key", "backup")
+    assert _gef(tmp_path, *args) == 0
+    assert "relay relay:1" in capsys.readouterr().out
+
+
+def test_an_unknown_security_key_label_is_refused(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    service: Device,
+    security_key: SoftwareAuthenticator,
+) -> None:
+    assert _gef(tmp_path, "roster", "remove", "tobi", "--security-key", "nope") == 1
+    assert "no security key named 'nope'; enrolled: none" in capsys.readouterr().err
+
+
+def test_a_failed_enrollment_forgets_the_credential(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], security_key: SoftwareAuthenticator
+) -> None:
+    Device.create_team(tmp_path / "gef", "gef", b"test passphrase").close()
+    assert _gef(tmp_path, "roster", "enroll-key") == 1
+    assert "not running" in capsys.readouterr().err
+    assert list((tmp_path / "gef" / "keys").glob("*.fido2")) == []
+
+
+def test_enrolling_without_the_fido2_extra_says_how_to_get_it(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(sys.modules, "agentmesh.identity.ctap", None)
+    Device.create_team(tmp_path / "gef", "gef", b"test passphrase").close()
+    assert _gef(tmp_path, "roster", "enroll-key") == 1
+    assert "pip install 'agentmesh[fido2]'" in capsys.readouterr().err

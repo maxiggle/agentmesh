@@ -1,5 +1,5 @@
 import secrets
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from types import TracebackType
 from typing import Self
@@ -7,6 +7,7 @@ from typing import Self
 from agentmesh.crypto.keyfile import EncryptionKeyFile
 from agentmesh.identity import KeyHandle, Signer
 from agentmesh.identity.backends import Backend, detect_hardware, open_signer
+from agentmesh.identity.security_key import Authenticator, SecurityKeySigner
 from agentmesh.log.entry import TEAM_ID_SIZE, Kind
 from agentmesh.log.key_announce import KeyAnnounce
 from agentmesh.log.names import CONTROL_CHANNEL
@@ -233,6 +234,11 @@ class Device:
 
     def close(self) -> None:
         self._store.close()
+
+
+def security_key_signer(home: Path, connect: Callable[[], Authenticator]) -> SecurityKeySigner:
+    """The security keys enrolled from this device, kept beside its own key."""
+    return SecurityKeySigner(home / _KEY_DIR, connect)
 
 
 def trust_for(backend: Backend) -> Trust:
