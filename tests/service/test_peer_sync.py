@@ -3,7 +3,7 @@ from contextlib import ExitStack
 from pathlib import Path
 
 from agentmesh.service.device import Device
-from agentmesh.service.lan_sync import LanSync
+from agentmesh.service.peer_sync import PeerSync
 from agentmesh.transport.lan import PeerAddress, StaticDiscovery
 
 PASSPHRASE = b"lan passphrase"
@@ -13,7 +13,7 @@ class Node:
     def __init__(self, device: Device) -> None:
         self.device = device
         self.discovery = StaticDiscovery()
-        self.lan = LanSync(self.device.sync_node, self.discovery, host="127.0.0.1", interval=60)
+        self.lan = PeerSync(self.device.sync_node, self.discovery, host="127.0.0.1", interval=60)
         self.stop = asyncio.Event()
         self.task: asyncio.Task[None] | None = None
 
