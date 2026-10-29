@@ -4,11 +4,13 @@ from pathlib import Path
 from agentmesh.identity import KeyHandle
 from agentmesh.identity.software import SoftwareSigner
 from agentmesh.log.entry import Kind
+from agentmesh.log.roster import Member, Roster, RosterDevice, Trust
 from agentmesh.log.verify import EntryVerifier
 from agentmesh.store.ingest import Ingestor
 from agentmesh.store.local_log import LocalLog
 from agentmesh.store.sqlite import SqliteStore
 from agentmesh.transport.directory import DirectoryExchange
+from security_key_emulator import SoftwareAuthenticator
 
 
 def _device(
@@ -92,3 +94,36 @@ def test_missing_folder_is_not_an_error(
     _, store, exchange = _device(tmp_path / "a.db", tmp_path / "missing", signer, handle, team)
     assert exchange.import_new() == 0
     store.close()
+
+
+def test_exports_the_logs_of_keys_that_sign_here(
+    tmp_path: Path,
+    signer: SoftwareSigner,
+    handle: KeyHandle,
+    other_handle: KeyHandle,
+    team: bytes,
+) -> None:
+    folder = tmp_path / "shared"
+    key = SoftwareAuthenticator()
+    store_a = SqliteStore(tmp_path / "a.db")
+    verifier = EntryVerifier(team)
+    log_a = LocalLog(store_a, signer, handle, team, verifier)
+    sync_a = DirectoryExchange(
+        folder,
+        store_a,
+        Ingestor(store_a, verifier),
+        log_a.author,
+        signed_here=lambda: [key.public_key],
+    )
+    _, store_b, sync_b = _device(tmp_path / "b.db", folder, signer, other_handle, team)
+    device = RosterDevice(key.public_key, Trust.SECURITY_KEY, "yubikey")
+    roster = Roster(1, None, "Acme", ("gef",), (Member("gef", (), ("*",), (device,)),))
+    draft = log_a.draft("_team", Kind.ROSTER, roster.encode(), author=key.public_key)
+    entry = log_a.commit(draft.with_assertion(key.sign(draft.signing_input)))
+
+    assert sync_a.export() == 1
+    assert sync_a.import_new() == 0
+    assert sync_b.sync() == 1
+    assert store_b.log(key.public_key) == [entry]
+    store_a.close()
+    store_b.close()
