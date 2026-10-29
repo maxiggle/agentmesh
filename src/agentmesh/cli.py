@@ -9,14 +9,17 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from agentmesh.identity import IdentityError
+from agentmesh.identity import HardwareUnavailableError, IdentityError, KeyHandle
 from agentmesh.identity.backends import Backend
+from agentmesh.identity.security_key import Authenticator, SecurityKeySigner
+from agentmesh.log.entry import EntryContent, EntryFormatError
 from agentmesh.log.names import parse_address
+from agentmesh.log.roster import Roster, RosterError
 from agentmesh.mcp.server import build_server
 from agentmesh.relay.server import Relay, RelayError
 from agentmesh.service.config import ConfigError, DeviceConfig, default_home
 from agentmesh.service.daemon import DEFAULT_SYNC_INTERVAL, Daemon
-from agentmesh.service.device import Device
+from agentmesh.service.device import Device, security_key_signer
 from agentmesh.service.invite import Invite, InviteError
 from agentmesh.service.peer_sync import DEFAULT_PEER_INTERVAL, PeerSync
 from agentmesh.service.rpc import RpcClient, RpcError, default_endpoint
@@ -28,6 +31,8 @@ DEFAULT_RELAY_PORT = 7447
 AUTO_KEY = "auto"
 KEY_CHOICES = [AUTO_KEY, *(backend.value for backend in Backend)]
 _KEY_HELP = "where the signing key lives; auto uses a hardware key if this machine has one"
+_SECURITY_KEY_HELP = "label of the enrolled security key to sign with, if there are several"
+_FIDO2_EXTRA = "security keys need the fido2 extra: pip install 'agentmesh[fido2]'"
 
 
 class CliError(Exception):
@@ -108,6 +113,14 @@ def _add_roster_commands(commands: "argparse._SubParsersAction[argparse.Argument
     relay_remove = roster_commands.add_parser("relay-remove", help="remove a relay (admins only)")
     relay_remove.add_argument("address")
     relay_remove.set_defaults(run=_roster_relay_remove)
+    enroll = roster_commands.add_parser(
+        "enroll-key",
+        help="sign your roster changes with a FIDO2 security key from now on (admins only)",
+    )
+    enroll.add_argument("--label", default="security-key", help="name for this key")
+    enroll.set_defaults(run=_roster_enroll_key)
+    for command in (add, remove, relay_add, relay_remove, enroll):
+        command.add_argument("--security-key", metavar="LABEL", help=_SECURITY_KEY_HELP)
 
 
 def _add_relay_commands(commands: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
@@ -222,19 +235,102 @@ def _roster_add(args: argparse.Namespace) -> int:
         "label": args.label,
         "hardware": args.hardware,
     }
-    return _call(args, "roster.add", params)
+    return _change_roster(args, "roster.add", params)
 
 
 def _roster_remove(args: argparse.Namespace) -> int:
-    return _call(args, "roster.remove", {"handle": args.handle})
+    return _change_roster(args, "roster.remove", {"handle": args.handle})
 
 
 def _roster_relay_add(args: argparse.Namespace) -> int:
-    return _call(args, "roster.relay_add", {"address": args.address, "key": args.key})
+    return _change_roster(args, "roster.relay_add", {"address": args.address, "key": args.key})
 
 
 def _roster_relay_remove(args: argparse.Namespace) -> int:
-    return _call(args, "roster.relay_remove", {"address": args.address})
+    return _change_roster(args, "roster.relay_remove", {"address": args.address})
+
+
+def _roster_enroll_key(args: argparse.Namespace) -> int:
+    home = _home(args)
+    keys = security_key_signer(home, _connect_security_key)
+    enrolled = _enrolled_key(keys, args.security_key)
+    sys.stderr.write("touch the new security key to create its agentmesh credential\n")
+    handle = keys.create_key(args.label)
+    params: dict[str, object] = {"key": keys.public_key(handle).hex(), "label": args.label}
+    try:
+        if enrolled is None:
+            result = _rpc(home, "roster.enroll", params)
+        else:
+            _ask(
+                f"now plug in only your enrolled security key {enrolled.key_id!r}, then press Enter"
+            )
+            signer = security_key_signer(home, _connect_security_key)
+            result = _sign_with_security_key(home, signer, enrolled, "roster.enroll", params)
+    except BaseException:
+        keys.forget(handle)
+        raise
+    sys.stdout.write(f"{result}\nroster changes by you now need a touch of {args.label!r}\n")
+    return 0
+
+
+def _change_roster(args: argparse.Namespace, method: str, params: dict[str, object]) -> int:
+    """Roster changes go through an enrolled security key when this device has one."""
+    home = _home(args)
+    keys = security_key_signer(home, _connect_security_key)
+    enrolled = _enrolled_key(keys, args.security_key)
+    if enrolled is None:
+        sys.stdout.write(_rpc(home, method, params) + "\n")
+        return 0
+    sys.stdout.write(_sign_with_security_key(home, keys, enrolled, method, params) + "\n")
+    return 0
+
+
+def _enrolled_key(keys: SecurityKeySigner, label: str | None) -> KeyHandle | None:
+    labels = keys.labels()
+    if label is not None:
+        if label not in labels:
+            raise CliError(
+                f"no security key named {label!r}; enrolled: {', '.join(labels) or 'none'}"
+            )
+        return KeyHandle(SecurityKeySigner.backend, label)
+    if not labels:
+        return None
+    if len(labels) > 1:
+        raise CliError(f"pick a security key with --security-key: {', '.join(labels)}")
+    return KeyHandle(SecurityKeySigner.backend, labels[0])
+
+
+def _sign_with_security_key(
+    home: Path, keys: SecurityKeySigner, handle: KeyHandle, method: str, params: dict[str, object]
+) -> str:
+    """Have the service draft the change, sign it with a touch here, and hand it back."""
+    draft = _rpc(home, method, {**params, "security_key": keys.public_key(handle).hex()})
+    try:
+        content = EntryContent.decode(bytes.fromhex(draft))
+        version = Roster.decode(content.body).version
+    except (ValueError, EntryFormatError, RosterError) as exc:
+        raise CliError(f"the service sent an unusable draft: {exc}") from exc
+    sys.stderr.write(f"touch your security key {handle.key_id!r} to sign roster v{version}\n")
+    assertion = keys.sign_assertion(handle, content.signing_input)
+    submit: dict[str, object] = {
+        "content": draft,
+        "auth_data": assertion.auth_data.hex(),
+        "signature": assertion.signature.hex(),
+    }
+    return _rpc(home, "roster.submit", submit)
+
+
+def _connect_security_key() -> Authenticator:
+    try:
+        from agentmesh.identity.ctap import Ctap2Authenticator  # noqa: PLC0415 - fido2 is an optional extra
+    except ImportError as exc:
+        raise HardwareUnavailableError(_FIDO2_EXTRA) from exc
+    return Ctap2Authenticator.connect(pin=lambda: getpass.getpass("Security key PIN: "))
+
+
+def _ask(prompt: str) -> None:
+    sys.stderr.write(f"{prompt}\n")
+    sys.stdin.readline()
 
 
 def _relay_home(args: argparse.Namespace) -> Path:
@@ -282,9 +378,12 @@ async def _run_relay(relay: Relay, host: str, port: int) -> None:
 
 
 def _call(args: argparse.Namespace, method: str, params: dict[str, object]) -> int:
-    client = RpcClient(default_endpoint(_home(args)))
-    sys.stdout.write(asyncio.run(client.call(method, params)) + "\n")
+    sys.stdout.write(_rpc(_home(args), method, params) + "\n")
     return 0
+
+
+def _rpc(home: Path, method: str, params: dict[str, object]) -> str:
+    return asyncio.run(RpcClient(default_endpoint(home)).call(method, params))
 
 
 def _serve(args: argparse.Namespace) -> int:
