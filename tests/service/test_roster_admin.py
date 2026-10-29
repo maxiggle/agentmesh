@@ -29,7 +29,19 @@ def test_add_shows_roles_channels_and_admins(gef: Device) -> None:
     lines = text.splitlines()
     assert lines[0] == "added tobi"
     assert lines[1] == "Acme · roster v2"
-    assert lines[3] == "tobi (admin, @mobile) · channels #mobile · tobi-mac 111111"
+    assert lines[2].endswith(" software")
+    assert lines[3] == "tobi (admin, @mobile) · channels #mobile · tobi-mac 111111 software"
+    gef.close()
+
+
+def test_add_records_a_hardware_key(gef: Device) -> None:
+    text = gef.call("roster.add", {"handle": "tobi", "key": OTHER_KEY, "hardware": True})
+    assert text.splitlines()[-1] == "tobi · channels * · tobi 111111 hardware"
+    roster = gef.roster.current
+    assert roster is not None
+    member = roster.member("tobi")
+    assert member is not None
+    assert [str(d.trust) for d in member.devices] == ["hardware"]
     gef.close()
 
 
@@ -52,6 +64,7 @@ def test_add_a_second_device_to_a_member(gef: Device) -> None:
         ({"handle": "tobi", "key": "02" + "11" * 31}, "33 bytes"),
         ({"handle": "tobi", "key": OTHER_KEY, "roles": ["mobile"]}, "invalid role"),
         ({"handle": "tobi", "key": OTHER_KEY, "admin": "yes"}, "true or false"),
+        ({"handle": "tobi", "key": OTHER_KEY, "hardware": 1}, "true or false"),
     ],
 )
 def test_add_rejects_bad_input(gef: Device, params: dict[str, object], error: str) -> None:
