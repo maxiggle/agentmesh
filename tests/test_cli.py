@@ -98,6 +98,7 @@ def test_invite_then_join(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     assert out.startswith(f"joined as tobi in {tobi}\nsigning key  software")
     assert "\nask an admin to run:\n" in out
     assert "  agentmesh roster add tobi 0" in out
+    assert "--hardware" not in out
     config = json.loads((tmp_path / "tobi" / "config.json").read_text())
     invite = Invite.decode(code)
     assert (config["team"], config["genesis"]) == (invite.team.hex(), invite.genesis.hex())
@@ -183,7 +184,9 @@ def test_join_with_a_named_key_backend(tmp_path: Path, capsys: pytest.CaptureFix
     main(["--home", gef, "invite"])
     code = capsys.readouterr().out.split("invite  ")[1].split()[0]
     assert main(["--home", tobi, "join", code, "--handle", "tobi", "--key", "tpm"]) == 0
-    assert "signing key  tpm (hardware" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "signing key  tpm (hardware" in out
+    assert out.rstrip().endswith(" --hardware")
     assert json.loads((tmp_path / "tobi" / "config.json").read_text())["key_backend"] == "tpm"
 
 
