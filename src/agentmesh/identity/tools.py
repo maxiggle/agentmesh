@@ -6,6 +6,7 @@ from typing import Protocol
 from agentmesh.identity.base import HardwareUnavailableError, IdentityError
 
 DEFAULT_TIMEOUT = 30.0
+_REASON_LINES = 3
 
 
 class ToolError(IdentityError):
@@ -48,7 +49,8 @@ def run_tool(
     except subprocess.TimeoutExpired as exc:
         raise ToolError(f"{name} timed out after {timeout:g}s") from exc
     if result.returncode != 0:
-        lines = result.stderr.decode(errors="replace").strip().splitlines()
-        reason = lines[-1] if lines else f"exit status {result.returncode}"
+        lines = [line.strip() for line in result.stderr.decode(errors="replace").splitlines()]
+        details = [line for line in lines if line][-_REASON_LINES:]
+        reason = " / ".join(details) if details else f"exit status {result.returncode}"
         raise ToolError(f"{name} failed: {reason}")
     return result.stdout
