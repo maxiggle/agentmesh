@@ -1,4 +1,5 @@
 from agentmesh.identity.base import (
+    HardwareUnavailableError,
     IdentityError,
     InvalidLabelError,
     KeyExistsError,
@@ -8,6 +9,7 @@ from agentmesh.identity.base import (
 )
 
 __all__ = [
+    "HardwareUnavailableError",
     "IdentityError",
     "InvalidLabelError",
     "KeyExistsError",

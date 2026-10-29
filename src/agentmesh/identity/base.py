@@ -22,6 +22,10 @@ class InvalidLabelError(IdentityError):
     pass
 
 
+class HardwareUnavailableError(IdentityError):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class KeyHandle:
     backend: str
