@@ -4,12 +4,35 @@ from pathlib import Path
 import pytest
 
 from agentmesh.cli import main
+from agentmesh.identity import Signer
+from agentmesh.identity.backends import Backend
+from agentmesh.identity.software import SoftwareSigner
+from agentmesh.service import device as device_module
 from agentmesh.service.invite import Invite
 
 
 @pytest.fixture(autouse=True)
 def passphrase(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AGENTMESH_PASSPHRASE", "test passphrase")
+
+
+@pytest.fixture(autouse=True)
+def hardware(monkeypatch: pytest.MonkeyPatch) -> list[Backend]:
+    """No hardware by default; tests append a backend to pretend this machine has it."""
+    found: list[Backend] = []
+
+    class PretendTpm(SoftwareSigner):
+        backend = "tpm"
+
+    def open_signer(backend: Backend, keys: Path, passphrase: bytes, *, tools: Path) -> Signer:
+        return (PretendTpm if backend is Backend.TPM else SoftwareSigner)(keys, passphrase)
+
+    def detect_hardware(keys: Path, *, tools: Path) -> Backend | None:
+        return found[0] if found else None
+
+    monkeypatch.setattr(device_module, "open_signer", open_signer)
+    monkeypatch.setattr(device_module, "detect_hardware", detect_hardware)
+    return found
 
 
 def test_init_creates_a_team(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -30,6 +53,7 @@ def test_init_creates_a_team(tmp_path: Path, capsys: pytest.CaptureFixture[str])
     assert code == 0
     out = capsys.readouterr().out
     assert out.startswith(f"created team with gef as admin in {home}")
+    assert "signing key  software (passphrase-protected file)" in out
     assert "invite  am1-" in out
     config = json.loads((home / "config.json").read_text())
     assert config["exchange"] == str((tmp_path / "shared").resolve())
@@ -71,7 +95,8 @@ def test_invite_then_join(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     assert code.startswith("am1-")
     assert main(["--home", tobi, "join", code, "--handle", "tobi"]) == 0
     out = capsys.readouterr().out
-    assert out.startswith(f"joined as tobi in {tobi}\nask an admin to run:\n")
+    assert out.startswith(f"joined as tobi in {tobi}\nsigning key  software")
+    assert "\nask an admin to run:\n" in out
     assert "  agentmesh roster add tobi 0" in out
     config = json.loads((tmp_path / "tobi" / "config.json").read_text())
     invite = Invite.decode(code)
@@ -133,3 +158,35 @@ def test_invite_can_name_a_relay(tmp_path: Path, capsys: pytest.CaptureFixture[s
     assert Invite.decode(code).relay == "relay.example.com:7447"
     assert main(["--home", home, "invite", "--relay", "nope"]) == 1
     assert "host:port" in capsys.readouterr().err
+
+
+def test_auto_key_uses_hardware_when_present(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], hardware: list[Backend]
+) -> None:
+    hardware.append(Backend.TPM)
+    assert main(["--home", str(tmp_path), "init", "--handle", "gef"]) == 0
+    assert (
+        "signing key  tpm (hardware, cannot be copied off this machine)" in capsys.readouterr().out
+    )
+    assert json.loads((tmp_path / "config.json").read_text())["key_backend"] == "tpm"
+
+
+def test_named_key_backend_skips_detection(tmp_path: Path, hardware: list[Backend]) -> None:
+    hardware.append(Backend.TPM)
+    assert main(["--home", str(tmp_path), "init", "--handle", "gef", "--key", "software"]) == 0
+    assert json.loads((tmp_path / "config.json").read_text())["key_backend"] == "software"
+
+
+def test_join_with_a_named_key_backend(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    gef, tobi = str(tmp_path / "gef"), str(tmp_path / "tobi")
+    main(["--home", gef, "init", "--handle", "gef"])
+    main(["--home", gef, "invite"])
+    code = capsys.readouterr().out.split("invite  ")[1].split()[0]
+    assert main(["--home", tobi, "join", code, "--handle", "tobi", "--key", "tpm"]) == 0
+    assert "signing key  tpm (hardware" in capsys.readouterr().out
+    assert json.loads((tmp_path / "tobi" / "config.json").read_text())["key_backend"] == "tpm"
+
+
+def test_unknown_key_backend_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit):
+        main(["--home", str(tmp_path), "init", "--handle", "gef", "--key", "yubikey"])
