@@ -176,3 +176,23 @@ def test_silent_peer_times_out(tmp_path: Path, signer: SoftwareSigner, handle: K
 def test_unreachable_peer(peers: tuple[Peer, Peer, Peer]) -> None:
     with pytest.raises(SyncError, match="cannot reach"):
         asyncio.run(peers[0].node.sync_with("127.0.0.1", 1))
+
+
+def test_responder_has_stored_everything_when_the_initiator_returns(
+    peers: tuple[Peer, Peer, Peer], members: set[bytes], message: Callable[[str], bytes]
+) -> None:
+    a, b, _ = peers
+    members.update({a.log.author, b.log.author})
+    a.log.append("#backend", Kind.MESSAGE, message("just one"))
+    assert asyncio.run(_sync_then_look(a, b)) == {a.log.author: 1}
+
+
+async def _sync_then_look(initiator: Peer, responder: Peer) -> dict[bytes, int]:
+    server = await responder.node.serve("127.0.0.1")
+    port = server.sockets[0].getsockname()[1]
+    try:
+        await initiator.node.sync_with("127.0.0.1", port)
+        return responder.store.frontier()
+    finally:
+        server.close()
+        await server.wait_closed()

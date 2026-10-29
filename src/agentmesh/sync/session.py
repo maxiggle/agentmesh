@@ -80,9 +80,19 @@ class SyncNode:
         except (OSError, TimeoutError) as exc:
             raise SyncError(f"cannot reach {host}:{port}: {exc}") from exc
         try:
-            return await self._session(reader, writer, initiator=True)
+            result = await self._session(reader, writer, initiator=True)
+            await self._await_peer_close(reader)
+            return result
         finally:
             writer.close()
+
+    async def _await_peer_close(self, reader: asyncio.StreamReader) -> None:
+        """The responder closes only after storing everything it received, so waiting for
+        that close means a returned result really is the state on both sides."""
+        try:
+            await asyncio.wait_for(reader.read(), self._timeout)
+        except TimeoutError as exc:
+            raise SyncError("peer did not finish the session") from exc
 
     async def _accept(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         try:
