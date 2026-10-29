@@ -45,6 +45,25 @@ Each device signs everything it writes with its own P-256 key. `init` and `join`
 
 `join` adds `--hardware` to the `roster add` command it prints when the key is in hardware, and the roster shows each device as `hardware` or `software`. That label is the admin's word for it; neither chip proves where a key lives.
 
+## Admin security keys
+
+An admin can require a physical touch for every roster change by enrolling a FIDO2 security key, such as a YubiKey. Install the optional USB support first, plug in the key and run:
+
+```bash
+uv tool install 'agentmesh[fido2] @ git+https://github.com/maxiggle/agentmesh'
+agentmesh roster enroll-key --label yubikey
+```
+
+Enrolling adds the key to your entry in the roster. From then on `roster add`, `roster remove`, `roster relay-add` and `roster relay-remove` print the roster version they are about to sign and wait for a touch. Every teammate's device checks this: once you have an enrolled key, a roster change signed only by your laptop's key is refused. A stolen laptop, or anything running as you on it, can no longer change who is on the team.
+
+The requirement is per admin: an admin who has not enrolled a key still signs with their device key. To make every roster change need a touch, every admin enrolls one.
+
+- Enroll a backup key the same way. The new key is added with a touch of one you already enrolled, and `--security-key <label>` picks which key signs when you have several.
+- Keep only one key plugged in at a time.
+- Many keys ask for their PIN to enroll. Signing needs only the touch, unless the key is set to always require its PIN.
+- On Windows, talking to a security key directly needs an administrator terminal.
+- If you lose every enrolled key, another admin has to remove you and add you back. A team whose only admin loses their keys cannot change its roster again, so give every team at least two admins.
+
 ## How devices sync
 
 On the same network, devices find each other over mDNS and sync directly, with no setup beyond `join`. A device that has just joined learns the roster this way before it is added, but is sent nobody's messages until an admin adds it. Each sync session starts with both devices proving they hold their keys, and everything received is checked against signatures and the roster before it is stored.
@@ -110,6 +129,8 @@ Roster changes are not MCP tools, so a teammate's message cannot get Claude to c
 uv sync
 uv run pytest
 ```
+
+Hardware tests are opt-in: `AGENTMESH_FIDO2_TEST=1` signs with a plugged-in security key (two touches; set `AGENTMESH_FIDO2_PIN` if it has a PIN), and `AGENTMESH_TPM_TEST=1` uses a TPM.
 
 ## Security notes
 
