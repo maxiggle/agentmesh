@@ -48,20 +48,21 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AGENTMESH_TPM_TEST: "1"
-      TPM2TOOLS_TCTI: swtpm:host=127.0.0.1,port=2321
+      TPM2TOOLS_TCTI: device:/dev/tpmrm0
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
       - run: sudo apt-get update && sudo apt-get install -y swtpm swtpm-tools tpm2-tools
-      - name: Start a software TPM
+      - name: Start a software TPM behind the kernel resource manager
         run: |
+          sudo modprobe tpm_vtpm_proxy
           mkdir -p "$RUNNER_TEMP/tpm"
-          swtpm socket --tpm2 --daemon \
-            --tpmstate dir="$RUNNER_TEMP/tpm" \
-            --server type=tcp,port=2321 --ctrl type=tcp,port=2322 \
-            --flags not-need-init,startup-clear
+          sudo swtpm chardev --vtpm-proxy --tpm2 --daemon \
+            --tpmstate dir="$RUNNER_TEMP/tpm" --flags startup-clear
+          for _ in 1 2 3 4 5; do [ -e /dev/tpmrm0 ] && break; sleep 1; done
+          sudo chmod a+rw /dev/tpmrm0
           tpm2_getcap properties-fixed > /dev/null
       - run: uv sync --locked
       - run: uv run pytest tests/identity/test_tpm.py -rs
