@@ -137,6 +137,28 @@ def test_hardware_founder_is_marked_hardware_in_genesis(
     assert set(pretend_tpm) == {Backend.TPM}
 
 
+@pytest.mark.parametrize(
+    ("found", "expected"), [(Backend.TPM, Backend.TPM), (None, Backend.SOFTWARE)]
+)
+def test_setup_can_detect_hardware(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    pretend_tpm: list[Backend],
+    found: Backend | None,
+    expected: Backend,
+) -> None:
+    probed: list[Path] = []
+
+    def detect_hardware(keys: Path, *, tools: Path) -> Backend | None:
+        probed.append(keys)
+        return found
+
+    monkeypatch.setattr(device_module, "detect_hardware", detect_hardware)
+    with Device.create_team(tmp_path, "gef", PASSPHRASE, key_backend=None) as device:
+        assert device.config.key_backend is expected
+    assert probed == [tmp_path / "keys"]
+
+
 def test_joining_device_keeps_its_backend(tmp_path: Path, pretend_tpm: list[Backend]) -> None:
     with Device.create_team(tmp_path / "gef", "gef", PASSPHRASE) as gef:
         invite = gef.invite

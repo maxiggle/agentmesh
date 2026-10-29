@@ -6,7 +6,7 @@ from typing import Self
 
 from agentmesh.crypto.keyfile import EncryptionKeyFile
 from agentmesh.identity import KeyHandle, Signer
-from agentmesh.identity.backends import Backend, open_signer
+from agentmesh.identity.backends import Backend, detect_hardware, open_signer
 from agentmesh.log.entry import TEAM_ID_SIZE, Kind
 from agentmesh.log.key_announce import KeyAnnounce
 from agentmesh.log.names import CONTROL_CHANNEL
@@ -86,10 +86,14 @@ class Device:
         *,
         team_name: str = "",
         exchange: Path | None = None,
-        key_backend: Backend = Backend.SOFTWARE,
+        key_backend: Backend | None = Backend.SOFTWARE,
     ) -> "Device":
-        """Start a new team with this device as its first admin."""
+        """Start a new team with this device as its first admin.
+
+        `key_backend=None` uses this machine's hardware key if it has one.
+        """
         signer, key = cls._new_key(home, passphrase, key_backend)
+        key_backend = Backend(key.backend)
         team = secrets.token_bytes(TEAM_ID_SIZE)
         try:
             device = RosterDevice(signer.public_key(key), trust_for(key_backend), handle)
@@ -113,18 +117,21 @@ class Device:
         passphrase: bytes,
         *,
         exchange: Path | None = None,
-        key_backend: Backend = Backend.SOFTWARE,
+        key_backend: Backend | None = Backend.SOFTWARE,
     ) -> "Device":
-        """Set up a device that trusts only the genesis roster named in the invite."""
+        """Set up a device that trusts only the genesis roster named in the invite.
+
+        `key_backend=None` uses this machine's hardware key if it has one.
+        """
+        _, key = cls._new_key(home, passphrase, key_backend)
         config = DeviceConfig(
             handle,
             invite.team,
             invite.genesis,
             exchange=exchange,
             relay=invite.relay,
-            key_backend=key_backend,
+            key_backend=Backend(key.backend),
         )
-        cls._new_key(home, passphrase, key_backend)
         config.save(home)
         return cls(home, config, passphrase)
 
@@ -133,10 +140,15 @@ class Device:
         return cls(home, DeviceConfig.load(home), passphrase)
 
     @staticmethod
-    def _new_key(home: Path, passphrase: bytes, backend: Backend) -> tuple[Signer, KeyHandle]:
+    def _new_key(
+        home: Path, passphrase: bytes, backend: Backend | None
+    ) -> tuple[Signer, KeyHandle]:
         if (home / CONFIG_FILE).exists():
             raise ConfigError(f"a device already exists at {home}")
         home.mkdir(parents=True, exist_ok=True, mode=_HOME_MODE)
+        if backend is None:
+            found = detect_hardware(home / _KEY_DIR, tools=home / _TOOLS_DIR)
+            backend = Backend.SOFTWARE if found is None else found
         signer = _signer(home, backend, passphrase)
         return signer, signer.create_key(_KEY_LABEL)
 
