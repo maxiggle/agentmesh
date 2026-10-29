@@ -4,7 +4,7 @@ from enum import StrEnum
 from agentmesh.identity.es256 import PUBLIC_KEY_SIZE
 from agentmesh.log.canonical import CanonicalError, CborValue, decode, encode
 from agentmesh.log.entry import ENTRY_ID_SIZE
-from agentmesh.log.names import HANDLE, ROLE, TEAM_CHANNEL
+from agentmesh.log.names import HANDLE, ROLE, TEAM_CHANNEL, parse_address
 
 ALL_CHANNELS = "*"
 TEAM_NAME_MAX = 64
@@ -95,6 +95,33 @@ class Member:
 
 
 @dataclass(frozen=True, slots=True)
+class RelayInfo:
+    key: bytes
+    address: str
+
+    def __post_init__(self) -> None:
+        if len(self.key) != PUBLIC_KEY_SIZE:
+            raise RosterError(f"relay key must be {PUBLIC_KEY_SIZE} bytes")
+        if parse_address(self.address) is None:
+            raise RosterError(f"relay address must be host:port, got {self.address!r}")
+
+    @property
+    def host_port(self) -> tuple[str, int]:
+        parsed = parse_address(self.address)
+        if parsed is None:
+            raise RosterError(f"relay address must be host:port, got {self.address!r}")
+        return parsed
+
+    def to_cbor(self) -> CborValue:
+        return {"key": self.key, "address": self.address}
+
+    @classmethod
+    def from_cbor(cls, value: CborValue) -> "RelayInfo":
+        fields = _fields(value, "relay", {"key", "address"})
+        return cls(_bytes(fields["key"], "key"), _text(fields["address"], "address"))
+
+
+@dataclass(frozen=True, slots=True)
 class Roster:
     version: int
     previous: bytes | None
@@ -102,6 +129,7 @@ class Roster:
     admins: tuple[str, ...]
     members: tuple[Member, ...]
     require_encryption: bool = False
+    relays: tuple[RelayInfo, ...] = ()
 
     def __post_init__(self) -> None:
         if self.version < 1:
@@ -122,6 +150,11 @@ class Roster:
             raise RosterError("admins must be a non-empty sorted list without repeats")
         if not set(self.admins) <= set(handles):
             raise RosterError("every admin must be a member")
+        relay_keys = [relay.key for relay in self.relays]
+        if relay_keys != sorted(set(relay_keys)):
+            raise RosterError("relays must be sorted by key and unique")
+        if set(relay_keys) & set(keys):
+            raise RosterError("a relay key cannot also be a member device")
 
     def member(self, handle: str) -> Member | None:
         return next((m for m in self.members if m.handle == handle), None)
@@ -130,6 +163,9 @@ class Roster:
         return next(
             (m for m in self.members if any(device.key == key for device in m.devices)), None
         )
+
+    def relay_for_key(self, key: bytes) -> RelayInfo | None:
+        return next((relay for relay in self.relays if relay.key == key), None)
 
     def is_admin_device(self, key: bytes) -> bool:
         member = self.member_for_key(key)
@@ -141,6 +177,7 @@ class Roster:
         *,
         members: tuple[Member, ...] | None = None,
         admins: tuple[str, ...] | None = None,
+        relays: tuple[RelayInfo, ...] | None = None,
     ) -> "Roster":
         return replace(
             self,
@@ -150,6 +187,7 @@ class Roster:
             if members is not None
             else self.members,
             admins=tuple(sorted(admins)) if admins is not None else self.admins,
+            relays=self.relays if relays is None else tuple(sorted(relays, key=lambda r: r.key)),
         )
 
     def encode(self) -> bytes:
@@ -161,6 +199,7 @@ class Roster:
                 "admins": list(self.admins),
                 "members": [member.to_cbor() for member in self.members],
                 "require_encryption": self.require_encryption,
+                "relays": [relay.to_cbor() for relay in self.relays],
             }
         )
 
@@ -173,7 +212,15 @@ class Roster:
         fields = _fields(
             value,
             "roster",
-            {"version", "previous", "team_name", "admins", "members", "require_encryption"},
+            {
+                "version",
+                "previous",
+                "team_name",
+                "admins",
+                "members",
+                "require_encryption",
+                "relays",
+            },
         )
         version = fields["version"]
         previous = fields["previous"]
@@ -191,6 +238,7 @@ class Roster:
             admins=_texts(fields["admins"], "admins"),
             members=tuple(Member.from_cbor(m) for m in _list(fields["members"], "members")),
             require_encryption=require_encryption,
+            relays=tuple(RelayInfo.from_cbor(r) for r in _list(fields["relays"], "relays")),
         )
 
 
