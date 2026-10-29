@@ -10,6 +10,7 @@ from agentmesh.log.entry import EntryContent, Kind
 from agentmesh.service.api import ApiError
 from agentmesh.service.device import Device
 from agentmesh.service.invite import Invite
+from security_key_emulator import SoftwareAuthenticator
 
 PASSPHRASE = b"team passphrase"
 
@@ -117,3 +118,26 @@ def test_removed_member_is_cut_off(team: Team) -> None:
     with pytest.raises(ApiError, match="cannot post"):
         _post(team.devices["lee"], "#general", "am I still here?")
     assert "lee" not in team.devices["ana"].call("roster.show", {})
+
+
+def test_teammates_accept_a_roster_signed_with_a_security_key(team: Team) -> None:
+    key = SoftwareAuthenticator()
+    team.admin.call("roster.enroll", {"key": key.public_key.hex(), "label": "yubikey"})
+    draft = team.admin.call(
+        "roster.remove", {"handle": "ana", "security_key": key.public_key.hex()}
+    )
+    assertion = key.sign(EntryContent.decode(bytes.fromhex(draft)).signing_input)
+    team.admin.call(
+        "roster.submit",
+        {
+            "content": draft,
+            "auth_data": assertion.auth_data.hex(),
+            "signature": assertion.signature.hex(),
+        },
+    )
+    team.sync()
+    for handle in ("tobi", "lee", "ana"):
+        roster = team.devices[handle].roster.current
+        assert roster is not None
+        assert roster.version == 6, handle
+        assert [m.handle for m in roster.members] == ["gef", "lee", "tobi"]
