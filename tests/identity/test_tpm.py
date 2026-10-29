@@ -43,8 +43,6 @@ class FakeTpm:
         env: Mapping[str, str] | None = None,
     ) -> bytes:
         assert cwd is not None
-        assert env is not None
-        assert env["TPM2TOOLS_AUTOFLUSH"] == "yes"
         command, options = args[0], _options(args[1:])
         self.commands.append(command)
         if not self.present:

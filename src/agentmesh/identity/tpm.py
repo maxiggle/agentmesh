@@ -27,6 +27,8 @@ class TpmSigner:
 
     The stored key is wrapped by a primary key the TPM re-derives from its owner seed,
     so it only loads on this TPM. Nothing is written to the TPM's persistent memory.
+    Each command leaves its objects loaded, so the TPM must sit behind a resource
+    manager such as the kernel's /dev/tpmrm0, which frees them when the command exits.
     """
 
     backend = "tpm"
@@ -35,9 +37,6 @@ class TpmSigner:
         self._directory = directory
         self._runner = runner
         self._work = tempfile.TemporaryDirectory(prefix="agentmesh-tpm-")
-        # Without autoflush every command leaves its objects loaded, and a TPM
-        # without a resource manager runs out of object slots after a few calls.
-        self._env = {**os.environ, "TPM2TOOLS_AUTOFLUSH": "yes"}
         self._loaded: set[str] = set()
         self._public: dict[str, bytes] = {}
 
@@ -135,7 +134,7 @@ class TpmSigner:
         self._run("tpm2_createprimary", "-C", "o", "-g", "sha256", "-G", "ecc256", "-c", _PRIMARY)
 
     def _run(self, *args: str) -> bytes:
-        return self._runner(args, cwd=Path(self._work.name), env=self._env)
+        return self._runner(args, cwd=Path(self._work.name))
 
     def _work_file(self, name: str) -> Path:
         return Path(self._work.name) / name
