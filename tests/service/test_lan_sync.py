@@ -69,6 +69,9 @@ async def _scenario(root: Path) -> None:
         for device in devices:
             assert device.roster.current is not None
             assert device.roster.current.version == 3
+            device.announce_key()
+        await _round(nodes)
+        await _round(nodes)
 
         first = _post(devices[1], "hello over wifi")
         await _round(nodes)
