@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from agentmesh.identity.backends import Backend
 from agentmesh.service.api import ApiError
 from agentmesh.service.config import ConfigError, DeviceConfig, default_home
 from agentmesh.service.daemon import Daemon
@@ -37,6 +38,29 @@ def test_config_round_trip(tmp_path: Path) -> None:
     config = DeviceConfig("gef", TEAM, GENESIS, exchange=tmp_path / "x")
     config.save(tmp_path)
     assert DeviceConfig.load(tmp_path) == config
+
+
+def test_config_keeps_the_key_backend(tmp_path: Path) -> None:
+    config = DeviceConfig("gef", TEAM, GENESIS, key_backend=Backend.TPM)
+    config.save(tmp_path)
+    assert DeviceConfig.load(tmp_path).key_backend is Backend.TPM
+
+
+def test_config_without_a_key_backend_uses_software(tmp_path: Path) -> None:
+    DeviceConfig("gef", TEAM, GENESIS).save(tmp_path)
+    data = json.loads((tmp_path / "config.json").read_text())
+    del data["key_backend"]
+    (tmp_path / "config.json").write_text(json.dumps(data))
+    assert DeviceConfig.load(tmp_path).key_backend is Backend.SOFTWARE
+
+
+def test_config_rejects_an_unknown_key_backend(tmp_path: Path) -> None:
+    DeviceConfig("gef", TEAM, GENESIS).save(tmp_path)
+    data = json.loads((tmp_path / "config.json").read_text())
+    data["key_backend"] = "yubikey"
+    (tmp_path / "config.json").write_text(json.dumps(data))
+    with pytest.raises(ConfigError, match="yubikey"):
+        DeviceConfig.load(tmp_path)
 
 
 @pytest.mark.parametrize(

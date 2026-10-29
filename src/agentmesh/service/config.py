@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from agentmesh.identity.backends import Backend
 from agentmesh.log.entry import ENTRY_ID_SIZE, TEAM_ID_SIZE
 from agentmesh.log.names import HANDLE, parse_address
 
@@ -25,6 +26,7 @@ class DeviceConfig:
     team: bytes
     genesis: bytes
     key_label: str = "device"
+    key_backend: Backend = Backend.SOFTWARE
     exchange: Path | None = None
     relay: str | None = None
 
@@ -44,6 +46,7 @@ class DeviceConfig:
             "team": self.team.hex(),
             "genesis": self.genesis.hex(),
             "key_label": self.key_label,
+            "key_backend": self.key_backend.value,
             "exchange": None if self.exchange is None else str(self.exchange),
             "relay": self.relay,
         }
@@ -60,6 +63,7 @@ class DeviceConfig:
                 team=bytes.fromhex(data["team"]),
                 genesis=bytes.fromhex(data["genesis"]),
                 key_label=data["key_label"],
+                key_backend=Backend(data.get("key_backend", Backend.SOFTWARE)),
                 exchange=None if exchange is None else Path(exchange),
                 relay=data.get("relay"),
             )
