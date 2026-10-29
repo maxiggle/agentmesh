@@ -1,4 +1,5 @@
 from agentmesh.identity.base import (
+    AssertionSigner,
     HardwareUnavailableError,
     IdentityError,
     InvalidLabelError,
@@ -9,6 +10,7 @@ from agentmesh.identity.base import (
 )
 
 __all__ = [
+    "AssertionSigner",
     "HardwareUnavailableError",
     "IdentityError",
     "InvalidLabelError",
