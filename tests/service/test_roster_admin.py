@@ -76,3 +76,42 @@ def test_unknown_admin_method(gef: Device) -> None:
     with pytest.raises(ApiError, match="unknown method"):
         gef.call("roster.delete", {})
     gef.close()
+
+
+RELAY_KEY = "03" + "22" * 32
+
+
+def test_relays_can_be_added_shown_and_removed(gef: Device) -> None:
+    text = gef.call("roster.relay_add", {"address": "relay.example.com:7447", "key": RELAY_KEY})
+    assert text.splitlines()[0] == "added relay relay.example.com:7447"
+    assert text.splitlines()[-1] == "relay relay.example.com:7447 · 222222"
+    assert gef.relay_addresses() == ["relay.example.com:7447"]
+    assert gef.invite.relay == "relay.example.com:7447"
+    with pytest.raises(ApiError, match="already on the roster"):
+        gef.call("roster.relay_add", {"address": "other:1", "key": RELAY_KEY})
+    removed = gef.call("roster.relay_remove", {"address": "relay.example.com:7447"})
+    assert removed.startswith("removed relay")
+    assert gef.relay_addresses() == []
+    gef.close()
+
+
+@pytest.mark.parametrize(
+    ("method", "params", "error"),
+    [
+        ("roster.relay_add", {"address": "no-port", "key": RELAY_KEY}, "host:port"),
+        ("roster.relay_add", {"address": "relay:1", "key": "zz"}, "hex"),
+        ("roster.relay_remove", {"address": "relay:1"}, "no relay"),
+    ],
+)
+def test_relay_command_errors(
+    gef: Device, method: str, params: dict[str, object], error: str
+) -> None:
+    with pytest.raises(ApiError, match=error):
+        gef.call(method, params)
+    gef.close()
+
+
+def test_relay_key_cannot_be_a_member_device(gef: Device) -> None:
+    with pytest.raises(ApiError, match="cannot also be a member"):
+        gef.call("roster.relay_add", {"address": "relay:1", "key": gef.author.hex()})
+    gef.close()

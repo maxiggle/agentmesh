@@ -3,7 +3,15 @@ from dataclasses import replace
 
 from agentmesh.log.entry import Entry, Kind
 from agentmesh.log.names import CONTROL_CHANNEL
-from agentmesh.log.roster import ALL_CHANNELS, Member, Roster, RosterDevice, RosterError, Trust
+from agentmesh.log.roster import (
+    ALL_CHANNELS,
+    Member,
+    RelayInfo,
+    Roster,
+    RosterDevice,
+    RosterError,
+    Trust,
+)
 from agentmesh.roster.book import RosterBook
 from agentmesh.service.api import ApiError, Params
 from agentmesh.store.local_log import LocalLog, NotAuthorizedError
@@ -60,6 +68,24 @@ class RosterAdmin:
         admins = tuple(a for a in current.admins if a != handle)
         return self._publish(current.successor(current_id, members=members, admins=admins))
 
+    def add_relay(self, address: str, key: bytes) -> Entry:
+        current, current_id = self._current()
+        if current.relay_for_key(key) is not None:
+            raise RosterAdminError("that relay is already on the roster")
+        try:
+            relays = (*current.relays, RelayInfo(key, address))
+            roster = current.successor(current_id, relays=relays)
+        except RosterError as exc:
+            raise RosterAdminError(str(exc)) from exc
+        return self._publish(roster)
+
+    def remove_relay(self, address: str) -> Entry:
+        current, current_id = self._current()
+        relays = tuple(relay for relay in current.relays if relay.address != address)
+        if len(relays) == len(current.relays):
+            raise RosterAdminError(f"no relay at {address}")
+        return self._publish(current.successor(current_id, relays=relays))
+
     def show(self) -> str:
         current = self._book.current
         if current is None:
@@ -73,6 +99,7 @@ class RosterAdmin:
             keys = ", ".join(f"{device.label} {device.key[1:4].hex()}" for device in member.devices)
             extra = f" ({', '.join(tags)})" if tags else ""
             lines.append(f"{member.handle}{extra} · channels {', '.join(member.channels)} · {keys}")
+        lines.extend(f"relay {relay.address} · {relay.key[1:4].hex()}" for relay in current.relays)
         return "\n".join(lines)
 
     def _current(self) -> tuple[Roster, bytes]:
@@ -101,6 +128,8 @@ class AdminApi:
             "roster.show": self._show,
             "roster.add": self._add,
             "roster.remove": self._remove,
+            "roster.relay_add": self._relay_add,
+            "roster.relay_remove": self._relay_remove,
         }
 
     def call(self, method: str, params: Mapping[str, object]) -> str:
@@ -136,3 +165,20 @@ class AdminApi:
         params.finish()
         self._admin.remove(handle)
         return f"removed {handle}\n{self._admin.show()}"
+
+    def _relay_add(self, params: Params) -> str:
+        address = params.text("address")
+        key_hex = params.text("key")
+        params.finish()
+        try:
+            key = bytes.fromhex(key_hex)
+        except ValueError as exc:
+            raise ApiError("key must be hex") from exc
+        self._admin.add_relay(address, key)
+        return f"added relay {address}\n{self._admin.show()}"
+
+    def _relay_remove(self, params: Params) -> str:
+        address = params.text("address")
+        params.finish()
+        self._admin.remove_relay(address)
+        return f"removed relay {address}\n{self._admin.show()}"
