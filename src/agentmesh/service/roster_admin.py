@@ -37,12 +37,16 @@ class RosterAdmin:
         channels: Sequence[str] = (ALL_CHANNELS,),
         admin: bool = False,
         label: str = "",
+        hardware: bool = False,
     ) -> Entry:
+        """Add a device. `hardware` is the admin's word for where the key lives; there is
+        no attestation, so it records what the joining device reported."""
         current, current_id = self._current()
         if current.member_for_key(key) is not None:
             raise RosterAdminError("that device key is already on the roster")
         try:
-            device = RosterDevice(key, Trust.SOFTWARE, label or handle)
+            trust = Trust.HARDWARE if hardware else Trust.SOFTWARE
+            device = RosterDevice(key, trust, label or handle)
             existing = current.member(handle)
             if existing is None:
                 member = Member(
@@ -96,7 +100,10 @@ class RosterAdmin:
         for member in current.members:
             tags = ["admin"] if member.handle in current.admins else []
             tags += list(member.roles)
-            keys = ", ".join(f"{device.label} {device.key[1:4].hex()}" for device in member.devices)
+            keys = ", ".join(
+                f"{device.label} {device.key[1:4].hex()} {device.trust}"
+                for device in member.devices
+            )
             extra = f" ({', '.join(tags)})" if tags else ""
             lines.append(f"{member.handle}{extra} · channels {', '.join(member.channels)} · {keys}")
         lines.extend(f"relay {relay.address} · {relay.key[1:4].hex()}" for relay in current.relays)
@@ -152,12 +159,15 @@ class AdminApi:
         channels = params.texts("channels", required=False) or [ALL_CHANNELS]
         admin = params.flag("admin")
         label = params.optional_text("label") or ""
+        hardware = params.flag("hardware")
         params.finish()
         try:
             key = bytes.fromhex(key_hex)
         except ValueError as exc:
             raise ApiError("key must be hex") from exc
-        self._admin.add(handle, key, roles=roles, channels=channels, admin=admin, label=label)
+        self._admin.add(
+            handle, key, roles=roles, channels=channels, admin=admin, label=label, hardware=hardware
+        )
         return f"added {handle}\n{self._admin.show()}"
 
     def _remove(self, params: Params) -> str:
