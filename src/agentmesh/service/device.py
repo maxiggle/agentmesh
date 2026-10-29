@@ -13,7 +13,7 @@ from agentmesh.log.names import CONTROL_CHANNEL
 from agentmesh.log.roster import ALL_CHANNELS, Member, Roster, RosterDevice, RosterError, Trust
 from agentmesh.log.verify import EntryVerifier
 from agentmesh.roster.book import RosterBook
-from agentmesh.service.api import ToolApi
+from agentmesh.service.api import Params, ToolApi
 from agentmesh.service.config import CONFIG_FILE, ConfigError, DeviceConfig
 from agentmesh.service.directory import RosterDirectory
 from agentmesh.service.invite import Invite
@@ -30,6 +30,7 @@ _HOME_MODE = 0o700
 _DB_FILE = "agentmesh.db"
 _KEY_DIR = "keys"
 _ENCRYPTION_KEY = "encryption.key"
+INVITE_METHOD = "invite"
 
 
 class Device:
@@ -188,6 +189,9 @@ class Device:
 
     def call(self, method: str, params: Mapping[str, object]) -> str:
         self.sync()
+        if method == INVITE_METHOD:
+            Params(params).finish()
+            return self.invite.encode()
         if method.startswith(AdminApi.PREFIX):
             result = self._admin.call(method, params)
         else:
