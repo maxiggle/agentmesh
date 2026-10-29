@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from agentmesh.identity.assertion import Assertion
+
 _LABEL = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 
 
@@ -41,6 +43,20 @@ class Signer(Protocol):
 
     def sign(self, handle: KeyHandle, data: bytes) -> bytes:
         """Sign `data` with ES256 and return the raw 64-byte `r || s` signature."""
+        ...
+
+
+class AssertionSigner(Protocol):
+    """A key that signs only through FIDO2 assertions, such as a USB security key."""
+
+    def create_key(self, label: str) -> KeyHandle: ...
+
+    def public_key(self, handle: KeyHandle) -> bytes:
+        """Return the SEC1 compressed P-256 public key (33 bytes)."""
+        ...
+
+    def sign_assertion(self, handle: KeyHandle, message: bytes) -> Assertion:
+        """Get a user-present assertion whose client data hash is SHA-256 of `message`."""
         ...
 
 
