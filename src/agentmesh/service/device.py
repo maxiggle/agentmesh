@@ -5,8 +5,8 @@ from types import TracebackType
 from typing import Self
 
 from agentmesh.crypto.keyfile import EncryptionKeyFile
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
+from agentmesh.identity import KeyHandle, Signer
+from agentmesh.identity.backends import Backend, open_signer
 from agentmesh.log.entry import TEAM_ID_SIZE, Kind
 from agentmesh.log.key_announce import KeyAnnounce
 from agentmesh.log.names import CONTROL_CHANNEL
@@ -29,6 +29,8 @@ from agentmesh.transport.directory import DirectoryExchange
 _HOME_MODE = 0o700
 _DB_FILE = "agentmesh.db"
 _KEY_DIR = "keys"
+_TOOLS_DIR = "bin"
+_KEY_LABEL = "device"
 _ENCRYPTION_KEY = "encryption.key"
 INVITE_METHOD = "invite"
 
@@ -38,8 +40,8 @@ class Device:
 
     def __init__(self, home: Path, config: DeviceConfig, passphrase: bytes) -> None:
         self._config = config
-        signer = SoftwareSigner(home / _KEY_DIR, passphrase)
-        key = KeyHandle(SoftwareSigner.backend, config.key_label)
+        signer = _signer(home, config.key_backend, passphrase)
+        key = KeyHandle(config.key_backend.value, config.key_label)
         self._store = SqliteStore(home / _DB_FILE)
         self._book = RosterBook(config.genesis)
         self._book.load(
@@ -84,13 +86,13 @@ class Device:
         *,
         team_name: str = "",
         exchange: Path | None = None,
+        key_backend: Backend = Backend.SOFTWARE,
     ) -> "Device":
         """Start a new team with this device as its first admin."""
-        signer = cls._new_key(home, passphrase)
+        signer, key = cls._new_key(home, passphrase, key_backend)
         team = secrets.token_bytes(TEAM_ID_SIZE)
-        key = KeyHandle(SoftwareSigner.backend, "device")
         try:
-            device = RosterDevice(signer.public_key(key), Trust.SOFTWARE, handle)
+            device = RosterDevice(signer.public_key(key), trust_for(key_backend), handle)
             member = Member(handle, (), (ALL_CHANNELS,), (device,))
             genesis = Roster(1, None, team_name, (handle,), (member,), require_encryption=True)
         except RosterError as exc:
@@ -98,7 +100,7 @@ class Device:
         with SqliteStore(home / _DB_FILE) as store:
             local_log = LocalLog(store, signer, key, team, EntryVerifier(team))
             entry = local_log.append(CONTROL_CHANNEL, Kind.ROSTER, genesis.encode())
-        config = DeviceConfig(handle, team, entry.id, exchange=exchange)
+        config = DeviceConfig(handle, team, entry.id, exchange=exchange, key_backend=key_backend)
         config.save(home)
         return cls(home, config, passphrase)
 
@@ -111,12 +113,18 @@ class Device:
         passphrase: bytes,
         *,
         exchange: Path | None = None,
+        key_backend: Backend = Backend.SOFTWARE,
     ) -> "Device":
         """Set up a device that trusts only the genesis roster named in the invite."""
         config = DeviceConfig(
-            handle, invite.team, invite.genesis, exchange=exchange, relay=invite.relay
+            handle,
+            invite.team,
+            invite.genesis,
+            exchange=exchange,
+            relay=invite.relay,
+            key_backend=key_backend,
         )
-        cls._new_key(home, passphrase)
+        cls._new_key(home, passphrase, key_backend)
         config.save(home)
         return cls(home, config, passphrase)
 
@@ -125,13 +133,12 @@ class Device:
         return cls(home, DeviceConfig.load(home), passphrase)
 
     @staticmethod
-    def _new_key(home: Path, passphrase: bytes) -> SoftwareSigner:
+    def _new_key(home: Path, passphrase: bytes, backend: Backend) -> tuple[Signer, KeyHandle]:
         if (home / CONFIG_FILE).exists():
             raise ConfigError(f"a device already exists at {home}")
         home.mkdir(parents=True, exist_ok=True, mode=_HOME_MODE)
-        signer = SoftwareSigner(home / _KEY_DIR, passphrase)
-        signer.create_key("device")
-        return signer
+        signer = _signer(home, backend, passphrase)
+        return signer, signer.create_key(_KEY_LABEL)
 
     def __enter__(self) -> Self:
         return self
@@ -201,3 +208,11 @@ class Device:
 
     def close(self) -> None:
         self._store.close()
+
+
+def trust_for(backend: Backend) -> Trust:
+    return Trust.HARDWARE if backend.hardware else Trust.SOFTWARE
+
+
+def _signer(home: Path, backend: Backend, passphrase: bytes) -> Signer:
+    return open_signer(backend, home / _KEY_DIR, passphrase, tools=home / _TOOLS_DIR)

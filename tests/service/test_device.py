@@ -6,7 +6,11 @@ from pathlib import Path
 
 import pytest
 
+from agentmesh.identity import Signer
 from agentmesh.identity.backends import Backend
+from agentmesh.identity.software import SoftwareSigner
+from agentmesh.log.roster import Trust
+from agentmesh.service import device as device_module
 from agentmesh.service.api import ApiError
 from agentmesh.service.config import ConfigError, DeviceConfig, default_home
 from agentmesh.service.daemon import Daemon
@@ -101,6 +105,49 @@ def test_create_team_then_reopen(tmp_path: Path) -> None:
         assert device.invite == invite
         assert device.roster.current is not None
         assert _post(device, "#backend", "hi").startswith("posted")
+
+
+class PretendTpm(SoftwareSigner):
+    backend = "tpm"
+
+
+@pytest.fixture
+def pretend_tpm(monkeypatch: pytest.MonkeyPatch) -> list[Backend]:
+    opened: list[Backend] = []
+
+    def open_signer(backend: Backend, keys: Path, passphrase: bytes, *, tools: Path) -> Signer:
+        opened.append(backend)
+        kind = PretendTpm if backend is Backend.TPM else SoftwareSigner
+        return kind(keys, passphrase)
+
+    monkeypatch.setattr(device_module, "open_signer", open_signer)
+    return opened
+
+
+def test_hardware_founder_is_marked_hardware_in_genesis(
+    tmp_path: Path, pretend_tpm: list[Backend]
+) -> None:
+    with Device.create_team(tmp_path, "gef", PASSPHRASE, key_backend=Backend.TPM) as device:
+        assert device.config.key_backend is Backend.TPM
+        roster = device.roster.current
+        assert roster is not None
+        assert [d.trust for d in roster.members[0].devices] == [Trust.HARDWARE]
+    with Device.open(tmp_path, PASSPHRASE) as device:
+        assert _post(device, "#backend", "hi").startswith("posted")
+    assert set(pretend_tpm) == {Backend.TPM}
+
+
+def test_joining_device_keeps_its_backend(tmp_path: Path, pretend_tpm: list[Backend]) -> None:
+    with Device.create_team(tmp_path / "gef", "gef", PASSPHRASE) as gef:
+        invite = gef.invite
+        roster = gef.roster.current
+        assert roster is not None
+        assert [d.trust for d in roster.members[0].devices] == [Trust.SOFTWARE]
+    with Device.join(tmp_path / "tobi", invite, "tobi", PASSPHRASE, key_backend=Backend.TPM):
+        pass
+    with Device.open(tmp_path / "tobi", PASSPHRASE) as tobi:
+        assert tobi.config.key_backend is Backend.TPM
+    assert pretend_tpm[-1] is Backend.TPM
 
 
 def test_setup_refuses_an_existing_device(tmp_path: Path) -> None:
