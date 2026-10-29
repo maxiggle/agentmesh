@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from agentmesh.log.entry import ENTRY_ID_SIZE, TEAM_ID_SIZE
-from agentmesh.log.names import HANDLE
+from agentmesh.log.names import HANDLE, parse_address
 
 CONFIG_FILE = "config.json"
 HOME_ENV = "AGENTMESH_HOME"
@@ -26,6 +26,7 @@ class DeviceConfig:
     genesis: bytes
     key_label: str = "device"
     exchange: Path | None = None
+    relay: str | None = None
 
     def __post_init__(self) -> None:
         if not HANDLE.fullmatch(self.handle):
@@ -34,6 +35,8 @@ class DeviceConfig:
             raise ConfigError(f"team id must be {TEAM_ID_SIZE} bytes")
         if len(self.genesis) != ENTRY_ID_SIZE:
             raise ConfigError(f"genesis roster id must be {ENTRY_ID_SIZE} bytes")
+        if self.relay is not None and parse_address(self.relay) is None:
+            raise ConfigError(f"relay must be host:port, got {self.relay!r}")
 
     def save(self, home: Path) -> None:
         data = {
@@ -42,6 +45,7 @@ class DeviceConfig:
             "genesis": self.genesis.hex(),
             "key_label": self.key_label,
             "exchange": None if self.exchange is None else str(self.exchange),
+            "relay": self.relay,
         }
         (home / CONFIG_FILE).write_text(json.dumps(data, indent=2) + "\n")
 
@@ -57,6 +61,7 @@ class DeviceConfig:
                 genesis=bytes.fromhex(data["genesis"]),
                 key_label=data["key_label"],
                 exchange=None if exchange is None else Path(exchange),
+                relay=data.get("relay"),
             )
         except FileNotFoundError as exc:
             raise ConfigError(f"no device at {home}; run `agentmesh init` first") from exc

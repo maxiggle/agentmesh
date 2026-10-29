@@ -66,7 +66,7 @@ class Device:
             signer,
             key,
             config.team,
-            is_member=lambda peer: self._book.member_for_key(peer) is not None,
+            is_member=self._book.may_receive_logs,
         )
         self._exchange = (
             None
@@ -112,7 +112,9 @@ class Device:
         exchange: Path | None = None,
     ) -> "Device":
         """Set up a device that trusts only the genesis roster named in the invite."""
-        config = DeviceConfig(handle, invite.team, invite.genesis, exchange=exchange)
+        config = DeviceConfig(
+            handle, invite.team, invite.genesis, exchange=exchange, relay=invite.relay
+        )
         cls._new_key(home, passphrase)
         config.save(home)
         return cls(home, config, passphrase)
@@ -151,7 +153,16 @@ class Device:
 
     @property
     def invite(self) -> Invite:
-        return Invite(self._config.team, self._config.genesis)
+        relays = self.relay_addresses()
+        return Invite(self._config.team, self._config.genesis, relays[0] if relays else None)
+
+    def relay_addresses(self) -> list[str]:
+        """The roster's relays, or the invite's relay until the roster names any."""
+        roster = self._book.current
+        listed = [relay.address for relay in roster.relays] if roster is not None else []
+        if listed:
+            return listed
+        return [self._config.relay] if self._config.relay else []
 
     @property
     def roster(self) -> RosterBook:

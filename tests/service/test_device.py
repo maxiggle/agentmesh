@@ -10,6 +10,7 @@ from agentmesh.service.api import ApiError
 from agentmesh.service.config import ConfigError, DeviceConfig, default_home
 from agentmesh.service.daemon import Daemon
 from agentmesh.service.device import Device
+from agentmesh.service.invite import Invite
 from agentmesh.service.rpc import RpcClient, TcpEndpoint
 
 PASSPHRASE = b"test passphrase"
@@ -184,3 +185,14 @@ def test_daemons_serve_tool_calls(short_dir: Path) -> None:
     posted, digest = asyncio.run(_daemons_talk(short_dir))
     assert posted.startswith("posted ")
     assert digest == "1 new · 1 shipped"
+
+
+def test_joining_remembers_the_invite_relay_until_the_roster_names_one(tmp_path: Path) -> None:
+    with Device.create_team(tmp_path / "gef", "gef", PASSPHRASE) as gef:
+        invite = Invite(gef.invite.team, gef.invite.genesis, "bootstrap.example.com:7447")
+    with Device.join(tmp_path / "tobi", invite, "tobi", PASSPHRASE) as tobi:
+        assert tobi.config.relay == "bootstrap.example.com:7447"
+        assert tobi.relay_addresses() == ["bootstrap.example.com:7447"]
+    assert DeviceConfig.load(tmp_path / "tobi").relay == "bootstrap.example.com:7447"
+    with pytest.raises(ConfigError, match="host:port"):
+        DeviceConfig("gef", TEAM, GENESIS, relay="nope")
