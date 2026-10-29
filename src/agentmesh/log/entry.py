@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from agentmesh.identity import KeyHandle, Signer
+from agentmesh.identity.assertion import Assertion
 from agentmesh.identity.es256 import PUBLIC_KEY_SIZE
 from agentmesh.log.canonical import CanonicalError, CborValue, decode, encode
 
@@ -10,6 +11,7 @@ PROTOCOL_VERSION = 0
 ENTRY_ID_SIZE = 32
 TEAM_ID_SIZE = 16
 SIG_ALG_ES256 = "es256"
+SIG_ALG_FIDO2 = "es256-fido2"
 
 _ENTRY_TAG = b"agentmesh/entry/v0\x00"
 _SIG_TAG = b"agentmesh/sig/v0\x00"
@@ -17,6 +19,7 @@ _CONTENT_FIELDS = frozenset(
     {"v", "author", "seq", "prev", "team", "channel", "kind", "refs", "ts", "body"}
 )
 _SIG_FIELDS = frozenset({"alg", "value"})
+_FIDO2_SIG_FIELDS = _SIG_FIELDS | {"auth_data"}
 
 
 class EntryFormatError(ValueError):
@@ -34,6 +37,30 @@ class Kind(StrEnum):
 class Signature:
     alg: str
     value: bytes
+    auth_data: bytes | None = None
+
+    @classmethod
+    def from_assertion(cls, assertion: Assertion) -> "Signature":
+        return cls(SIG_ALG_FIDO2, assertion.signature, assertion.auth_data)
+
+    def to_cbor(self) -> dict[str, CborValue]:
+        fields: dict[str, CborValue] = {"alg": self.alg, "value": self.value}
+        if self.auth_data is not None:
+            fields["auth_data"] = self.auth_data
+        return fields
+
+    @classmethod
+    def from_cbor(cls, value: CborValue) -> "Signature":
+        if not isinstance(value, dict) or value.keys() not in (_SIG_FIELDS, _FIDO2_SIG_FIELDS):
+            raise EntryFormatError(
+                f"sig fields must be {sorted(_SIG_FIELDS)} or {sorted(_FIDO2_SIG_FIELDS)}"
+            )
+        auth_data = value.get("auth_data")
+        return cls(
+            _as_text(value["alg"], "sig.alg"),
+            _as_bytes(value["value"], "sig.value"),
+            None if auth_data is None else _as_bytes(auth_data, "sig.auth_data"),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +111,15 @@ class EntryContent:
         value = signer.sign(handle, self.signing_input)
         return Entry(self, Signature(SIG_ALG_ES256, value))
 
+    def with_assertion(self, assertion: Assertion) -> "Entry":
+        """Attach a security key's assertion over `signing_input` (protocol §3.2)."""
+        return Entry(self, Signature.from_assertion(assertion))
+
+    @classmethod
+    def decode(cls, signed_bytes: bytes) -> "EntryContent":
+        """Rebuild content from its `signed_bytes`, e.g. to sign it somewhere else."""
+        return _content_from_cbor(_as_map(_decode(signed_bytes), "entry", _CONTENT_FIELDS))
+
 
 @dataclass(frozen=True, slots=True)
 class Entry:
@@ -103,33 +139,35 @@ class Entry:
         return self.content.seq
 
     def encode(self) -> bytes:
-        return encode(
-            {**self.content.to_cbor(), "sig": {"alg": self.sig.alg, "value": self.sig.value}}
-        )
+        return encode({**self.content.to_cbor(), "sig": self.sig.to_cbor()})
 
     @classmethod
     def decode(cls, raw: bytes) -> "Entry":
-        try:
-            value = decode(raw)
-        except CanonicalError as exc:
-            raise EntryFormatError(str(exc)) from exc
-        fields = _as_map(value, "entry", _CONTENT_FIELDS | {"sig"})
-        sig = _as_map(fields["sig"], "sig", _SIG_FIELDS)
-        prev = fields["prev"]
-        content = EntryContent(
-            v=_as_uint(fields["v"], "v"),
-            author=_as_bytes(fields["author"], "author", PUBLIC_KEY_SIZE),
-            seq=_as_uint(fields["seq"], "seq"),
-            prev=None if prev is None else _as_bytes(prev, "prev", ENTRY_ID_SIZE),
-            team=_as_bytes(fields["team"], "team", TEAM_ID_SIZE),
-            channel=_as_text(fields["channel"], "channel"),
-            kind=_as_kind(fields["kind"]),
-            refs=_as_refs(fields["refs"]),
-            ts=_as_uint(fields["ts"], "ts"),
-            body=_as_bytes(fields["body"], "body"),
-        )
-        signature = Signature(_as_text(sig["alg"], "sig.alg"), _as_bytes(sig["value"], "sig.value"))
-        return cls(content, signature)
+        fields = _as_map(_decode(raw), "entry", _CONTENT_FIELDS | {"sig"})
+        return cls(_content_from_cbor(fields), Signature.from_cbor(fields["sig"]))
+
+
+def _decode(raw: bytes) -> CborValue:
+    try:
+        return decode(raw)
+    except CanonicalError as exc:
+        raise EntryFormatError(str(exc)) from exc
+
+
+def _content_from_cbor(fields: dict[str, CborValue]) -> EntryContent:
+    prev = fields["prev"]
+    return EntryContent(
+        v=_as_uint(fields["v"], "v"),
+        author=_as_bytes(fields["author"], "author", PUBLIC_KEY_SIZE),
+        seq=_as_uint(fields["seq"], "seq"),
+        prev=None if prev is None else _as_bytes(prev, "prev", ENTRY_ID_SIZE),
+        team=_as_bytes(fields["team"], "team", TEAM_ID_SIZE),
+        channel=_as_text(fields["channel"], "channel"),
+        kind=_as_kind(fields["kind"]),
+        refs=_as_refs(fields["refs"]),
+        ts=_as_uint(fields["ts"], "ts"),
+        body=_as_bytes(fields["body"], "body"),
+    )
 
 
 def _as_map(value: CborValue, name: str, expected: frozenset[str]) -> dict[str, CborValue]:

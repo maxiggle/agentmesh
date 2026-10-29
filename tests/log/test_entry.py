@@ -6,6 +6,7 @@ import pytest
 from agentmesh.identity import es256
 from agentmesh.log.canonical import decode, encode
 from agentmesh.log.entry import Entry, EntryContent, EntryFormatError, Kind, Signature
+from security_key_emulator import SoftwareAuthenticator
 
 
 def test_round_trips(make_entry: Callable[..., Entry]) -> None:
@@ -64,6 +65,8 @@ _DELETE = object()
         {"refs": b"\x00" * 32},
         {"channel": b"#backend"},
         {"sig": {"alg": "es256"}},
+        {"sig": {"alg": "es256", "value": b"\x00" * 64, "extra": b""}},
+        {"sig": {"alg": "es256-fido2", "value": b"\x00" * 64, "auth_data": "x"}},
         {"sig": b"\x00" * 64},
     ],
 )
@@ -82,3 +85,32 @@ def test_decode_rejects_non_map() -> None:
 def test_decode_rejects_non_canonical_bytes(make_entry: Callable[..., Entry]) -> None:
     with pytest.raises(EntryFormatError):
         Entry.decode(make_entry().encode() + b"\x00")
+
+
+def test_security_key_signature_round_trips(make_content: Callable[..., EntryContent]) -> None:
+    key = SoftwareAuthenticator()
+    content = make_content(author=key.public_key)
+    entry = content.with_assertion(key.sign(content.signing_input))
+    assert entry.sig.alg == "es256-fido2"
+    assert Entry.decode(entry.encode()) == entry
+
+
+def test_id_ignores_auth_data(make_content: Callable[..., EntryContent]) -> None:
+    key = SoftwareAuthenticator()
+    content = make_content(author=key.public_key)
+    first = content.with_assertion(key.sign(content.signing_input))
+    second = content.with_assertion(key.sign(content.signing_input))
+    assert first.sig.auth_data != second.sig.auth_data
+    assert first.id == second.id
+
+
+def test_content_decodes_from_its_signed_bytes(
+    make_content: Callable[..., EntryContent],
+) -> None:
+    content = make_content(refs=(b"\x01" * 32,))
+    assert EntryContent.decode(content.signed_bytes) == content
+
+
+def test_content_decode_refuses_a_signed_entry(make_entry: Callable[..., Entry]) -> None:
+    with pytest.raises(EntryFormatError):
+        EntryContent.decode(make_entry().encode())
