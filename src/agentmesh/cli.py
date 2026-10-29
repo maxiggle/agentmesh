@@ -60,6 +60,22 @@ def _parser() -> argparse.ArgumentParser:
     join.add_argument("--exchange", type=Path, help="shared folder for swapping entries")
     join.set_defaults(run=_join)
 
+    _add_roster_commands(commands)
+    _add_relay_commands(commands)
+
+    serve = commands.add_parser("serve", help="run the background service")
+    serve.add_argument("--interval", type=float, default=DEFAULT_SYNC_INTERVAL)
+    serve.add_argument("--no-lan", action="store_true", help="do not sync over the local network")
+    serve.add_argument("--lan-interval", type=float, default=DEFAULT_PEER_INTERVAL)
+    serve.set_defaults(run=_serve)
+
+    commands.add_parser("mcp", help="run the MCP server for Claude").set_defaults(run=_mcp)
+    for tool in ("digest", "inbox", "team"):
+        commands.add_parser(tool, help=f"show {tool}").set_defaults(run=_tool, tool=tool)
+    return parser
+
+
+def _add_roster_commands(commands: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
     roster = commands.add_parser("roster", help="show or change the team roster")
     roster.set_defaults(run=_roster_show)
     roster_commands = roster.add_subparsers(metavar="action")
@@ -82,6 +98,8 @@ def _parser() -> argparse.ArgumentParser:
     relay_remove.add_argument("address")
     relay_remove.set_defaults(run=_roster_relay_remove)
 
+
+def _add_relay_commands(commands: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
     relay = commands.add_parser("relay", help="set up or run a relay for a team")
     relay_commands = relay.add_subparsers(required=True, metavar="action")
     relay_init = relay_commands.add_parser("init", help="create a relay from an invite code")
@@ -90,17 +108,6 @@ def _parser() -> argparse.ArgumentParser:
     relay_serve = relay_commands.add_parser("serve", help="run the relay")
     relay_serve.add_argument("--listen", default=f"0.0.0.0:{DEFAULT_RELAY_PORT}", help="host:port")
     relay_serve.set_defaults(run=_relay_serve)
-
-    serve = commands.add_parser("serve", help="run the background service")
-    serve.add_argument("--interval", type=float, default=DEFAULT_SYNC_INTERVAL)
-    serve.add_argument("--no-lan", action="store_true", help="do not sync over the local network")
-    serve.add_argument("--lan-interval", type=float, default=DEFAULT_PEER_INTERVAL)
-    serve.set_defaults(run=_serve)
-
-    commands.add_parser("mcp", help="run the MCP server for Claude").set_defaults(run=_mcp)
-    for tool in ("digest", "inbox", "team"):
-        commands.add_parser(tool, help=f"show {tool}").set_defaults(run=_tool, tool=tool)
-    return parser
 
 
 def _home(args: argparse.Namespace) -> Path:
