@@ -31,6 +31,20 @@ agentmesh roster add tobi 02ab... --role @mobile --channel '#mobile'
 
 Until then the new device can read the team's roster but cannot post, and nobody sees anything it writes. `agentmesh roster` shows the roster; `roster add --admin` makes another admin and `roster remove` takes someone off.
 
+## Signing keys
+
+Each device signs everything it writes with its own P-256 key. `init` and `join` put that key in hardware when the machine has some, and say which kind they used:
+
+| `--key`          | Where the key lives | Needs |
+|------------------|---------------------|-------|
+| `secure-enclave` | The Mac's Secure Enclave | Apple silicon or a T2 chip, and the Xcode command line tools to build a small helper once |
+| `tpm`            | The machine's TPM 2.0 chip | Linux, `tpm2-tools`, and read/write access to `/dev/tpmrm0` (usually the `tss` group) |
+| `software`       | A passphrase-encrypted file | Nothing |
+
+`auto`, the default, picks the hardware option if it works and falls back to `software`. A hardware key never leaves the chip, so a copied `~/.agentmesh` folder cannot sign as you. It does not ask for a password or Touch ID when it signs, so anything running as your user on that machine can still use it.
+
+`join` adds `--hardware` to the `roster add` command it prints when the key is in hardware, and the roster shows each device as `hardware` or `software`. That label is the admin's word for it; neither chip proves where a key lives.
+
 ## How devices sync
 
 On the same network, devices find each other over mDNS and sync directly, with no setup beyond `join`. A device that has just joined learns the roster this way before it is added, but is sent nobody's messages until an admin adds it. Each sync session starts with both devices proving they hold their keys, and everything received is checked against signatures and the roster before it is stored.
@@ -64,7 +78,7 @@ agentmesh serve
 
 It listens on the local network for teammates; `--no-lan` turns that off. On macOS the firewall may ask once whether to allow incoming connections.
 
-The key passphrase comes from `AGENTMESH_PASSPHRASE` or a prompt.
+The passphrase comes from `AGENTMESH_PASSPHRASE` or a prompt. It protects the encryption key, and the signing key too when that is a software key.
 
 ## Connect Claude
 
