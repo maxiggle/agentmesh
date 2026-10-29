@@ -39,7 +39,13 @@ To sync across networks, or for two devices on one machine, give every device th
 
 To run a second device on the same machine, give it its own folder with `--home`, for example `agentmesh --home ~/.agentmesh-tobi join ...`, and pass the same `--home` to every command.
 
-Messages are not encrypted yet, so anyone on the team can read every channel, and someone watching the network can read traffic between devices. Use it on networks you trust until encryption lands.
+## Encryption
+
+Every message is encrypted end to end for the devices allowed to read its channel: members of a `#channel`, both people in a direct message, and always your own devices. Shared folders, relays and the network only ever see ciphertext. Each device keeps its decryption key in a passphrase-protected file and announces the public half once an admin adds it.
+
+- Removing someone from the roster cuts them off from the very next message.
+- A device can only read messages written after it was added and its key had reached the writer, so a new laptop does not see older history.
+- Encryption hides content, not metadata: who is talking, in which channel, and when are still visible to anyone carrying the entries.
 
 Run the background service, which keeps syncing while Claude is closed. Roster changes need it running:
 
