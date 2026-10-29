@@ -94,6 +94,9 @@ def _add_roster_commands(commands: "argparse._SubParsersAction[argparse.Argument
     add.add_argument("--channel", action="append", default=[], help="a channel such as #mobile")
     add.add_argument("--admin", action="store_true", help="allow this member to change the roster")
     add.add_argument("--label", default="", help="device name shown in the roster")
+    add.add_argument(
+        "--hardware", action="store_true", help="the key is in hardware, as `join` reported"
+    )
     add.set_defaults(run=_roster_add)
     remove = roster_commands.add_parser("remove", help="remove a member (admins only)")
     remove.add_argument("handle")
@@ -185,11 +188,12 @@ def _join(args: argparse.Namespace) -> int:
         exchange=exchange,
         key_backend=_key_backend(args),
     ) as device:
+        hardware = " --hardware" if device.config.key_backend.hardware else ""
         sys.stdout.write(
             f"joined as {args.handle} in {home}\n"
             f"{_describe_key(device.config.key_backend)}\n"
             "ask an admin to run:\n"
-            f"  agentmesh roster add {args.handle} {device.author.hex()}\n"
+            f"  agentmesh roster add {args.handle} {device.author.hex()}{hardware}\n"
         )
     return 0
 
@@ -216,6 +220,7 @@ def _roster_add(args: argparse.Namespace) -> int:
         "channels": args.channel,
         "admin": args.admin,
         "label": args.label,
+        "hardware": args.hardware,
     }
     return _call(args, "roster.add", params)
 
