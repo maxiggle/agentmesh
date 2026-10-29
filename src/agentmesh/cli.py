@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from agentmesh.identity import IdentityError
+from agentmesh.identity.backends import Backend
 from agentmesh.log.names import parse_address
 from agentmesh.mcp.server import build_server
 from agentmesh.relay.server import Relay, RelayError
@@ -24,6 +25,9 @@ from agentmesh.transport.relays import RelayDirectory
 
 PASSPHRASE_ENV = "AGENTMESH_PASSPHRASE"  # noqa: S105 - env var name, not a secret
 DEFAULT_RELAY_PORT = 7447
+AUTO_KEY = "auto"
+KEY_CHOICES = [AUTO_KEY, *(backend.value for backend in Backend)]
+_KEY_HELP = "where the signing key lives; auto uses a hardware key if this machine has one"
 
 
 class CliError(Exception):
@@ -50,6 +54,7 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--handle", required=True, help="your short name, e.g. gef")
     init.add_argument("--team-name", default="", help="display name for the team")
     init.add_argument("--exchange", type=Path, help="shared folder for swapping entries")
+    init.add_argument("--key", choices=KEY_CHOICES, default=AUTO_KEY, help=_KEY_HELP)
     init.set_defaults(run=_init)
 
     invite = commands.add_parser("invite", help="print this team's invite code")
@@ -60,6 +65,7 @@ def _parser() -> argparse.ArgumentParser:
     join.add_argument("code", help="invite code from a teammate")
     join.add_argument("--handle", required=True, help="your short name, e.g. tobi")
     join.add_argument("--exchange", type=Path, help="shared folder for swapping entries")
+    join.add_argument("--key", choices=KEY_CHOICES, default=AUTO_KEY, help=_KEY_HELP)
     join.set_defaults(run=_join)
 
     _add_roster_commands(commands)
@@ -133,10 +139,16 @@ def _init(args: argparse.Namespace) -> int:
     home = _home(args)
     exchange = None if args.exchange is None else args.exchange.resolve()
     with Device.create_team(
-        home, args.handle, _passphrase(confirm=True), team_name=args.team_name, exchange=exchange
+        home,
+        args.handle,
+        _passphrase(confirm=True),
+        team_name=args.team_name,
+        exchange=exchange,
+        key_backend=_key_backend(args),
     ) as device:
         sys.stdout.write(
             f"created team with {args.handle} as admin in {home}\n"
+            f"{_describe_key(device.config.key_backend)}\n"
             f"invite  {device.invite.encode()}\n"
             "next: run `agentmesh serve`, then add `agentmesh mcp` to Claude\n"
         )
@@ -166,14 +178,30 @@ def _join(args: argparse.Namespace) -> int:
     home = _home(args)
     exchange = None if args.exchange is None else args.exchange.resolve()
     with Device.join(
-        home, invite, args.handle, _passphrase(confirm=True), exchange=exchange
+        home,
+        invite,
+        args.handle,
+        _passphrase(confirm=True),
+        exchange=exchange,
+        key_backend=_key_backend(args),
     ) as device:
         sys.stdout.write(
             f"joined as {args.handle} in {home}\n"
+            f"{_describe_key(device.config.key_backend)}\n"
             "ask an admin to run:\n"
             f"  agentmesh roster add {args.handle} {device.author.hex()}\n"
         )
     return 0
+
+
+def _key_backend(args: argparse.Namespace) -> Backend | None:
+    return None if args.key == AUTO_KEY else Backend(args.key)
+
+
+def _describe_key(backend: Backend) -> str:
+    if backend.hardware:
+        return f"signing key  {backend} (hardware, cannot be copied off this machine)"
+    return f"signing key  {backend} (passphrase-protected file)"
 
 
 def _roster_show(args: argparse.Namespace) -> int:
