@@ -106,13 +106,42 @@ class StaticDirectory:
         return tuple(self._names)
 
 
+class BodyCodec(Protocol):
+    """Turns a body into what is stored in an entry, and back."""
+
+    def seal(self, channel: str, kind: Kind, body: bytes) -> bytes: ...
+
+    def open(self, entry: Entry) -> bytes | None:
+        """The plaintext body, or None if this device cannot read it."""
+        ...
+
+
+class PlainCodec:
+    def seal(self, channel: str, kind: Kind, body: bytes) -> bytes:
+        return Envelope.plain(body).encode()
+
+    def open(self, entry: Entry) -> bytes | None:
+        try:
+            envelope = Envelope.decode(entry.content.body)
+        except EnvelopeError:
+            return None
+        return envelope.data if envelope.enc is Encryption.NONE else None
+
+
 class Messenger:
     """The operations behind the MCP tools, independent of how results are shown."""
 
-    def __init__(self, store: Store, local_log: LocalLog, directory: Directory) -> None:
+    def __init__(
+        self,
+        store: Store,
+        local_log: LocalLog,
+        directory: Directory,
+        codec: BodyCodec | None = None,
+    ) -> None:
         self._store = store
         self._log = local_log
         self._directory = directory
+        self._codec = codec or PlainCodec()
 
     @property
     def me(self) -> Identity:
@@ -253,7 +282,7 @@ class Messenger:
                 message
                 for entry in entries
                 if entry.content.kind is Kind.STATUS
-                and (status := _status_body(entry)) is not None
+                and (status := self._status_body(entry)) is not None
                 and status.status is Status.CLAIMED
                 and (target := self._store.get(status.target)) is not None
                 and (message := self._as_message(target)) is not None
@@ -264,9 +293,23 @@ class Messenger:
             teammates.append(Teammate(author, messages, last_ts, claimed))
         return tuple(sorted(teammates, key=lambda t: (-t.last_ts, self.display_name(t.author))))
 
+    def _message_body(self, entry: Entry) -> MessageBody | None:
+        data = self._codec.open(entry) if entry.content.kind is Kind.MESSAGE else None
+        try:
+            return None if data is None else MessageBody.decode(data)
+        except BodyError:
+            return None
+
+    def _status_body(self, entry: Entry) -> StatusBody | None:
+        data = self._codec.open(entry) if entry.content.kind is Kind.STATUS else None
+        try:
+            return None if data is None else StatusBody.decode(data)
+        except BodyError:
+            return None
+
     def _append(self, channel: str, kind: Kind, body: bytes, refs: Iterable[bytes]) -> Entry:
         try:
-            return self._log.append(channel, kind, Envelope.plain(body).encode(), refs)
+            return self._log.append(channel, kind, self._codec.seal(channel, kind, body), refs)
         except NotAuthorizedError as exc:
             raise MessengerError(f"cannot post: {exc}") from exc
 
@@ -324,7 +367,7 @@ class Messenger:
         if entry.content.kind is Kind.MESSAGE:
             message = self._as_message(entry, position)
             return message if message is not None and self._is_for_me(message) else None
-        body = _status_body(entry)
+        body = self._status_body(entry)
         if body is None:
             return None
         target_entry = self._store.get(body.target)
@@ -334,7 +377,7 @@ class Messenger:
         return None if target is None else StatusChange(entry, body, target, position)
 
     def _as_message(self, entry: Entry, position: int | None = None) -> Message | None:
-        body = _message_body(entry)
+        body = self._message_body(entry)
         if body is None:
             return None
         return Message(entry, body, self._current_status(entry.id), position)
@@ -359,7 +402,7 @@ class Messenger:
             (entry, body)
             for entry in self._store.referencing(message_id)
             if entry.content.kind is Kind.STATUS
-            and (body := _status_body(entry)) is not None
+            and (body := self._status_body(entry)) is not None
             and body.target == message_id
         ]
 
@@ -380,34 +423,6 @@ class Messenger:
         if not heads:
             return Status.OPEN
         return max(heads, key=lambda pair: pair[0].id)[1].status
-
-
-def _message_body(entry: Entry) -> MessageBody | None:
-    data = _plain_body(entry)
-    if data is None or entry.content.kind is not Kind.MESSAGE:
-        return None
-    try:
-        return MessageBody.decode(data)
-    except BodyError:
-        return None
-
-
-def _status_body(entry: Entry) -> StatusBody | None:
-    data = _plain_body(entry)
-    if data is None or entry.content.kind is not Kind.STATUS:
-        return None
-    try:
-        return StatusBody.decode(data)
-    except BodyError:
-        return None
-
-
-def _plain_body(entry: Entry) -> bytes | None:
-    try:
-        envelope = Envelope.decode(entry.content.body)
-    except EnvelopeError:
-        return None
-    return envelope.data if envelope.enc is Encryption.NONE else None
 
 
 def _clean(text: str) -> str:
