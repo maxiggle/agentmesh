@@ -47,6 +47,13 @@ class RosterBook:
         current = self.current
         return None if current is None else current.member_for_key(key)
 
+    def may_receive_logs(self, key: bytes) -> bool:
+        """Members and the team's relays get full logs in sync; anyone else only rosters."""
+        current = self.current
+        if current is None:
+            return False
+        return current.member_for_key(key) is not None or current.relay_for_key(key) is not None
+
     def authorize(self, entry: Entry) -> Decision:
         if entry.content.kind is Kind.ROSTER:
             return self._authorize_roster(entry)
