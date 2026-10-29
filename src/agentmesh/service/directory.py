@@ -1,3 +1,4 @@
+from agentmesh.log.roster import Trust
 from agentmesh.roster.book import RosterBook
 from agentmesh.service.messenger import Identity
 
@@ -28,4 +29,8 @@ class RosterDirectory:
         roster = self._book.current
         if roster is None:
             return ()
-        return tuple(device.key for member in roster.members for device in member.devices[:1])
+        return tuple(
+            keys[0]
+            for member in roster.members
+            if (keys := [d.key for d in member.devices if d.trust is not Trust.SECURITY_KEY])
+        )
