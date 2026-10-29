@@ -192,3 +192,14 @@ def test_rejects_malformed_roster_body(
     entry = make_entry(kind=Kind.ROSTER, channel="_team", body=encode({"version": 1}))
     with pytest.raises(RejectedEntryError, match="bad roster"):
         verifier.verify(entry.encode())
+
+
+def test_checks_key_announce_bodies(
+    verifier: EntryVerifier, make_entry: Callable[..., Entry]
+) -> None:
+    good_body = encode({"x25519": b"\x01" * 32})
+    good = make_entry(kind=Kind.KEY_ANNOUNCE, channel="_team", body=good_body)
+    assert verifier.verify(good.encode()) == good
+    bad = make_entry(kind=Kind.KEY_ANNOUNCE, channel="_team", body=encode({"x25519": b"\x01"}))
+    with pytest.raises(RejectedEntryError, match="bad key_announce"):
+        verifier.verify(bad.encode())

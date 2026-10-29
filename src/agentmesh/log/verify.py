@@ -8,6 +8,7 @@ from agentmesh.log.entry import (
     Kind,
 )
 from agentmesh.log.envelope import Encryption, Envelope, EnvelopeError
+from agentmesh.log.key_announce import KeyAnnounce, KeyAnnounceError
 from agentmesh.log.names import CONTROL_CHANNEL, TEAM_CHANNEL, dm_members
 from agentmesh.log.roster import Roster, RosterError
 
@@ -89,6 +90,11 @@ class EntryVerifier:
                 Roster.decode(content.body)
             except RosterError as exc:
                 raise RejectedEntryError(f"bad roster: {exc}") from exc
+        if content.kind is Kind.KEY_ANNOUNCE:
+            try:
+                KeyAnnounce.decode(content.body)
+            except KeyAnnounceError as exc:
+                raise RejectedEntryError(f"bad key_announce: {exc}") from exc
 
     @staticmethod
     def _check_body(entry: Entry) -> None:
