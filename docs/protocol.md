@@ -113,7 +113,7 @@ Receivers drop oversize entries without storing them.
 
 ## 4. Bodies
 
-Bodies are CBOR maps encoded deterministically. For `message` and `status`, the encoded body is then encrypted (§6) and the result stored in `body`. Before Phase 4, implementations MAY use the `none` encryption mode, and receivers MUST reject it once the team's roster sets `require_encryption` (§4.3).
+Bodies are CBOR maps encoded deterministically. For `message` and `status`, the encoded body is then sealed (§6) and the result stored in `body`. The `none` mode exists for teams whose roster does not set `require_encryption` (§4.3).
 
 ### 4.1 `message`
 
@@ -218,18 +218,32 @@ Receivers SHOULD rate-limit entries per author. The limit is local policy, not p
 
 ## 6. Encryption
 
-Body encryption is defined in full in Phase 4. v0 fixes its framing so that the entry format does not change later.
+`message` and `status` bodies are sealed for every device allowed to read the channel when the entry is written.
 
 ```
 encrypted_body = deterministic_cbor({
-  "enc":   tstr,          // "none" or "aes256gcm"
-  "epoch": uint,          // channel key epoch; 0 when enc == "none"
-  "nonce": bstr (12),     // omitted when enc == "none"
-  "data":  bstr           // plaintext body (none) or ciphertext with tag (aes256gcm)
+  "enc":       "none" | "x25519-aes256gcm",
+  "epoch":     uint,                       // roster version used to pick recipients; 0 for none
+  "data":      bstr,                       // plaintext (none) or ciphertext with tag
+  "ephemeral": bstr (32),                  // sealed only: one-time X25519 public key
+  "keys":      [[hint bstr (8), wrapped bstr (48)], ...],  // sealed only: 1-256, sorted by hint
+  "nonce":     bstr (12)                   // sealed only
 })
 ```
 
-For `aes256gcm`, the additional authenticated data is the deterministic CBOR of `[v, author, seq, team, channel, kind]`, so a ciphertext cannot be moved into a different entry. Channel keys are rotated on every roster change: each roster version starts a new epoch.
+**Recipients** are the X25519 keys, from each device's latest `key_announce` (§4.4), of every roster device whose member may read the channel: members whose `channels` allow a team channel, both members of a `dm:` channel, and always the writer's own devices. A device that has not announced a key cannot be a recipient.
+
+**Sealing**:
+
+1. Pick a random 32-byte content key and 12-byte nonce. `data` is AES-256-GCM of the encoded body under the content key, with additional authenticated data `deterministic_cbor([v, author, team, channel, kind])`, so a ciphertext cannot be moved to another author, team, channel or kind.
+2. Generate a one-time X25519 key pair; its public half is `ephemeral`.
+3. For each recipient public key `R`: `hint` is the first 8 bytes of SHA-256(`R`), and the wrapping key is HKDF-SHA256 of X25519(ephemeral private, `R`) with no salt and info `"agentmesh/wrap/v0" || 0x00 || ephemeral || R`. `wrapped` is AES-256-GCM of the content key under the wrapping key, with a nonce of 12 zero bytes and `hint` as additional data. The ephemeral key is new for every message, so each wrapping key is used exactly once.
+
+A recipient finds its `hint`, derives the same wrapping key with its private key and `ephemeral`, unwraps the content key and decrypts `data`.
+
+Because recipients are chosen per message, removing a member from the roster stops them from reading every later message with nothing to rotate. The flip side is that a device can only read messages written after its `key_announce` reached the writer.
+
+When the current roster sets `require_encryption`, receivers deny `message` and `status` entries whose envelope is `none` (§5 step 8). New teams set it in their genesis roster.
 
 ## 7. Ordering
 
@@ -275,6 +289,7 @@ On a LAN, devices find each other with mDNS service type `_agentmesh._tcp.local.
 | `agentmesh/entry/v0`  | Entry ID (§3.1) |
 | `agentmesh/sig/v0`    | Entry signature (§3.2) |
 | `agentmesh/auth/v0`   | Sync handshake challenge (§8) |
+| `agentmesh/wrap/v0`   | Wrapping-key derivation (§6) |
 
 Every hash or signature input starts with its tag and a `0x00` byte, so a value made for one purpose can never be valid for another.
 
@@ -287,5 +302,4 @@ Every hash or signature input starts with its tag and a `0x00` byte, so a value 
 ## 11. Open items
 
 - `es256-webauthn` signature wrapping for FIDO2 admin keys (Phase 5).
-- Channel key distribution and rotation format (Phase 4).
 - Admin recovery when the only admin loses their devices. Proposal: require at least two admins in every roster.

@@ -181,7 +181,14 @@ def test_accepts_status_with_target_in_refs(
 def test_does_not_inspect_encrypted_bodies(
     verifier: EntryVerifier, make_entry: Callable[..., Entry]
 ) -> None:
-    body = Envelope(Encryption.AES256GCM, 1, b"opaque", b"\x00" * 12).encode()
+    body = Envelope(
+        Encryption.SEALED,
+        1,
+        b"opaque",
+        ephemeral=b"\x05" * 32,
+        keys=((b"\x01" * 8, b"\x02" * 48),),
+        nonce=b"\x00" * 12,
+    ).encode()
     entry = make_entry(body=body)
     assert verifier.verify(entry.encode()) == entry
 
