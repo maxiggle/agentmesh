@@ -3,7 +3,7 @@ from dataclasses import replace
 import pytest
 
 from agentmesh.log.canonical import decode, encode
-from agentmesh.log.roster import Member, Roster, RosterDevice, RosterError, Trust
+from agentmesh.log.roster import Member, RelayInfo, Roster, RosterDevice, RosterError, Trust
 
 KEY_A = b"\x02" + b"\x01" * 32
 KEY_B = b"\x02" + b"\x02" * 32
@@ -129,3 +129,37 @@ def test_decode_rejects_unknown_trust() -> None:
     device["trust"] = "magic"
     with pytest.raises(RosterError, match="trust"):
         Roster.decode(encode(fields))
+
+
+RELAY = RelayInfo(b"\x02" + b"\x07" * 32, "relay.example.com:7447")
+
+
+def test_relays_round_trip_and_lookup() -> None:
+    roster = replace(genesis(), relays=(RELAY,))
+    assert Roster.decode(roster.encode()) == roster
+    assert roster.relay_for_key(RELAY.key) == RELAY
+    assert roster.relay_for_key(KEY_A) is None
+    assert RELAY.host_port == ("relay.example.com", 7447)
+    assert roster.successor(PREVIOUS).relays == (RELAY,)
+    assert roster.successor(PREVIOUS, relays=()).relays == ()
+
+
+@pytest.mark.parametrize(
+    ("relays", "error"),
+    [
+        ((RELAY, RELAY), "relays must be sorted"),
+        ((RelayInfo(KEY_A, "host:1"),), "cannot also be a member"),
+    ],
+)
+def test_relay_rules(relays: tuple[RelayInfo, ...], error: str) -> None:
+    with pytest.raises(RosterError, match=error):
+        replace(genesis(), relays=relays)
+
+
+@pytest.mark.parametrize(
+    ("key", "address"),
+    [(b"\x02" * 32, "host:1"), (RELAY.key, "no-port"), (RELAY.key, "host:0"), (RELAY.key, ":80")],
+)
+def test_relay_info_rules(key: bytes, address: str) -> None:
+    with pytest.raises(RosterError):
+        RelayInfo(key, address)

@@ -152,6 +152,7 @@ A message's current state is that of the status entry for it that no other statu
 | `admins`             | array of tstr | Handles of members allowed to sign the next roster. At least 1. |
 | `members`            | array of member | Sorted by `handle`. Handles are unique. |
 | `require_encryption` | bool   | When `true`, `message` and `status` bodies MUST NOT use encryption mode `none`. |
+| `relays`             | array of relay | The team's relays, sorted by `key`. May be empty. |
 
 `member`:
 
@@ -169,6 +170,13 @@ A message's current state is that of the status entry for it that no other statu
 | `key`   | bstr (33) | Compressed P-256 signing key. A key MUST NOT appear under two members. |
 | `trust` | tstr      | `hardware` or `software`. Software keys are allowed but marked lower trust. |
 | `label` | tstr      | At most 64 characters, e.g. `godwin-macbook`. Display only. |
+
+`relay`:
+
+| Field     | Type      | Rules |
+|-----------|-----------|-------|
+| `key`     | bstr (33) | The relay's P-256 key, used in the sync handshake (§8). MUST NOT also be a member device key. |
+| `address` | tstr      | `host:port`, at most 255 characters. |
 
 Roster rules:
 
