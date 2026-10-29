@@ -122,3 +122,14 @@ def test_relay_command_errors(
 ) -> None:
     assert main(["--home", str(tmp_path), *args]) == 1
     assert error in capsys.readouterr().err
+
+
+def test_invite_can_name_a_relay(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    home = str(tmp_path)
+    main(["--home", home, "init", "--handle", "gef"])
+    capsys.readouterr()
+    assert main(["--home", home, "invite", "--relay", "relay.example.com:7447"]) == 0
+    code = capsys.readouterr().out.split()[0]
+    assert Invite.decode(code).relay == "relay.example.com:7447"
+    assert main(["--home", home, "invite", "--relay", "nope"]) == 1
+    assert "host:port" in capsys.readouterr().err

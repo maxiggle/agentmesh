@@ -196,3 +196,12 @@ def test_joining_remembers_the_invite_relay_until_the_roster_names_one(tmp_path:
     assert DeviceConfig.load(tmp_path / "tobi").relay == "bootstrap.example.com:7447"
     with pytest.raises(ConfigError, match="host:port"):
         DeviceConfig("gef", TEAM, GENESIS, relay="nope")
+
+
+def test_invite_method_includes_the_roster_relay(tmp_path: Path) -> None:
+    with Device.create_team(tmp_path, "gef", PASSPHRASE) as gef:
+        relay_key = "03" + "44" * 32
+        gef.call("roster.relay_add", {"address": "relay.example.com:7447", "key": relay_key})
+        assert Invite.decode(gef.call("invite", {})).relay == "relay.example.com:7447"
+        with pytest.raises(ApiError, match="unknown params"):
+            gef.call("invite", {"x": 1})

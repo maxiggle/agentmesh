@@ -52,7 +52,9 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--exchange", type=Path, help="shared folder for swapping entries")
     init.set_defaults(run=_init)
 
-    commands.add_parser("invite", help="print this team's invite code").set_defaults(run=_invite)
+    invite = commands.add_parser("invite", help="print this team's invite code")
+    invite.add_argument("--relay", help="host:port of a relay to put in the code")
+    invite.set_defaults(run=_invite)
 
     join = commands.add_parser("join", help="join a team from an invite code")
     join.add_argument("code", help="invite code from a teammate")
@@ -142,8 +144,16 @@ def _init(args: argparse.Namespace) -> int:
 
 
 def _invite(args: argparse.Namespace) -> int:
-    config = DeviceConfig.load(_home(args))
-    code = Invite(config.team, config.genesis).encode()
+    home = _home(args)
+    config = DeviceConfig.load(home)
+    try:
+        current = Invite.decode(asyncio.run(RpcClient(default_endpoint(home)).call("invite")))
+    except RpcError:
+        current = Invite(config.team, config.genesis, config.relay)
+    try:
+        code = Invite(current.team, current.genesis, args.relay or current.relay).encode()
+    except InviteError as exc:
+        raise CliError(str(exc)) from exc
     sys.stdout.write(f"{code}\nshare this with a teammate; they run `agentmesh join {code}`\n")
     return 0
 
