@@ -22,6 +22,11 @@ dependencies = [
 [project.scripts]
 agentmesh = "agentmesh.cli:main"
 
+[project.optional-dependencies]
+fido2 = [
+    "fido2>=2.2.1",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -31,6 +36,7 @@ packages = ["src/agentmesh"]
 
 [dependency-groups]
 dev = [
+    "fido2>=2.2.1",
     "mypy>=2.4.0",
     "pre-commit>=4.7.0",
     "pytest>=9.2.0",
