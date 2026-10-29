@@ -22,9 +22,10 @@ def test_runs_in_the_given_folder_with_the_given_env(tmp_path: Path) -> None:
     assert out[1] == "set"
 
 
-def test_failure_reports_the_last_stderr_line() -> None:
-    script = "import sys; sys.stderr.write('detail\\nkey not found\\n'); sys.exit(4)"
-    with pytest.raises(ToolError, match=r"failed: key not found$"):
+def test_failure_reports_the_last_stderr_lines() -> None:
+    stderr = "a\\nb\\n\\nkey not found\\nUnable to run\\n"
+    script = f"import sys; sys.stderr.write('{stderr}'); sys.exit(4)"
+    with pytest.raises(ToolError, match=r"failed: b / key not found / Unable to run$"):
         run_tool([PYTHON, "-c", script])
 
 
