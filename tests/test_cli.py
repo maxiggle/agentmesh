@@ -93,3 +93,32 @@ def test_team_command_errors(
 ) -> None:
     assert main(["--home", str(tmp_path), *args]) == 1
     assert error in capsys.readouterr().err
+
+
+def test_relay_init_from_an_invite(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    main(["--home", str(tmp_path / "gef"), "init", "--handle", "gef"])
+    capsys.readouterr()
+    main(["--home", str(tmp_path / "gef"), "invite"])
+    code = capsys.readouterr().out.split()[0]
+    assert main(["--home", str(tmp_path / "relay"), "relay", "init", "--invite", code]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith(f"created relay in {tmp_path / 'relay'}")
+    assert "  agentmesh roster relay-add <public-host>:7447 0" in out
+    assert (tmp_path / "relay" / "relay.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("args", "error"),
+    [
+        (["relay", "init", "--invite", "nonsense"], "invite codes start with"),
+        (["relay", "serve"], "relay init"),
+        (["relay", "serve", "--listen", "nowhere"], "host:port"),
+        (["roster", "relay-add", "relay:1", "00"], "not running"),
+        (["roster", "relay-remove", "relay:1"], "not running"),
+    ],
+)
+def test_relay_command_errors(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], args: list[str], error: str
+) -> None:
+    assert main(["--home", str(tmp_path), *args]) == 1
+    assert error in capsys.readouterr().err
