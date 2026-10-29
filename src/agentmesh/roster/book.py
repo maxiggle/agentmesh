@@ -1,10 +1,10 @@
 from collections.abc import Iterable
 
 from agentmesh.log.authorize import Decision, Verdict
-from agentmesh.log.entry import Entry, Kind
+from agentmesh.log.entry import SIG_ALG_FIDO2, Entry, Kind
 from agentmesh.log.envelope import Encryption, Envelope, EnvelopeError
 from agentmesh.log.names import CONTROL_CHANNEL, dm_members
-from agentmesh.log.roster import Member, Roster, RosterError
+from agentmesh.log.roster import Member, Roster, RosterError, Trust
 
 
 class RosterBook:
@@ -63,6 +63,9 @@ class RosterBook:
         member = current.member_for_key(entry.author)
         if member is None:
             return Decision.wait("author is not on the roster")
+        signer = _check_signer(current, entry)
+        if signer is not None:
+            return signer
         if current.require_encryption and _is_plaintext(entry):
             return Decision.deny("this team requires encrypted messages")
         return self._authorize_channel(member, entry.content.channel)
@@ -107,14 +110,14 @@ class RosterBook:
             return Decision.deny("roster version must follow its previous roster")
         if not previous.is_admin_device(entry.author):
             return Decision.deny("roster must be signed by an admin of the previous roster")
-        return Decision.allow()
+        return _check_admin_signer(previous, entry)
 
     def _authorize_genesis(self, entry: Entry, roster: Roster) -> Decision:
         if entry.id != self._genesis_id:
             return Decision.deny("not the pinned genesis roster")
         if not roster.is_admin_device(entry.author):
             return Decision.deny("genesis roster must be signed by one of its admins")
-        return Decision.allow()
+        return _check_admin_signer(roster, entry)
 
     def _recompute(self) -> None:
         if self._genesis_id not in self._rosters:
@@ -132,6 +135,31 @@ class RosterBook:
             forked = True
             break
         self._current_id, self._forked = node, forked
+
+
+def _check_signer(roster: Roster, entry: Entry) -> Decision | None:
+    """Security-key devices sign only rosters, always with es256-fido2, and nothing else
+    may use es256-fido2, so a roster's trust labels say which entries needed a touch."""
+    device = roster.device(entry.author)
+    if device is None:
+        return None
+    is_security_key = device.trust is Trust.SECURITY_KEY
+    if is_security_key and entry.content.kind is not Kind.ROSTER:
+        return Decision.deny("security keys only sign roster changes")
+    if is_security_key != (entry.sig.alg == SIG_ALG_FIDO2):
+        return Decision.deny("es256-fido2 is for security-key devices, and only that")
+    return None
+
+
+def _check_admin_signer(roster: Roster, entry: Entry) -> Decision:
+    """Once an admin enrolls a security key, a stolen laptop key no longer changes the roster."""
+    signer = _check_signer(roster, entry)
+    if signer is not None:
+        return signer
+    member = roster.member_for_key(entry.author)
+    if member is not None and member.has_security_key and entry.sig.alg != SIG_ALG_FIDO2:
+        return Decision.deny(f"{member.handle} must sign roster changes with a security key")
+    return Decision.allow()
 
 
 def _is_plaintext(entry: Entry) -> bool:
