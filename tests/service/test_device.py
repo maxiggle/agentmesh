@@ -158,6 +158,8 @@ async def _daemons_talk(root: Path) -> tuple[str, str]:
     gef = Device.create_team(root / "gef", "gef", PASSPHRASE, exchange=shared)
     tobi = Device.join(root / "tobi", gef.invite, "tobi", PASSPHRASE, exchange=shared)
     _add(gef, tobi)
+    tobi.sync()
+    gef.sync()
     gef_endpoint = TcpEndpoint(root / "gef.json")
     tobi_endpoint = TcpEndpoint(root / "tobi.json")
     stop = asyncio.Event()

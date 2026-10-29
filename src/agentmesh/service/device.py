@@ -4,9 +4,11 @@ from pathlib import Path
 from types import TracebackType
 from typing import Self
 
+from agentmesh.crypto.keyfile import EncryptionKeyFile
 from agentmesh.identity import KeyHandle
 from agentmesh.identity.software import SoftwareSigner
 from agentmesh.log.entry import TEAM_ID_SIZE, Kind
+from agentmesh.log.key_announce import KeyAnnounce
 from agentmesh.log.names import CONTROL_CHANNEL
 from agentmesh.log.roster import ALL_CHANNELS, Member, Roster, RosterDevice, RosterError, Trust
 from agentmesh.log.verify import EntryVerifier
@@ -17,6 +19,7 @@ from agentmesh.service.directory import RosterDirectory
 from agentmesh.service.invite import Invite
 from agentmesh.service.messenger import Messenger
 from agentmesh.service.roster_admin import AdminApi, RosterAdmin
+from agentmesh.service.sealing import KeyDirectory, SealingCodec
 from agentmesh.store.ingest import Ingestor
 from agentmesh.store.local_log import LocalLog
 from agentmesh.store.sqlite import SqliteStore
@@ -26,6 +29,7 @@ from agentmesh.transport.directory import DirectoryExchange
 _HOME_MODE = 0o700
 _DB_FILE = "agentmesh.db"
 _KEY_DIR = "keys"
+_ENCRYPTION_KEY = "encryption.key"
 
 
 class Device:
@@ -46,8 +50,14 @@ class Device:
         verifier = EntryVerifier(config.team)
         local_log = LocalLog(self._store, signer, key, config.team, verifier, authorizer=self._book)
         self._author = local_log.author
+        self._local_log = local_log
+        self._keys = KeyDirectory(self._store)
+        encryption_key = EncryptionKeyFile(home / _KEY_DIR / _ENCRYPTION_KEY, passphrase)
+        self._codec = SealingCodec(
+            self._book, self._keys, encryption_key.load_or_create(), self._author, config.team
+        )
         directory = RosterDirectory(self._book, self._author, config.handle)
-        self._api = ToolApi(Messenger(self._store, local_log, directory))
+        self._api = ToolApi(Messenger(self._store, local_log, directory, self._codec))
         self._admin = AdminApi(RosterAdmin(self._book, local_log))
         ingestor = Ingestor(self._store, verifier, self._book)
         self._sync_node = SyncNode(
@@ -81,7 +91,7 @@ class Device:
         try:
             device = RosterDevice(signer.public_key(key), Trust.SOFTWARE, handle)
             member = Member(handle, (), (ALL_CHANNELS,), (device,))
-            genesis = Roster(1, None, team_name, (handle,), (member,))
+            genesis = Roster(1, None, team_name, (handle,), (member,), require_encryption=True)
         except RosterError as exc:
             raise ConfigError(str(exc)) from exc
         with SqliteStore(home / _DB_FILE) as store:
@@ -152,7 +162,18 @@ class Device:
         return self._sync_node
 
     def sync(self) -> int:
+        self.announce_key()
         return 0 if self._exchange is None else self._exchange.sync()
+
+    def announce_key(self) -> bool:
+        """Publish this device's encryption key once it is on the roster, or when it changes."""
+        if self._book.member_for_key(self._author) is None:
+            return False
+        if self._keys.encryption_keys().get(self._author) == self._codec.public_key:
+            return False
+        body = KeyAnnounce(self._codec.public_key).encode()
+        self._local_log.append(CONTROL_CHANNEL, Kind.KEY_ANNOUNCE, body)
+        return True
 
     def call(self, method: str, params: Mapping[str, object]) -> str:
         self.sync()
