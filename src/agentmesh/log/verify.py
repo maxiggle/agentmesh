@@ -1,6 +1,7 @@
 from agentmesh.identity import es256
 from agentmesh.identity.assertion import Assertion, InvalidAssertionError, check_assertion
 from agentmesh.log.body import BodyError, MessageBody, StatusBody
+from agentmesh.log.endpoint_announce import EndpointAnnounce, EndpointAnnounceError
 from agentmesh.log.entry import (
     PROTOCOL_VERSION,
     SIG_ALG_ES256,
@@ -16,7 +17,7 @@ from agentmesh.log.roster import Roster, RosterError
 
 MAX_ENTRY_SIZE = 16 * 1024
 MAX_REFS = 16
-_CONTROL_KINDS = frozenset({Kind.ROSTER, Kind.KEY_ANNOUNCE})
+_CONTROL_KINDS = frozenset({Kind.ROSTER, Kind.KEY_ANNOUNCE, Kind.ENDPOINT_ANNOUNCE})
 
 
 class DroppedEntryError(Exception):
@@ -111,6 +112,11 @@ class EntryVerifier:
                 KeyAnnounce.decode(content.body)
             except KeyAnnounceError as exc:
                 raise RejectedEntryError(f"bad key_announce: {exc}") from exc
+        if content.kind is Kind.ENDPOINT_ANNOUNCE:
+            try:
+                EndpointAnnounce.decode(content.body)
+            except EndpointAnnounceError as exc:
+                raise RejectedEntryError(f"bad endpoint_announce: {exc}") from exc
 
     @staticmethod
     def _check_body(entry: Entry) -> None:

@@ -10,12 +10,13 @@ Every piece of shared state is a **log entry**. Each device writes one append-on
 
 Entry kinds:
 
-| Kind           | Purpose                                         | Body          |
-|----------------|-------------------------------------------------|---------------|
-| `message`      | A request, update or question for teammates     | encrypted     |
-| `status`       | Moves a message to `open`, `claimed`, `done` or `wontfix` | encrypted |
-| `roster`       | Team membership, device keys, roles, channels   | plaintext     |
-| `key_announce` | Publishes a device's X25519 encryption key      | plaintext     |
+| Kind                | Purpose                                                   | Body      |
+|---------------------|-----------------------------------------------------------|-----------|
+| `message`           | A request, update or question for teammates               | encrypted |
+| `status`            | Moves a message to `open`, `claimed`, `done` or `wontfix` | encrypted |
+| `roster`            | Team membership, device keys, roles, channels             | plaintext |
+| `key_announce`      | Publishes a device's X25519 encryption key                | plaintext |
+| `endpoint_announce` | Publishes a device's iroh endpoint ID                     | plaintext |
 
 ## 2. Primitives
 
@@ -58,7 +59,7 @@ An entry is a CBOR map with these fields:
 | `prev`    | bstr (32) / null   | ID of the author's entry at `seq - 1`. MUST be `null` iff `seq == 1`. |
 | `team`    | bstr (16)          | Team ID, 16 random bytes chosen when the team is created. |
 | `channel` | tstr               | See §3.3. |
-| `kind`    | tstr               | One of `message`, `status`, `roster`, `key_announce`. |
+| `kind`    | tstr               | One of `message`, `status`, `roster`, `key_announce`, `endpoint_announce`. |
 | `refs`    | array of bstr (32) | IDs of entries this one replies to or updates. 0–16 items, no duplicates, sorted bytewise. |
 | `ts`      | uint               | Author's wall-clock time in Unix milliseconds. Display only; never used for ordering or validity. |
 | `body`    | bstr               | Encoded body (§4), encrypted or plain depending on `kind`. |
@@ -132,7 +133,7 @@ The `UV` flag (PIN or biometric) is not required. The signature counter is not c
 |---------|---------|
 | `#name` where `name` matches `[a-z0-9][a-z0-9-]{0,31}` | Team channel, e.g. `#backend`. |
 | `dm:<a>+<b>` with member handles `a < b` (bytewise) | Direct conversation between two members. |
-| `_team` | Team-wide control channel. `roster` and `key_announce` entries MUST use it, and other kinds MUST NOT. |
+| `_team` | Team-wide control channel. `roster`, `key_announce` and `endpoint_announce` entries MUST use it, and other kinds MUST NOT. |
 
 Member handles match `[a-z0-9][a-z0-9_-]{0,31}`.
 
@@ -228,6 +229,14 @@ Roster rules:
 | `x25519`     | bstr (32) | The device's encryption public key. |
 
 A device's current encryption key is the one in its `key_announce` with the highest `seq`. Trust in it comes from the device's signing key, which the roster vouches for.
+
+### 4.5 `endpoint_announce`
+
+| Field        | Type      | Rules |
+|--------------|-----------|-------|
+| `iroh`       | bstr (32) | The device's iroh endpoint ID, an ed25519 public key. |
+
+A device's current endpoint is the one in its `endpoint_announce` with the highest `seq`. It is an address only: connections to it still run the §8 handshake, and nothing is trusted because of it.
 
 ## 5. Validation
 

@@ -137,8 +137,11 @@ def test_rejects_bad_shape(
         ("dm:gef+gef", Kind.MESSAGE, False),
         ("_team", Kind.ROSTER, True),
         ("_team", Kind.KEY_ANNOUNCE, True),
+        ("_team", Kind.ENDPOINT_ANNOUNCE, True),
         ("_team", Kind.MESSAGE, False),
         ("#backend", Kind.KEY_ANNOUNCE, False),
+        ("#backend", Kind.ENDPOINT_ANNOUNCE, False),
+        ("dm:gef+tobi", Kind.ENDPOINT_ANNOUNCE, False),
     ],
 )
 def test_channel_rules(channel: str, kind: Kind, valid: bool) -> None:
@@ -212,6 +215,47 @@ def test_checks_key_announce_bodies(
     bad = make_entry(kind=Kind.KEY_ANNOUNCE, channel="_team", body=encode({"x25519": b"\x01"}))
     with pytest.raises(RejectedEntryError, match="bad key_announce"):
         verifier.verify(bad.encode())
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        encode({"iroh": b"\x01"}),
+        encode({"iroh": "node"}),
+        encode({"iroh": b"\x01" * 32, "extra": 1}),
+        encode({}),
+    ],
+)
+def test_rejects_bad_endpoint_announce_bodies(
+    verifier: EntryVerifier, make_entry: Callable[..., Entry], body: bytes
+) -> None:
+    bad = make_entry(kind=Kind.ENDPOINT_ANNOUNCE, channel="_team", body=body)
+    with pytest.raises(RejectedEntryError, match="bad endpoint_announce"):
+        verifier.verify(bad.encode())
+
+
+def test_accepts_an_endpoint_announce(
+    verifier: EntryVerifier, make_entry: Callable[..., Entry]
+) -> None:
+    good = make_entry(
+        kind=Kind.ENDPOINT_ANNOUNCE, channel="_team", body=encode({"iroh": b"\x01" * 32})
+    )
+    assert verifier.verify(good.encode()) == good
+
+
+def test_rejects_an_endpoint_announce_signed_by_a_security_key(
+    verifier: EntryVerifier, make_content: Callable[..., EntryContent]
+) -> None:
+    key = SoftwareAuthenticator()
+    content = make_content(
+        author=key.public_key,
+        kind=Kind.ENDPOINT_ANNOUNCE,
+        channel="_team",
+        body=encode({"iroh": b"\x01" * 32}),
+    )
+    entry = content.with_assertion(key.sign(content.signing_input))
+    with pytest.raises(RejectedEntryError, match="security keys only sign roster entries"):
+        verifier.verify(entry.encode())
 
 
 def _roster_content(

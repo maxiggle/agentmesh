@@ -6,6 +6,7 @@ import pytest
 from agentmesh.identity import KeyHandle
 from agentmesh.identity.software import SoftwareSigner
 from agentmesh.log.authorize import Verdict
+from agentmesh.log.canonical import encode
 from agentmesh.log.entry import Entry, EntryContent, Kind, Signature
 from agentmesh.log.envelope import Encryption, Envelope
 from agentmesh.log.roster import Member, RelayInfo, Roster, RosterDevice, Trust
@@ -312,6 +313,44 @@ def test_a_security_key_cannot_post_messages(team: Team, genesis: tuple[Entry, R
     content = team.make_content(author=key.public_key)
     message = content.with_assertion(key.sign(content.signing_input))
     decision = _book(genesis[0], enrolled).authorize(message)
+    assert decision.verdict is Verdict.DENY
+    assert "only sign roster changes" in decision.reason
+
+
+def _endpoint_announce(team: Team, by: str) -> Entry:
+    content = team.make_content(
+        author=team.keys[by],
+        kind=Kind.ENDPOINT_ANNOUNCE,
+        channel="_team",
+        body=encode({"iroh": b"\x01" * 32}),
+    )
+    return content.sign(team.signer, team.handles[by])
+
+
+def test_endpoint_announce_follows_the_roster(team: Team, genesis: tuple[Entry, Roster]) -> None:
+    assert RosterBook(genesis[0].id).authorize(_endpoint_announce(team, "gef")).verdict is (
+        Verdict.WAIT
+    )
+    book = _book(genesis[0])
+    assert book.authorize(_endpoint_announce(team, "gef")).verdict is Verdict.ALLOW
+    stranger = book.authorize(_endpoint_announce(team, "tobi"))
+    assert stranger.verdict is Verdict.WAIT
+    assert "not on the roster" in stranger.reason
+
+
+def test_a_security_key_cannot_announce_an_endpoint(
+    team: Team, genesis: tuple[Entry, Roster]
+) -> None:
+    key = SoftwareAuthenticator()
+    enrolled, _ = _enroll(team, *genesis, key)
+    content = team.make_content(
+        author=key.public_key,
+        kind=Kind.ENDPOINT_ANNOUNCE,
+        channel="_team",
+        body=encode({"iroh": b"\x01" * 32}),
+    )
+    announce = content.with_assertion(key.sign(content.signing_input))
+    decision = _book(genesis[0], enrolled).authorize(announce)
     assert decision.verdict is Verdict.DENY
     assert "only sign roster changes" in decision.reason
 
