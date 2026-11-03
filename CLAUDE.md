@@ -19,7 +19,8 @@ These rules apply to every contributor, human or agent. They are not optional.
 
 - `main` is always green and releasable.
 - Branch names: `feat/<topic>`, `fix/<topic>`, `chore/<topic>`, `docs/<topic>`, `refactor/<topic>`.
-- Only feature work (`feat/` branches) gets a pull request. Other work is merged directly once CI is green.
+- Contributors without write access open a pull request for every change.
+- Maintainers open a pull request for feature work (`feat/` branches) and may merge other work directly once CI is green.
 - Merge with rebase or fast-forward so each atomic commit survives; never squash a branch into one commit.
 
 ## CI/CD
