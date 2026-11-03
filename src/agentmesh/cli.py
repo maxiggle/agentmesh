@@ -181,9 +181,11 @@ def _invite(args: argparse.Namespace) -> int:
     try:
         current = Invite.decode(asyncio.run(RpcClient(default_endpoint(home)).call("invite")))
     except RpcError:
-        current = Invite(config.team, config.genesis, config.relay)
+        current = Invite(config.team, config.genesis, config.relay, Device.stored_endpoint_id(home))
     try:
-        code = Invite(current.team, current.genesis, args.relay or current.relay).encode()
+        code = Invite(
+            current.team, current.genesis, args.relay or current.relay, current.iroh
+        ).encode()
     except InviteError as exc:
         raise CliError(str(exc)) from exc
     sys.stdout.write(f"{code}\nshare this with a teammate; they run `agentmesh join {code}`\n")

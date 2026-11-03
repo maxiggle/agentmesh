@@ -34,6 +34,13 @@ def endpoint_id_for(secret: bytes) -> bytes | None:
     return endpoint
 
 
+def stored_endpoint_id(path: Path) -> bytes | None:
+    """The endpoint ID of an existing iroh secret, without creating one."""
+    if not path.exists():
+        return None
+    return endpoint_id_for(_read(path))
+
+
 def _read(path: Path) -> bytes:
     secret = path.read_bytes()
     if len(secret) != SECRET_SIZE:
