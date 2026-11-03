@@ -8,6 +8,7 @@ from agentmesh.crypto.keyfile import EncryptionKeyFile
 from agentmesh.identity import KeyHandle, Signer
 from agentmesh.identity.backends import Backend, detect_hardware, open_signer
 from agentmesh.identity.security_key import Authenticator, SecurityKeySigner
+from agentmesh.log.endpoint_announce import EndpointAnnounce
 from agentmesh.log.entry import TEAM_ID_SIZE, Kind
 from agentmesh.log.key_announce import KeyAnnounce
 from agentmesh.log.names import CONTROL_CHANNEL
@@ -17,7 +18,9 @@ from agentmesh.roster.book import RosterBook
 from agentmesh.service.api import Params, ToolApi
 from agentmesh.service.config import CONFIG_FILE, ConfigError, DeviceConfig
 from agentmesh.service.directory import RosterDirectory
+from agentmesh.service.endpoints import EndpointDirectory
 from agentmesh.service.invite import Invite
+from agentmesh.service.iroh_key import endpoint_id_for, load_or_create_secret
 from agentmesh.service.messenger import Messenger
 from agentmesh.service.roster_admin import AdminApi, RosterAdmin
 from agentmesh.service.sealing import KeyDirectory, SealingCodec
@@ -33,6 +36,7 @@ _KEY_DIR = "keys"
 _TOOLS_DIR = "bin"
 _KEY_LABEL = "device"
 _ENCRYPTION_KEY = "encryption.key"
+_IROH_KEY = "iroh.key"
 INVITE_METHOD = "invite"
 
 
@@ -60,6 +64,8 @@ class Device:
         self._codec = SealingCodec(
             self._book, self._keys, encryption_key.load_or_create(), self._author, config.team
         )
+        self._iroh_secret = load_or_create_secret(home / _KEY_DIR / _IROH_KEY)
+        self._endpoints = EndpointDirectory(self._store)
         directory = RosterDirectory(self._book, self._author, config.handle)
         self._api = ToolApi(Messenger(self._store, local_log, directory, self._codec))
         self._admin = AdminApi(RosterAdmin(self._book, local_log))
@@ -219,6 +225,38 @@ class Device:
         body = KeyAnnounce(self._codec.public_key).encode()
         self._local_log.append(CONTROL_CHANNEL, Kind.KEY_ANNOUNCE, body)
         return True
+
+    @property
+    def iroh_secret(self) -> bytes:
+        return self._iroh_secret
+
+    @property
+    def endpoint_id(self) -> bytes | None:
+        """This device's iroh endpoint ID, or None when iroh is not installed."""
+        return endpoint_id_for(self._iroh_secret)
+
+    def announce_endpoint(self, endpoint_id: bytes) -> bool:
+        """Publish this device's iroh endpoint once it is on the roster, or when it changes."""
+        if self._book.member_for_key(self._author) is None:
+            return False
+        if self._endpoints.endpoints().get(self._author) == endpoint_id:
+            return False
+        body = EndpointAnnounce(endpoint_id).encode()
+        self._local_log.append(CONTROL_CHANNEL, Kind.ENDPOINT_ANNOUNCE, body)
+        return True
+
+    def direct_peers(self) -> list[tuple[bytes, bytes]]:
+        """`(device key, iroh endpoint ID)` for each other device of each current member."""
+        roster = self._book.current
+        if roster is None:
+            return []
+        announced = self._endpoints.endpoints()
+        return [
+            (device.key, announced[device.key])
+            for member in roster.members
+            for device in member.devices
+            if device.key != self._author and device.key in announced
+        ]
 
     def call(self, method: str, params: Mapping[str, object]) -> str:
         self.sync()
