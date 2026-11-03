@@ -20,7 +20,7 @@ from agentmesh.service.config import CONFIG_FILE, ConfigError, DeviceConfig
 from agentmesh.service.directory import RosterDirectory
 from agentmesh.service.endpoints import EndpointDirectory
 from agentmesh.service.invite import Invite
-from agentmesh.service.iroh_key import endpoint_id_for, load_or_create_secret
+from agentmesh.service.iroh_key import endpoint_id_for, load_or_create_secret, stored_endpoint_id
 from agentmesh.service.messenger import Messenger
 from agentmesh.service.roster_admin import AdminApi, RosterAdmin
 from agentmesh.service.sealing import KeyDirectory, SealingCodec
@@ -143,10 +143,16 @@ class Device:
             invite.genesis,
             exchange=exchange,
             relay=invite.relay,
+            bootstrap_endpoint=invite.iroh,
             key_backend=Backend(key.backend),
         )
         config.save(home)
         return cls(home, config, passphrase)
+
+    @staticmethod
+    def stored_endpoint_id(home: Path) -> bytes | None:
+        """The iroh endpoint ID of the device at `home`, readable without its passphrase."""
+        return stored_endpoint_id(home / _KEY_DIR / _IROH_KEY)
 
     @classmethod
     def open(cls, home: Path, passphrase: bytes) -> "Device":
@@ -187,7 +193,12 @@ class Device:
     @property
     def invite(self) -> Invite:
         relays = self.relay_addresses()
-        return Invite(self._config.team, self._config.genesis, relays[0] if relays else None)
+        return Invite(
+            self._config.team,
+            self._config.genesis,
+            relays[0] if relays else None,
+            self.endpoint_id,
+        )
 
     def relay_addresses(self) -> list[str]:
         """The roster's relays, or the invite's relay until the roster names any."""
@@ -246,17 +257,28 @@ class Device:
         return True
 
     def direct_peers(self) -> list[tuple[bytes, bytes]]:
-        """`(device key, iroh endpoint ID)` for each other device of each current member."""
+        """`(device key, iroh endpoint ID)` for each other device of each current member.
+
+        Until some other device of the roster has announced an endpoint, the endpoint
+        named in the invite is listed too. It is not a roster device, so its endpoint ID
+        stands in for the device key: nothing keyed on roster devices will match it.
+        """
         roster = self._book.current
-        if roster is None:
-            return []
         announced = self._endpoints.endpoints()
-        return [
-            (device.key, announced[device.key])
-            for member in roster.members
-            for device in member.devices
-            if device.key != self._author and device.key in announced
-        ]
+        peers = (
+            []
+            if roster is None
+            else [
+                (device.key, announced[device.key])
+                for member in roster.members
+                for device in member.devices
+                if device.key != self._author and device.key in announced
+            ]
+        )
+        bootstrap = self._config.bootstrap_endpoint
+        if not peers and bootstrap is not None and bootstrap != self.endpoint_id:
+            peers.append((bootstrap, bootstrap))
+        return peers
 
     def call(self, method: str, params: Mapping[str, object]) -> str:
         self.sync()

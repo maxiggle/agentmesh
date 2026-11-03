@@ -169,6 +169,37 @@ def test_invite_can_name_a_relay(tmp_path: Path, capsys: pytest.CaptureFixture[s
     assert "host:port" in capsys.readouterr().err
 
 
+def test_invite_carries_the_endpoint_of_this_device(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pytest.importorskip("iroh")
+    home = str(tmp_path)
+    main(["--home", home, "init", "--handle", "gef"])
+    capsys.readouterr()
+    expected = Device.stored_endpoint_id(tmp_path)
+    assert expected is not None
+    assert main(["--home", home, "invite"]) == 0
+    assert Invite.decode(capsys.readouterr().out.split()[0]).iroh == expected
+    assert main(["--home", home, "invite", "--relay", "relay.example.com:7447"]) == 0
+    invite = Invite.decode(capsys.readouterr().out.split()[0])
+    assert (invite.iroh, invite.relay) == (expected, "relay.example.com:7447")
+
+
+def test_join_remembers_the_endpoint_in_the_invite(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pytest.importorskip("iroh")
+    gef, tobi = str(tmp_path / "gef"), str(tmp_path / "tobi")
+    main(["--home", gef, "init", "--handle", "gef"])
+    main(["--home", gef, "invite"])
+    code = capsys.readouterr().out.split("invite  ")[1].split()[0]
+    assert main(["--home", tobi, "join", code, "--handle", "tobi"]) == 0
+    config = json.loads((tmp_path / "tobi" / "config.json").read_text())
+    expected = Device.stored_endpoint_id(tmp_path / "gef")
+    assert expected is not None
+    assert config["bootstrap_endpoint"] == expected.hex()
+
+
 def test_auto_key_uses_hardware_when_present(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], hardware: list[Backend]
 ) -> None:

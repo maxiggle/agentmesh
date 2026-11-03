@@ -327,7 +327,7 @@ The exchange:
 5. Each side sends, per author in ascending `seq`, the stored entries the other's frontier lacks, then `done`. Members receive every log. Guests receive only `roster` entries, which is how a device that has just joined learns the roster that admits it without being sent the team's messages.
 6. Every received entry goes through §5. A roster entry that is authorized but waiting on a gap in its author's log still counts for authorization.
 
-A **relay** is a peer that stores and serves a team's entries but never writes any. It pins the genesis roster like any device, accepts only entries the roster authorizes, and treats devices exactly as above. Devices sync with every relay the current roster lists, and a new device may use a relay named in its invite until it holds a roster. Bodies reach a relay already sealed (§6).
+A **relay** is a peer that stores and serves a team's entries but never writes any. It pins the genesis roster like any device, accepts only entries the roster authorizes, and treats devices exactly as above. Devices sync with every relay the current roster lists, and a new device may use a relay named in its invite until it holds a roster. Likewise, a new device may dial an iroh endpoint named in its invite until it holds a roster and a device of that roster has announced an endpoint. The endpoint is only where to knock: it is not trusted as an identity, and the handshake above still authenticates whoever answers. Bodies reach a relay already sealed (§6).
 
 Peers sync again on a timer, whenever a new peer is discovered, and soon after a local write. Entries are self-authenticating, so a peer may forward any author's entries (gossip).
 

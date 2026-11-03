@@ -6,6 +6,7 @@ from pathlib import Path
 from agentmesh.service.api import ApiError
 from agentmesh.service.device import Device
 from agentmesh.service.direct_sync import DirectSync
+from agentmesh.service.invite import Invite
 from agentmesh.transport.iroh import IrohMode, IrohTransport
 
 PASSPHRASE = b"direct passphrase"
@@ -107,3 +108,78 @@ async def _scenario(root: Path) -> None:
 
 def test_message_reaches_a_teammate_directly(tmp_path: Path) -> None:
     asyncio.run(asyncio.wait_for(_scenario(tmp_path), TIMEOUT))
+
+
+async def _joined_from_a_code(root: Path) -> None:
+    with ExitStack() as stack:
+        gef = stack.enter_context(Device.create_team(root / "gef", "gef", PASSPHRASE))
+        code = gef.invite.encode()
+        assert code.startswith("am2-")
+        tobi = stack.enter_context(
+            Device.join(root / "tobi", Invite.decode(code), "tobi", PASSPHRASE)
+        )
+        gef.call("roster.add", {"handle": "tobi", "key": tobi.author.hex()})
+
+        transports = {
+            device.author: IrohTransport(device.iroh_secret, IrohMode.LOCAL)
+            for device in (gef, tobi)
+        }
+        by_endpoint = {
+            endpoint: transports[device.author]
+            for device in (gef, tobi)
+            if (endpoint := device.endpoint_id) is not None
+        }
+
+        def local(endpoint: bytes) -> list[str]:
+            return by_endpoint[endpoint].local_addresses()
+
+        gef_sync, tobi_sync = (
+            DirectSync(
+                device.sync_node,
+                transports[device.author],
+                device.direct_peers,
+                addresses=local,
+                announce=device.announce_endpoint,
+                interval=0.2,
+            )
+            for device in (gef, tobi)
+        )
+        stop = asyncio.Event()
+        running = [asyncio.ensure_future(sync.run(stop)) for sync in (gef_sync, tobi_sync)]
+        try:
+            await _until(lambda: tobi.roster.member_for_key(tobi.author) is not None, tobi_sync)
+            assert tobi.announce_key()
+            await _until(
+                lambda: (
+                    [device for device, _ in tobi.direct_peers()] == [gef.author]
+                    and bool(gef.direct_peers())
+                ),
+                tobi_sync,
+            )
+
+            posted: list[str] = []
+
+            def sent() -> bool:
+                result = _post_when_possible(gef, "tobi", "found you from the code")
+                if result is not None:
+                    posted.append(result.split()[1])
+                return bool(posted)
+
+            await _until(sent, gef_sync, tobi_sync)
+            received: list[str] = []
+
+            def delivered() -> bool:
+                inbox = tobi.call("inbox", {})
+                if posted[0] in inbox:
+                    received.append(inbox)
+                return bool(received)
+
+            await _until(delivered, gef_sync, tobi_sync)
+            assert '"found you from the code"' in received[0]
+        finally:
+            stop.set()
+            await asyncio.gather(*running)
+
+
+def test_a_device_joined_from_a_code_reaches_the_inviter_directly(tmp_path: Path) -> None:
+    asyncio.run(asyncio.wait_for(_joined_from_a_code(tmp_path), TIMEOUT))

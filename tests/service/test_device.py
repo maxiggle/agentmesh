@@ -44,6 +44,28 @@ def test_config_round_trip(tmp_path: Path) -> None:
     assert DeviceConfig.load(tmp_path) == config
 
 
+def test_config_keeps_the_bootstrap_endpoint(tmp_path: Path) -> None:
+    config = DeviceConfig("gef", TEAM, GENESIS, bootstrap_endpoint=b"\x07" * 32)
+    config.save(tmp_path)
+    assert json.loads((tmp_path / "config.json").read_text())["bootstrap_endpoint"] == "07" * 32
+    assert DeviceConfig.load(tmp_path) == config
+    DeviceConfig("gef", TEAM, GENESIS).save(tmp_path)
+    assert DeviceConfig.load(tmp_path).bootstrap_endpoint is None
+
+
+def test_config_saved_before_bootstrap_endpoints_still_loads(tmp_path: Path) -> None:
+    DeviceConfig("gef", TEAM, GENESIS).save(tmp_path)
+    data = json.loads((tmp_path / "config.json").read_text())
+    del data["bootstrap_endpoint"]
+    (tmp_path / "config.json").write_text(json.dumps(data))
+    assert DeviceConfig.load(tmp_path) == DeviceConfig("gef", TEAM, GENESIS)
+
+
+def test_config_rejects_a_bootstrap_endpoint_of_the_wrong_size() -> None:
+    with pytest.raises(ConfigError, match="bootstrap endpoint"):
+        DeviceConfig("gef", TEAM, GENESIS, bootstrap_endpoint=b"\x07" * 31)
+
+
 def test_config_keeps_the_key_backend(tmp_path: Path) -> None:
     config = DeviceConfig("gef", TEAM, GENESIS, key_backend=Backend.TPM)
     config.save(tmp_path)

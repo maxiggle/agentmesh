@@ -120,3 +120,37 @@ def test_removed_devices_are_not_direct_peers(pair: tuple[Device, Device]) -> No
     assert gef.direct_peers() == [(tobi.author, OTHER)]
     gef.call("roster.remove", {"handle": "tobi"})
     assert gef.direct_peers() == []
+
+
+def test_invite_names_the_inviters_endpoint(tmp_path: Path) -> None:
+    pytest.importorskip("iroh")
+    with Device.create_team(tmp_path / "gef", "gef", PASSPHRASE) as gef:
+        assert gef.endpoint_id is not None
+        assert gef.invite.iroh == gef.endpoint_id
+        assert Device.stored_endpoint_id(tmp_path / "gef") == gef.endpoint_id
+        with Device.join(tmp_path / "tobi", gef.invite, "tobi", PASSPHRASE) as tobi:
+            assert tobi.config.bootstrap_endpoint == gef.endpoint_id
+    assert Device.stored_endpoint_id(tmp_path / "missing") is None
+
+
+def test_invite_has_no_endpoint_without_iroh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(sys.modules, "iroh", None)
+    with Device.create_team(tmp_path, "gef", PASSPHRASE) as gef:
+        assert gef.invite.iroh is None
+        assert Device.stored_endpoint_id(tmp_path) is None
+
+
+def test_bootstrap_endpoint_is_dialled_until_a_roster_device_announces(
+    pair: tuple[Device, Device],
+) -> None:
+    pytest.importorskip("iroh")
+    gef, tobi = pair
+    assert gef.endpoint_id is not None
+    assert tobi.direct_peers() == [(gef.endpoint_id, gef.endpoint_id)]
+    _add_tobi(gef, tobi)
+    assert tobi.direct_peers() == [(gef.endpoint_id, gef.endpoint_id)]
+    assert gef.announce_endpoint(ENDPOINT)
+    _sync(gef, tobi)
+    assert tobi.direct_peers() == [(gef.author, ENDPOINT)]
