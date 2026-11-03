@@ -5,11 +5,11 @@ from typing import Any
 
 import pytest
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.body import MessageBody, MessageType
-from agentmesh.log.entry import Entry, EntryContent, Kind
-from agentmesh.log.envelope import Envelope
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.body import MessageBody, MessageType
+from ehor.log.entry import Entry, EntryContent, Kind
+from ehor.log.envelope import Envelope
 
 TEAM = bytes(range(16))
 
@@ -84,4 +84,4 @@ def make_entry(
 
 @pytest.fixture
 def tmp_db(tmp_path: Path) -> Path:
-    return tmp_path / "agentmesh.db"
+    return tmp_path / "ehor.db"

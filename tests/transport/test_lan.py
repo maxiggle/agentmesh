@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from agentmesh.transport.lan import (
+from ehor.transport.lan import (
     PeerAddress,
     StaticDiscovery,
     ZeroconfDiscovery,

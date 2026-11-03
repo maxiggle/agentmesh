@@ -2,9 +2,9 @@ import logging
 
 import pytest
 
-from agentmesh.log.roster import Member, Roster, RosterDevice, Trust
-from agentmesh.service.direct_sync import RoundReport
-from agentmesh.service.relay_policy import RelayGate, devices_to_reach, relay_needed
+from ehor.log.roster import Member, Roster, RosterDevice, Trust
+from ehor.service.direct_sync import RoundReport
+from ehor.service.relay_policy import RelayGate, devices_to_reach, relay_needed
 
 A = b"\x02" + b"a" * 32
 B = b"\x02" + b"b" * 32

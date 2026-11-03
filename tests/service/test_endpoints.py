@@ -1,15 +1,15 @@
 from collections.abc import Callable
 from pathlib import Path
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.canonical import encode
-from agentmesh.log.endpoint_announce import EndpointAnnounce
-from agentmesh.log.entry import Entry, Kind
-from agentmesh.log.verify import EntryVerifier
-from agentmesh.service.endpoints import EndpointDirectory
-from agentmesh.store.local_log import LocalLog
-from agentmesh.store.sqlite import SqliteStore
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.canonical import encode
+from ehor.log.endpoint_announce import EndpointAnnounce
+from ehor.log.entry import Entry, Kind
+from ehor.log.verify import EntryVerifier
+from ehor.service.endpoints import EndpointDirectory
+from ehor.store.local_log import LocalLog
+from ehor.store.sqlite import SqliteStore
 
 
 def test_directory_uses_the_latest_announce(

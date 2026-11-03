@@ -6,9 +6,9 @@ from typing import ParamSpec, TypeVar
 
 import pytest
 
-from agentmesh.service.direct_sync import DirectSync, RoundReport
-from agentmesh.sync.session import SyncError, SyncResult
-from agentmesh.sync.wire import SyncReader, SyncWriter
+from ehor.service.direct_sync import DirectSync, RoundReport
+from ehor.sync.session import SyncError, SyncResult
+from ehor.sync.wire import SyncReader, SyncWriter
 
 A, B, C = (bytes([n]) * 33 for n in (1, 2, 3))
 EA, EB, EC = (bytes([n]) * 32 for n in (11, 12, 13))

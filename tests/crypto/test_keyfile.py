@@ -5,8 +5,8 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
-from agentmesh.crypto.keyfile import EncryptionKeyFile, KeyFileError
-from agentmesh.crypto.sealing import public_bytes
+from ehor.crypto.keyfile import EncryptionKeyFile, KeyFileError
+from ehor.crypto.sealing import public_bytes
 
 PASSPHRASE = b"correct horse"
 

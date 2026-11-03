@@ -7,8 +7,8 @@ from typing import Any, TypeVar
 
 import pytest
 
-from agentmesh.transport import iroh as iroh_transport
-from agentmesh.transport.iroh import (
+from ehor.transport import iroh as iroh_transport
+from ehor.transport.iroh import (
     IrohMode,
     IrohReader,
     IrohTransport,
@@ -218,5 +218,5 @@ def test_missing_iroh_gives_an_install_hint(monkeypatch: pytest.MonkeyPatch) -> 
 
     monkeypatch.setattr(builtins, "__import__", refuse)
     monkeypatch.setattr(importlib, "import_module", refuse_module)
-    with pytest.raises(IrohUnavailableError, match=r"agentmesh\[p2p\]"):
+    with pytest.raises(IrohUnavailableError, match=r"ehor\[p2p\]"):
         asyncio.run(_transport().start())

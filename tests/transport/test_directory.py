@@ -1,15 +1,15 @@
 from collections.abc import Callable
 from pathlib import Path
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.entry import Kind
-from agentmesh.log.roster import Member, Roster, RosterDevice, Trust
-from agentmesh.log.verify import EntryVerifier
-from agentmesh.store.ingest import Ingestor
-from agentmesh.store.local_log import LocalLog
-from agentmesh.store.sqlite import SqliteStore
-from agentmesh.transport.directory import DirectoryExchange
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.entry import Kind
+from ehor.log.roster import Member, Roster, RosterDevice, Trust
+from ehor.log.verify import EntryVerifier
+from ehor.store.ingest import Ingestor
+from ehor.store.local_log import LocalLog
+from ehor.store.sqlite import SqliteStore
+from ehor.transport.directory import DirectoryExchange
 from security_key_emulator import SoftwareAuthenticator
 
 

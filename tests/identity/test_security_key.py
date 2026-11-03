@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.identity import (
+from ehor.identity import (
     AssertionSigner,
     IdentityError,
     InvalidLabelError,
@@ -12,8 +12,8 @@ from agentmesh.identity import (
     KeyHandle,
     KeyNotFoundError,
 )
-from agentmesh.identity.assertion import check_assertion
-from agentmesh.identity.security_key import Authenticator, SecurityKeySigner
+from ehor.identity.assertion import check_assertion
+from ehor.identity.security_key import Authenticator, SecurityKeySigner
 from security_key_emulator import SoftwareAuthenticator
 
 MESSAGE = b"agentmesh/sig/v0\x00roster"

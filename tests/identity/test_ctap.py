@@ -14,10 +14,10 @@ from fido2.ctap import STATUS, CtapDevice, CtapError
 from fido2.ctap2.pin import PinProtocol, PinProtocolV1, PinProtocolV2
 from fido2.hid import CAPABILITY, CTAPHID, CtapHidDevice
 
-from agentmesh.identity import HardwareUnavailableError, IdentityError
-from agentmesh.identity.assertion import RP_ID, check_assertion, rp_id_hash
-from agentmesh.identity.ctap import Ctap2Authenticator
-from agentmesh.identity.security_key import SecurityKeySigner
+from ehor.identity import HardwareUnavailableError, IdentityError
+from ehor.identity.assertion import RP_ID, check_assertion, rp_id_hash
+from ehor.identity.ctap import Ctap2Authenticator
+from ehor.identity.security_key import SecurityKeySigner
 
 REAL_KEY = os.environ.get("AGENTMESH_FIDO2_TEST") == "1"
 MESSAGE = b"agentmesh/sig/v0\x00roster"

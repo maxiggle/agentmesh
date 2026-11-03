@@ -2,13 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.verify import EntryVerifier
-from agentmesh.service.api import ApiError, ToolApi
-from agentmesh.service.messenger import Identity, Messenger, StaticDirectory
-from agentmesh.store.local_log import LocalLog
-from agentmesh.store.sqlite import SqliteStore
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.verify import EntryVerifier
+from ehor.service.api import ApiError, ToolApi
+from ehor.service.messenger import Identity, Messenger, StaticDirectory
+from ehor.store.local_log import LocalLog
+from ehor.store.sqlite import SqliteStore
 
 
 @pytest.fixture

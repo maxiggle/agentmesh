@@ -4,17 +4,17 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.entry import Kind
-from agentmesh.log.names import CONTROL_CHANNEL
-from agentmesh.log.roster import Member, Roster, RosterDevice, Trust
-from agentmesh.log.verify import EntryVerifier
-from agentmesh.store.ingest import Ingestor
-from agentmesh.store.local_log import LocalLog
-from agentmesh.store.sqlite import SqliteStore
-from agentmesh.sync.session import SyncError, SyncNode, SyncResult
-from agentmesh.sync.wire import Auth, Hello, read_message, write_message
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.entry import Kind
+from ehor.log.names import CONTROL_CHANNEL
+from ehor.log.roster import Member, Roster, RosterDevice, Trust
+from ehor.log.verify import EntryVerifier
+from ehor.store.ingest import Ingestor
+from ehor.store.local_log import LocalLog
+from ehor.store.sqlite import SqliteStore
+from ehor.sync.session import SyncError, SyncNode, SyncResult
+from ehor.sync.wire import Auth, Hello, read_message, write_message
 
 TEAM = b"\x0a" * 16
 

@@ -2,8 +2,8 @@ import base64
 
 import pytest
 
-from agentmesh.log.canonical import CborValue, encode
-from agentmesh.service.invite import Invite, InviteError
+from ehor.log.canonical import CborValue, encode
+from ehor.service.invite import Invite, InviteError
 
 TEAM = b"\x01" * 16
 GENESIS = b"\x02" * 32

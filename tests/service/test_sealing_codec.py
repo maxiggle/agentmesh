@@ -3,16 +3,16 @@ from pathlib import Path
 
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
-from agentmesh.crypto.sealing import public_bytes
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.entry import Entry, EntryContent, Kind
-from agentmesh.log.key_announce import KeyAnnounce
-from agentmesh.log.verify import EntryVerifier
-from agentmesh.roster.book import RosterBook
-from agentmesh.service.sealing import KeyDirectory, SealingCodec
-from agentmesh.store.local_log import LocalLog
-from agentmesh.store.sqlite import SqliteStore
+from ehor.crypto.sealing import public_bytes
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.entry import Entry, EntryContent, Kind
+from ehor.log.key_announce import KeyAnnounce
+from ehor.log.verify import EntryVerifier
+from ehor.roster.book import RosterBook
+from ehor.service.sealing import KeyDirectory, SealingCodec
+from ehor.store.local_log import LocalLog
+from ehor.store.sqlite import SqliteStore
 
 
 def test_key_directory_uses_the_latest_announce(

@@ -3,15 +3,15 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.body import Status
-from agentmesh.log.verify import EntryVerifier
-from agentmesh.service import render
-from agentmesh.service.messenger import Identity, Messenger, MessengerError, StaticDirectory
-from agentmesh.store.ingest import Ingestor
-from agentmesh.store.local_log import LocalLog
-from agentmesh.store.sqlite import SqliteStore
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.body import Status
+from ehor.log.verify import EntryVerifier
+from ehor.service import render
+from ehor.service.messenger import Identity, Messenger, MessengerError, StaticDirectory
+from ehor.store.ingest import Ingestor
+from ehor.store.local_log import LocalLog
+from ehor.store.sqlite import SqliteStore
 
 TEAM = b"\x05" * 16
 

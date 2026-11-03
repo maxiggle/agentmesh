@@ -4,11 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.log.body import Status, StatusBody
-from agentmesh.log.entry import Entry, Kind
-from agentmesh.log.envelope import Envelope
-from agentmesh.store.base import ChainError, DuplicateEntryError, Store
-from agentmesh.store.sqlite import MIGRATIONS, SqliteStore
+from ehor.log.body import Status, StatusBody
+from ehor.log.entry import Entry, Kind
+from ehor.log.envelope import Envelope
+from ehor.store.base import ChainError, DuplicateEntryError, Store
+from ehor.store.sqlite import MIGRATIONS, SqliteStore
 
 
 @pytest.fixture

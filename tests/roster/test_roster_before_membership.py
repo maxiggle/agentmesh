@@ -1,16 +1,16 @@
 from collections.abc import Callable
 from pathlib import Path
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.entry import Entry, Kind
-from agentmesh.log.names import CONTROL_CHANNEL
-from agentmesh.log.roster import Member, Roster, RosterDevice, Trust
-from agentmesh.log.verify import EntryVerifier
-from agentmesh.roster.book import RosterBook
-from agentmesh.store.ingest import Ingestor, Outcome
-from agentmesh.store.local_log import LocalLog
-from agentmesh.store.sqlite import SqliteStore
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.entry import Entry, Kind
+from ehor.log.names import CONTROL_CHANNEL
+from ehor.log.roster import Member, Roster, RosterDevice, Trust
+from ehor.log.verify import EntryVerifier
+from ehor.roster.book import RosterBook
+from ehor.store.ingest import Ingestor, Outcome
+from ehor.store.local_log import LocalLog
+from ehor.store.sqlite import SqliteStore
 
 
 def _member(handle: str, key: bytes) -> Member:

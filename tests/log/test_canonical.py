@@ -1,6 +1,6 @@
 import pytest
 
-from agentmesh.log.canonical import CanonicalError, CborValue, decode, encode
+from ehor.log.canonical import CanonicalError, CborValue, decode, encode
 
 
 @pytest.mark.parametrize(

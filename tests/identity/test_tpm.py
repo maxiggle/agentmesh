@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
 
-from agentmesh.identity import (
+from ehor.identity import (
     HardwareUnavailableError,
     IdentityError,
     InvalidLabelError,
@@ -18,8 +18,8 @@ from agentmesh.identity import (
     Signer,
     es256,
 )
-from agentmesh.identity.tools import ToolError
-from agentmesh.identity.tpm import TpmSigner
+from ehor.identity.tools import ToolError
+from ehor.identity.tpm import TpmSigner
 
 REAL_TPM = os.environ.get("AGENTMESH_TPM_TEST") == "1"
 

@@ -4,8 +4,8 @@ from collections.abc import Mapping
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from agentmesh.mcp.server import INSTRUCTIONS, build_server
-from agentmesh.service.rpc import RpcError
+from ehor.mcp.server import INSTRUCTIONS, build_server
+from ehor.service.rpc import RpcError
 
 
 class FakeClient:

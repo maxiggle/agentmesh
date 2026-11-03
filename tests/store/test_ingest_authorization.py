@@ -3,14 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.authorize import Decision
-from agentmesh.log.entry import Entry, EntryContent, Kind
-from agentmesh.log.verify import EntryVerifier
-from agentmesh.store.ingest import Ingestor, Outcome
-from agentmesh.store.local_log import LocalLog, NotAuthorizedError
-from agentmesh.store.sqlite import SqliteStore
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.authorize import Decision
+from ehor.log.entry import Entry, EntryContent, Kind
+from ehor.log.verify import EntryVerifier
+from ehor.store.ingest import Ingestor, Outcome
+from ehor.store.local_log import LocalLog, NotAuthorizedError
+from ehor.store.sqlite import SqliteStore
 
 
 class FakeAuthorizer:

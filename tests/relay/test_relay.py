@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.relay.server import Relay, RelayConfig, RelayError
-from agentmesh.service.device import Device
+from ehor.relay.server import Relay, RelayConfig, RelayError
+from ehor.service.device import Device
 
 PASSPHRASE = b"relay passphrase"
 

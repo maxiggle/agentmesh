@@ -3,17 +3,17 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.body import Status, StatusBody
-from agentmesh.log.entry import Kind
-from agentmesh.log.envelope import Envelope
-from agentmesh.log.roster import Member, Roster, RosterDevice, Trust
-from agentmesh.log.verify import EntryVerifier, RejectedEntryError
-from agentmesh.roster.book import RosterBook
-from agentmesh.store.base import ChainError
-from agentmesh.store.local_log import LocalLog, NotAuthorizedError
-from agentmesh.store.sqlite import SqliteStore
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.body import Status, StatusBody
+from ehor.log.entry import Kind
+from ehor.log.envelope import Envelope
+from ehor.log.roster import Member, Roster, RosterDevice, Trust
+from ehor.log.verify import EntryVerifier, RejectedEntryError
+from ehor.roster.book import RosterBook
+from ehor.store.base import ChainError
+from ehor.store.local_log import LocalLog, NotAuthorizedError
+from ehor.store.sqlite import SqliteStore
 from security_key_emulator import SoftwareAuthenticator
 
 
