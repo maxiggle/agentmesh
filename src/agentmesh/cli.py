@@ -23,6 +23,7 @@ from agentmesh.service.device import Device, security_key_signer
 from agentmesh.service.direct_sync import DirectSync
 from agentmesh.service.invite import Invite, InviteError
 from agentmesh.service.peer_sync import DEFAULT_PEER_INTERVAL, PeerSync
+from agentmesh.service.relay_policy import RelayGate, devices_to_reach
 from agentmesh.service.rpc import RpcClient, RpcError, default_endpoint
 from agentmesh.transport.iroh import IrohMode, IrohTransport
 from agentmesh.transport.lan import ZeroconfDiscovery
@@ -394,20 +395,25 @@ def _serve(args: argparse.Namespace) -> int:
     home = _home(args)
     with Device.open(home, _passphrase(confirm=False)) as device:
         sys.stderr.write(f"agentmesh serving {device.config.handle} from {home}\n")
-        peers: list[Syncer] = [_relay_sync(device, args.lan_interval)]
+        direct = None if args.no_p2p else _direct_sync(device)
+        peers: list[Syncer] = [_relay_sync(device, args.lan_interval, direct)]
         if not args.no_lan:
             peers.append(_lan_sync(device, args.lan_interval))
-        if not args.no_p2p:
-            direct = _direct_sync(device)
-            if direct is not None:
-                peers.append(direct)
+        if direct is not None:
+            peers.append(direct)
         asyncio.run(_run_daemon(Daemon(device, default_endpoint(home), args.interval, peers)))
     return 0
 
 
-def _relay_sync(device: Device, interval: float) -> PeerSync:
+def _relay_sync(device: Device, interval: float, direct: DirectSync | None) -> PeerSync:
     directory = RelayDirectory(device.relay_addresses)
-    return PeerSync(device.sync_node, directory, interval=interval, listen=False)
+    gate = RelayGate(
+        lambda: direct is not None and direct.running,
+        lambda: None if direct is None else direct.last_round,
+        lambda: devices_to_reach(device.roster.current, device.author),
+        lambda: frozenset(key for key, _ in device.direct_peers()),
+    )
+    return PeerSync(device.sync_node, directory, interval=interval, listen=False, should_sync=gate)
 
 
 def _direct_sync(device: Device) -> DirectSync | None:
