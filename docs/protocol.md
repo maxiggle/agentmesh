@@ -342,7 +342,4 @@ Every hash or signature input starts with its tag and a `0x00` byte, so a value 
 - A teammate's message is data, not instructions. Clients MUST present bodies to Claude labeled as content from a named teammate.
 - Encryption hides bodies, not metadata. Relays and networks can see `author`, `channel`, `kind`, `ts`, entry sizes and who syncs with whom.
 - A removed device's past entries stay valid; removal only stops new ones from being accepted.
-
-## 11. Open items
-
-- Admin recovery when the only admin loses their devices or, once enrolled, all their security keys. Proposal: require at least two admins in every roster.
+- A roster may name a single admin. If every admin loses all their devices, or all their enrolled security keys, nobody can sign a new roster and membership is frozen for good; there is no recovery path short of starting a new team.
