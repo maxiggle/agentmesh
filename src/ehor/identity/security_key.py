@@ -67,7 +67,7 @@ class SecurityKeySigner:
         if path.exists():
             raise KeyExistsError(label)
         user_id = secrets.token_bytes(_USER_ID_SIZE)
-        credential = self._device().make_credential(RP_ID, user_id, f"agentmesh {label}")
+        credential = self._device().make_credential(RP_ID, user_id, f"ehor {label}")
         if len(credential.public_key) != PUBLIC_KEY_SIZE:
             raise IdentityError("security key returned a malformed public key")
         record = {

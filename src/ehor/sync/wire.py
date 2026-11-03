@@ -12,7 +12,7 @@ MAX_BATCH = 48
 MAX_HEADS = 10_000
 NONCE_SIZE = 32
 _LENGTH_SIZE = 4
-_AUTH_TAG = b"agentmesh/auth/v0\x00"
+_AUTH_TAG = b"ehor/auth/v0\x00"
 
 
 class WireError(Exception):

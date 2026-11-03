@@ -18,7 +18,7 @@ from ehor.identity.security_key import Credential
 
 T = TypeVar("T")
 
-_RP_NAME = "agentmesh"
+_RP_NAME = "ehor"
 _P256 = 1
 _ERRORS = {
     CtapError.ERR.NO_CREDENTIALS: "this security key does not hold that credential; "

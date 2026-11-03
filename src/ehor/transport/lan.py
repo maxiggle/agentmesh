@@ -10,7 +10,7 @@ from typing import Protocol
 from zeroconf import ServiceStateChange, Zeroconf
 from zeroconf.asyncio import AsyncServiceBrowser, AsyncServiceInfo, AsyncZeroconf
 
-SERVICE_TYPE = "_agentmesh._tcp.local."
+SERVICE_TYPE = "_ehor._tcp.local."
 _RESOLVE_TIMEOUT_MS = 3000
 _TAG_BYTES = 8
 _log = logging.getLogger(__name__)

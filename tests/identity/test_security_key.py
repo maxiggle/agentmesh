@@ -16,7 +16,7 @@ from ehor.identity.assertion import check_assertion
 from ehor.identity.security_key import Authenticator, SecurityKeySigner
 from security_key_emulator import SoftwareAuthenticator
 
-MESSAGE = b"agentmesh/sig/v0\x00roster"
+MESSAGE = b"ehor/sig/v0\x00roster"
 
 
 class Connector:

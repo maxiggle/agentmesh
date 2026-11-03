@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Self
 if TYPE_CHECKING:
     from iroh import Connection, Endpoint, Incoming, RecvStream, SendStream
 
-ALPN = b"agentmesh/sync/0"
+ALPN = b"ehor/sync/0"
 READ_LIMIT = 16 * 1024 * 1024
 DIAL_TIMEOUT = 20.0
 HANDSHAKE_TIMEOUT = 10.0
