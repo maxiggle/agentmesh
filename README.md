@@ -1,25 +1,66 @@
-# ehor
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img alt="ehor" src="docs/assets/logo-light.svg" width="300">
+  </picture>
+</p>
 
-Signed, encrypted, serverless messaging between Claude Code and Claude Desktop agents.
+<p align="center">
+  <a href="https://github.com/maxiggle/agentmesh/actions/workflows/ci.yml"><img src="https://github.com/maxiggle/agentmesh/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-0E8A5F" alt="Python 3.11 | 3.12 | 3.13">
+  <img src="https://img.shields.io/badge/status-pre--alpha-C2410C" alt="Status: pre-alpha">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1667C9" alt="MIT license"></a>
+</p>
+
+<p align="center">Signed, encrypted, serverless messaging between Claude agents.</p>
+
+<p align="center">
+  <img alt="Two laptops, each running Claude with ehor, sync directly over an encrypted iroh connection. n0's relays help only when a router blocks the direct path; a self-hosted ehor relay holds messages for teammates who are offline." src="docs/assets/how-it-works.svg" width="760">
+</p>
+
+<p align="center"><i>Each teammate's Claude talks to its own <code>ehor</code> service. The services sync directly, with an optional mailbox for whoever is offline.</i></p>
 
 *Ehor* means "message" in Benue.
 
-Agents on different machines exchange short, structured, hardware-signed messages without a central server. Any relay only ever sees encrypted, signed data.
+## Highlights
 
-## Status
+- Lets Claude Code and Claude Desktop agents on different machines hand each other
+  [requests, questions and status updates](#messages-for-agents) through seven MCP tools.
+- **No server to run.** Devices find each other on the LAN and
+  [connect directly across networks](#direct-connections-across-networks) with
+  [iroh](https://iroh.computer).
+- **End-to-end encrypted.** Relays, shared folders and the network only ever see ciphertext.
+- **Signed by hardware.** Every entry is signed by a key in the
+  [Secure Enclave or TPM](#hardware-signing-keys) where the machine has one.
+- **Touch to change the team.** Admins can require a [FIDO2 security key](#admin-security-keys)
+  for every roster change.
+- **Safe by default with untrusted input.** A teammate's message is labelled as data, and nothing
+  in it can change who is on the team.
+- An optional [self-hosted relay](#a-mailbox-for-offline-teammates) holds messages for teammates
+  who are offline.
+- Runs on macOS, Linux and Windows.
 
-Pre-alpha. See `docs/protocol.md` for the wire format and `CLAUDE.md` for contribution rules.
+## Installation
 
-## Set up a team
-
-Install, then start a team on your machine. You become its first admin:
+ehor is not on PyPI yet. Install it from GitHub with [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv tool install 'ehor[p2p] @ git+https://github.com/maxiggle/agentmesh'
-ehor init --handle gef --team-name Acme
 ```
 
-`init` prints an invite code (`ehor invite` prints it again). A teammate joins with it:
+The `p2p` extra adds direct connections across networks. iroh ships builds for Apple silicon
+Macs, 64-bit Linux and Windows; without the extra, everything else still works. Add `fido2` as
+well for [admin security keys](#admin-security-keys): `'ehor[p2p,fido2] @ git+…'`.
+
+## Quick start
+
+Start a team. You become its first admin, and `init` prints an invite code:
+
+```bash
+ehor init --handle ada --team-name Acme
+```
+
+A teammate joins with the code, from any network:
 
 ```bash
 ehor join eh1-... --handle tobi
@@ -28,14 +69,107 @@ ehor join eh1-... --handle tobi
 `join` prints the command an admin runs to add them to the roster:
 
 ```bash
-ehor roster add tobi 02ab... --role @mobile --channel '#mobile'
+ehor roster add tobi 0372c4010a... --role @mobile --channel '#mobile'
 ```
 
-Until then the new device can read the team's roster but cannot post, and nobody sees anything it writes. `ehor roster` shows the roster; `roster add --admin` makes another admin and `roster remove` takes someone off.
+<p align="center">
+  <img alt="Terminal: ada runs ehor init, tobi runs ehor join with the invite code on another network, and ada adds tobi to the roster." src="docs/assets/screenshot-setup.svg" width="760">
+</p>
 
-## Signing keys
+Then, on every device, run the background service and connect Claude:
 
-Each device signs everything it writes with its own P-256 key. `init` and `join` put that key in hardware when the machine has some, and say which kind they used:
+```bash
+ehor serve
+claude mcp add ehor -- ehor mcp
+```
+
+For Claude Desktop, add the same command to `claude_desktop_config.json` under `mcpServers`.
+Copy [`claude/CLAUDE.md`](claude/CLAUDE.md) into your project's `CLAUDE.md`, and
+[`claude/commands/`](claude/commands) into `.claude/commands/` for the `/inbox` and `/handoff`
+commands.
+
+## Features
+
+### Messages for agents
+
+Claude works with your team through seven MCP tools. Results are short plain text, and every
+message from a teammate is labelled as data from another person, never as instructions.
+
+| Tool         | Does |
+|--------------|------|
+| `digest`     | One line of counts |
+| `inbox`      | Unread messages for you, one line each |
+| `read`       | One message in full |
+| `post`       | Send a message to handles, `@roles` or `#channels` |
+| `reply`      | Reply to a message |
+| `set_status` | Mark a message open, claimed, done or wontfix |
+| `team`       | You, your teammates, and who is working on what |
+
+<p align="center">
+  <img alt="The inbox and read tool results that tobi's Claude sees: a question and a feature request from ada, with acceptance criteria and a link." src="docs/assets/screenshot-claude.svg" width="760">
+</p>
+
+Messages have a type (`feature_request`, `shipped`, `blocked`, `question` or `fyi`), a summary of
+at most 140 characters, and optional links, acceptance criteria and detail. Statuses let the
+sender see who has picked up what:
+
+<p align="center">
+  <img alt="Terminal: ada runs ehor team and sees tobi working on her request, then ehor inbox shows tobi's claim and reply." src="docs/assets/screenshot-team.svg" width="760">
+</p>
+
+Roster changes are not MCP tools, so a teammate's message can never get Claude to change who is
+on the team. The receiving Claude decides what to do under its own user's permissions.
+
+### Direct connections across networks
+
+On the same network, devices find each other over mDNS. Across networks, they connect directly
+with iroh. Each device announces its iroh address in a signed log entry, and invite codes carry
+the inviter's address, so a new teammate on another network can join straight away.
+
+When a router blocks the direct path, iroh carries the encrypted connection through
+[n0](https://n0.computer)'s public relays. n0 can see device addresses and when they connect,
+never message content. Either way, every session starts with both devices proving they hold their
+signing keys, and every entry is checked against its signature and the roster before it is stored.
+
+`ehor serve --no-lan` turns off LAN discovery, and `--no-p2p` turns off direct connections.
+
+### A mailbox for offline teammates
+
+Direct connections only work while both devices are online. A relay is a small service that
+stores the team's encrypted entries, so a teammate on a closed laptop gets messages when they come
+back. Devices use it only while some teammate is out of direct reach.
+
+```bash
+ehor relay init --invite eh1-...
+ehor relay serve --listen 0.0.0.0:7447
+```
+
+`relay init` prints the command an admin runs to list it in the roster,
+`ehor roster relay-add <host>:7447 <key>`. The relay stores only entries from roster members and
+cannot read them.
+
+For two devices on one machine, give each its own folder with `--home` and the same shared folder
+with `--exchange <folder>`. Any folder works, including one synced by a file-sync service: entries
+are signed, so the folder needs no trust.
+
+### End-to-end encryption
+
+Every message is encrypted for the devices allowed to read its channel: members of a `#channel`,
+both people in a direct message, and always your own devices.
+
+- Removing someone from the roster cuts them off from the very next message.
+- A new device reads only messages written after it was added, so a new laptop does not see older
+  history.
+- Encryption hides content, not metadata: who is talking, in which channel and when are visible to
+  anyone carrying the entries.
+
+The passphrase, from `EHOR_PASSPHRASE` or a prompt, protects the encryption key, and the signing
+key too when that is a software key.
+
+### Hardware signing keys
+
+Each device signs everything it writes with its own P-256 key. `init` and `join` put that key in
+hardware when the machine has some:
 
 | `--key`          | Where the key lives | Needs |
 |------------------|---------------------|-------|
@@ -43,106 +177,79 @@ Each device signs everything it writes with its own P-256 key. `init` and `join`
 | `tpm`            | The machine's TPM 2.0 chip | Linux, `tpm2-tools`, and read/write access to `/dev/tpmrm0` (usually the `tss` group) |
 | `software`       | A passphrase-encrypted file | Nothing |
 
-`auto`, the default, picks the hardware option if it works and falls back to `software`. A hardware key never leaves the chip, so a copied `~/.ehor` folder cannot sign as you. It does not ask for a password or Touch ID when it signs, so anything running as your user on that machine can still use it.
+`auto`, the default, uses hardware when it works and falls back to `software`. A hardware key
+never leaves the chip, so a copied `~/.ehor` folder cannot sign as you. It does not ask for Touch
+ID when it signs, so anything running as your user on that machine can still use it. The roster
+shows each device as `hardware` or `software`; that label is the admin's word for it, since
+neither chip proves where a key lives.
 
-`join` adds `--hardware` to the `roster add` command it prints when the key is in hardware, and the roster shows each device as `hardware` or `software`. That label is the admin's word for it; neither chip proves where a key lives.
+### Admin security keys
 
-## Admin security keys
-
-An admin can require a physical touch for every roster change by enrolling a FIDO2 security key, such as a YubiKey. Install the optional USB support first, plug in the key and run:
+An admin can require a physical touch for every roster change by enrolling a FIDO2 security key,
+such as a YubiKey:
 
 ```bash
-uv tool install 'ehor[fido2] @ git+https://github.com/maxiggle/agentmesh'
 ehor roster enroll-key --label yubikey
 ```
 
-Enrolling adds the key to your entry in the roster. From then on `roster add`, `roster remove`, `roster relay-add` and `roster relay-remove` print the roster version they are about to sign and wait for a touch. Every teammate's device checks this: once you have an enrolled key, a roster change signed only by your laptop's key is refused. A stolen laptop, or anything running as you on it, can no longer change who is on the team.
+From then on, roster changes print the version they are about to sign and wait for a touch, and
+every teammate's device refuses a roster change signed only by that admin's laptop key. A stolen
+laptop can no longer change who is on the team.
 
-The requirement is per admin: an admin who has not enrolled a key still signs with their device key. To make every roster change need a touch, every admin enrolls one.
-
-- Enroll a backup key the same way. The new key is added with a touch of one you already enrolled, and `--security-key <label>` picks which key signs when you have several.
+- Enroll a backup key the same way; `--security-key <label>` picks which key signs.
 - Keep only one key plugged in at a time.
-- Many keys ask for their PIN to enroll. Signing needs only the touch, unless the key is set to always require its PIN.
 - On Windows, talking to a security key directly needs an administrator terminal.
-- If you lose every enrolled key, another admin has to remove you and add you back. A team whose only admin loses their keys cannot change its roster again, so give every team at least two admins.
+- If you lose every enrolled key, another admin has to remove you and add you back. A team whose
+  only admin loses their keys cannot change its roster again, so give every team at least two
+  admins.
 
-## How devices sync
+## Documentation
 
-On the same network, devices find each other over mDNS and sync directly, with no setup beyond `join`. A device that has just joined learns the roster this way before it is added, but is sent nobody's messages until an admin adds it. Each sync session starts with both devices proving they hold their keys, and everything received is checked against signatures and the roster before it is stored.
+The wire format, validation rules and security model are specified in
+[`docs/protocol.md`](docs/protocol.md). Every command has `--help`.
 
-Across networks, devices connect directly with [iroh](https://iroh.computer), with no setup. Each device announces its iroh address in a signed entry, and invite codes carry the inviter's address, so a new teammate on another network can join straight away. When routers block a direct path, iroh passes the encrypted connection through n0's public relay servers. n0 can see device addresses and when they connect, never message content. Direct connections need the `p2p` extra, installed above; iroh ships builds for Apple silicon Macs, 64-bit Linux and Windows.
+## Contributing
 
-Direct connections only work while both devices are online. For a teammate who is offline or cannot be reached directly, run a relay: a small service that stores the team's encrypted entries and passes them on, so a teammate on a closed laptop gets messages when they come back. Devices use it only while some teammate is out of direct reach. On a machine your team can reach:
-
-```bash
-ehor relay init --invite eh1-...
-ehor relay serve --listen 0.0.0.0:7447
-```
-
-`relay init` prints the command an admin runs to list the relay in the roster, `ehor roster relay-add <host>:7447 <key>`. From then on every device syncs with it, and new invite codes carry its address so teammates on other networks can join. The relay stores only entries from roster members and cannot read them.
-
-Alternatively, for two devices on one machine, give every device the same shared folder with `--exchange <folder>` at `init` or `join`. Any folder works, including one synced by a file-sync service: entries are signed, so the folder needs no trust.
-
-To run a second device on the same machine, give it its own folder with `--home`, for example `ehor --home ~/.ehor-tobi join ...`, and pass the same `--home` to every command.
-
-## Encryption
-
-Every message is encrypted end to end for the devices allowed to read its channel: members of a `#channel`, both people in a direct message, and always your own devices. Shared folders, relays and the network only ever see ciphertext. Each device keeps its decryption key in a passphrase-protected file and announces the public half once an admin adds it.
-
-- Removing someone from the roster cuts them off from the very next message.
-- A device can only read messages written after it was added and its key had reached the writer, so a new laptop does not see older history.
-- Encryption hides content, not metadata: who is talking, in which channel, and when are still visible to anyone carrying the entries.
-
-Run the background service, which keeps syncing while Claude is closed. Roster changes need it running:
-
-```bash
-ehor serve
-```
-
-It listens on the local network for teammates; `--no-lan` turns that off. With the `ehor[p2p]` extra it also connects to teammates directly over the internet; `--no-p2p` turns that off. On macOS the firewall may ask once whether to allow incoming connections.
-
-The passphrase comes from `EHOR_PASSPHRASE` or a prompt. It protects the encryption key, and the signing key too when that is a software key.
-
-## Connect Claude
-
-```bash
-claude mcp add ehor -- ehor mcp
-```
-
-For Claude Desktop, add the same command to `claude_desktop_config.json` under `mcpServers`.
-
-Copy `claude/CLAUDE.md` into your project's `CLAUDE.md`, and `claude/commands/` into `.claude/commands/` for the `/inbox` and `/handoff` commands.
-
-## Tools
-
-| Tool | Does |
-|------|------|
-| `digest` | One line of counts |
-| `inbox` | Unread messages for you, one line each |
-| `read` | One message in full |
-| `post` | Send a message |
-| `reply` | Reply to a message |
-| `set_status` | Mark a message open, claimed, done or wontfix |
-| `team` | You, your teammates, and who is working on what |
-
-Roster changes are not MCP tools, so a teammate's message cannot get Claude to change who is on the team.
-
-## Development
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the checks every
+commit must pass, and how commits and pull requests are written. To start:
 
 ```bash
 uv sync
+uv run pre-commit install
 uv run pytest
 ```
 
-Hardware tests are opt-in: `EHOR_FIDO2_TEST=1` signs with a plugged-in security key (two touches; set `EHOR_FIDO2_PIN` if it has a PIN), and `EHOR_TPM_TEST=1` uses a TPM.
+## FAQ
 
-## Security notes
+#### Is there a server?
 
-- A teammate's message is information, not a command. The receiving Claude decides what to do under its own user's permissions.
-- Message bodies are end-to-end encrypted, but metadata (who talks to whom, and when) is visible to relays and the network.
+No. Devices sync with each other directly. n0's public relays only help two devices find a path
+when a router is in the way, and the optional ehor relay is a mailbox you host yourself.
 
-Install the git hooks once per clone so lint, types and commit messages are checked before every commit:
+#### Will Claude act on a teammate's message by itself?
 
-```bash
-uv run pre-commit install
-```
+No. Tool results present teammates' messages as data from a named person. The receiving Claude
+decides what to do under its own user's permissions, and roster changes cannot be made through
+MCP at all.
+
+#### What can a relay or n0 see?
+
+Encrypted entries and their metadata: which device wrote an entry, its channel, kind, time and
+size, and who syncs with whom. Never the content.
+
+#### Why is it called ehor?
+
+*Ehor* means "message" in Benue.
+
+## Acknowledgements
+
+ehor builds on [iroh](https://github.com/n0-computer/iroh) for direct connections, the
+[MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk),
+[cryptography](https://github.com/pyca/cryptography),
+[python-fido2](https://github.com/Yubico/python-fido2),
+[python-zeroconf](https://github.com/python-zeroconf/python-zeroconf) and
+[cbor2](https://github.com/agronholm/cbor2).
+
+## License
+
+ehor is licensed under the [MIT license](LICENSE).
