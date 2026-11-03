@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Callable
 
+from agentmesh.log.roster import Roster, Trust
 from agentmesh.service.direct_sync import RoundReport
 
 _log = logging.getLogger(__name__)
@@ -22,6 +23,21 @@ def relay_needed(
     if not direct_running or devices is None or last_round is None:
         return True
     return bool(devices - announced) or bool(devices & last_round.unreached)
+
+
+def devices_to_reach(roster: Roster | None, own: bytes) -> frozenset[bytes] | None:
+    """The other devices of the current members that sync with the team, or None without a roster.
+
+    Security keys only sign roster changes; they never announce an endpoint or sync.
+    """
+    if roster is None:
+        return None
+    return frozenset(
+        device.key
+        for member in roster.members
+        for device in member.devices
+        if device.key != own and device.trust is not Trust.SECURITY_KEY
+    )
 
 
 class RelayGate:
