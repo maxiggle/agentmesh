@@ -235,7 +235,9 @@ async def test_run_starts_announces_and_polls() -> None:
         await asyncio.sleep(0)
     assert transport.started
     assert announced == [transport.endpoint_id]
+    assert sync.last_round is not None
     assert sync.last_round.reached == {A}
+    assert sync.running
     sync.poke()
     for _ in range(20):
         await asyncio.sleep(0)
@@ -243,6 +245,7 @@ async def test_run_starts_announces_and_polls() -> None:
     assert announced == [transport.endpoint_id] * 2
     stop.set()
     await running
+    assert not sync.running
 
 
 @bounded
@@ -279,3 +282,24 @@ async def test_a_transport_that_cannot_start_leaves_the_daemon_running(
     with caplog.at_level(logging.WARNING):
         await sync.run(asyncio.Event())
     assert "direct sync is off" in caplog.text
+
+
+@bounded
+async def test_it_is_not_running_and_has_no_round_before_it_starts() -> None:
+    sync = _sync(FakeNode(), FakeTransport(), [(A, EA)])
+    assert not sync.running
+    assert sync.last_round is None
+    await sync.sync_all()
+    assert sync.last_round == RoundReport(frozenset({A}), frozenset())
+
+
+@bounded
+async def test_it_is_not_running_when_the_transport_fails_to_start() -> None:
+    class Failing(FakeTransport):
+        async def start(self) -> None:
+            raise OSError("no network")
+
+    sync = _sync(FakeNode(), Failing(), [(A, EA)])
+    await sync.run(asyncio.Event())
+    assert not sync.running
+    assert sync.last_round is None

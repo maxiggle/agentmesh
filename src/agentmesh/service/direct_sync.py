@@ -72,10 +72,17 @@ class DirectSync:
         self._max_inbound = max_inbound
         self._wake = asyncio.Event()
         self._inbound: set[asyncio.Task[None]] = set()
-        self._last_round = RoundReport()
+        self._last_round: RoundReport | None = None
+        self._running = False
 
     @property
-    def last_round(self) -> RoundReport:
+    def running(self) -> bool:
+        """Whether the transport started and the sync loop has not stopped."""
+        return self._running
+
+    @property
+    def last_round(self) -> RoundReport | None:
+        """The latest round's outcome, or None before the first round completes."""
         return self._last_round
 
     def poke(self) -> None:
@@ -88,6 +95,7 @@ class DirectSync:
         except OSError as exc:
             _log.warning("direct sync is off: %s", exc)
             return
+        self._running = True
         listener = asyncio.get_running_loop().create_task(self._listen())
         try:
             while not stop.is_set():
@@ -95,6 +103,7 @@ class DirectSync:
                 await self.sync_all()
                 await self._sleep(stop)
         finally:
+            self._running = False
             listener.cancel()
             sessions = [listener, *self._inbound]
             for session in sessions[1:]:
@@ -111,11 +120,12 @@ class DirectSync:
                 return await self._sync_with(device, endpoint)
 
         outcomes = await asyncio.gather(*(one(device, endpoint) for device, endpoint in peers))
-        self._last_round = RoundReport(
+        report = RoundReport(
             frozenset(device for (device, _), ok in zip(peers, outcomes, strict=True) if ok),
             frozenset(device for (device, _), ok in zip(peers, outcomes, strict=True) if not ok),
         )
-        return self._last_round
+        self._last_round = report
+        return report
 
     async def _sync_with(self, device: bytes, endpoint: bytes) -> bool:
         try:
