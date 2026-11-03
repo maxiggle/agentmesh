@@ -2,8 +2,9 @@ import logging
 
 import pytest
 
+from agentmesh.log.roster import Member, Roster, RosterDevice, Trust
 from agentmesh.service.direct_sync import RoundReport
-from agentmesh.service.relay_policy import RelayGate, relay_needed
+from agentmesh.service.relay_policy import RelayGate, devices_to_reach, relay_needed
 
 A = b"\x02" + b"a" * 32
 B = b"\x02" + b"b" * 32
@@ -68,3 +69,25 @@ def test_the_gate_reads_live_data_and_logs_only_when_the_decision_changes(
     messages = [record.message for record in caplog.records]
     assert len(messages) == 3
     assert "skipping" in messages[1]
+
+
+def _device(key: bytes, trust: Trust) -> RosterDevice:
+    return RosterDevice(key, trust, "")
+
+
+def test_devices_to_reach_leave_out_this_device_and_security_keys() -> None:
+    own, other, token = (b"\x02" + bytes([i]) * 32 for i in (1, 2, 3))
+    devices = (
+        _device(own, Trust.SOFTWARE),
+        _device(other, Trust.HARDWARE),
+        _device(token, Trust.SECURITY_KEY),
+    )
+    roster = Roster(
+        version=1,
+        previous=None,
+        team_name="",
+        admins=("gef",),
+        members=(Member("gef", (), ("*",), devices),),
+    )
+    assert devices_to_reach(roster, own) == frozenset({other})
+    assert devices_to_reach(None, own) is None
