@@ -18,11 +18,13 @@ from agentmesh.log.roster import Roster, RosterError
 from agentmesh.mcp.server import build_server
 from agentmesh.relay.server import Relay, RelayError
 from agentmesh.service.config import ConfigError, DeviceConfig, default_home
-from agentmesh.service.daemon import DEFAULT_SYNC_INTERVAL, Daemon
+from agentmesh.service.daemon import DEFAULT_SYNC_INTERVAL, Daemon, Syncer
 from agentmesh.service.device import Device, security_key_signer
+from agentmesh.service.direct_sync import DirectSync
 from agentmesh.service.invite import Invite, InviteError
 from agentmesh.service.peer_sync import DEFAULT_PEER_INTERVAL, PeerSync
 from agentmesh.service.rpc import RpcClient, RpcError, default_endpoint
+from agentmesh.transport.iroh import IrohMode, IrohTransport
 from agentmesh.transport.lan import ZeroconfDiscovery
 from agentmesh.transport.relays import RelayDirectory
 
@@ -79,6 +81,7 @@ def _parser() -> argparse.ArgumentParser:
     serve = commands.add_parser("serve", help="run the background service")
     serve.add_argument("--interval", type=float, default=DEFAULT_SYNC_INTERVAL)
     serve.add_argument("--no-lan", action="store_true", help="do not sync over the local network")
+    serve.add_argument("--no-p2p", action="store_true", help="do not connect to teammates directly")
     serve.add_argument("--lan-interval", type=float, default=DEFAULT_PEER_INTERVAL)
     serve.set_defaults(run=_serve)
 
@@ -391,9 +394,13 @@ def _serve(args: argparse.Namespace) -> int:
     home = _home(args)
     with Device.open(home, _passphrase(confirm=False)) as device:
         sys.stderr.write(f"agentmesh serving {device.config.handle} from {home}\n")
-        peers = [_relay_sync(device, args.lan_interval)]
+        peers: list[Syncer] = [_relay_sync(device, args.lan_interval)]
         if not args.no_lan:
             peers.append(_lan_sync(device, args.lan_interval))
+        if not args.no_p2p:
+            direct = _direct_sync(device)
+            if direct is not None:
+                peers.append(direct)
         asyncio.run(_run_daemon(Daemon(device, default_endpoint(home), args.interval, peers)))
     return 0
 
@@ -401,6 +408,18 @@ def _serve(args: argparse.Namespace) -> int:
 def _relay_sync(device: Device, interval: float) -> PeerSync:
     directory = RelayDirectory(device.relay_addresses)
     return PeerSync(device.sync_node, directory, interval=interval, listen=False)
+
+
+def _direct_sync(device: Device) -> DirectSync | None:
+    if device.endpoint_id is None:
+        logging.getLogger(__name__).info(
+            "direct connections are off: install them with pip install 'agentmesh[p2p]'"
+        )
+        return None
+    transport = IrohTransport(device.iroh_secret, IrohMode.INTERNET)
+    return DirectSync(
+        device.sync_node, transport, device.direct_peers, announce=device.announce_endpoint
+    )
 
 
 def _lan_sync(device: Device, interval: float) -> PeerSync:

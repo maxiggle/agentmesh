@@ -95,7 +95,7 @@ Run the background service, which keeps syncing while Claude is closed. Roster c
 agentmesh serve
 ```
 
-It listens on the local network for teammates; `--no-lan` turns that off. On macOS the firewall may ask once whether to allow incoming connections.
+It listens on the local network for teammates; `--no-lan` turns that off. With the `agentmesh[p2p]` extra it also connects to teammates directly over the internet; `--no-p2p` turns that off. On macOS the firewall may ask once whether to allow incoming connections.
 
 The passphrase comes from `AGENTMESH_PASSPHRASE` or a prompt. It protects the encryption key, and the signing key too when that is a software key.
 

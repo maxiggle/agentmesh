@@ -265,3 +265,17 @@ async def test_stop_closes_the_transport_and_ends_every_session() -> None:
     assert writer.closed == 1
     assert node.active == 0
     assert asyncio.all_tasks() - before - {asyncio.current_task()} == set()
+
+
+@bounded
+async def test_a_transport_that_cannot_start_leaves_the_daemon_running(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class Broken(FakeTransport):
+        async def start(self) -> None:
+            raise ConnectionError("cannot start iroh endpoint")
+
+    sync = _sync(FakeNode(), Broken(), [(A, EA)])
+    with caplog.at_level(logging.WARNING):
+        await sync.run(asyncio.Event())
+    assert "direct sync is off" in caplog.text

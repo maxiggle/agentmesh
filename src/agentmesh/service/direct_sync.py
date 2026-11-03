@@ -83,7 +83,11 @@ class DirectSync:
         self._wake.set()
 
     async def run(self, stop: asyncio.Event) -> None:
-        await self._transport.start()
+        try:
+            await self._transport.start()
+        except OSError as exc:
+            _log.warning("direct sync is off: %s", exc)
+            return
         listener = asyncio.get_running_loop().create_task(self._listen())
         try:
             while not stop.is_set():
