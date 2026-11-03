@@ -20,7 +20,7 @@ agentmesh init --handle gef --team-name Acme
 `init` prints an invite code (`agentmesh invite` prints it again). A teammate joins with it:
 
 ```bash
-agentmesh join am1-... --handle tobi
+agentmesh join am2-... --handle tobi
 ```
 
 `join` prints the command an admin runs to add them to the roster:
@@ -71,7 +71,7 @@ On the same network, devices find each other over mDNS and sync directly, with n
 To sync across networks, run a relay: a small service that stores the team's encrypted entries and passes them on, so a teammate on a closed laptop gets messages when they come back. On a machine your team can reach:
 
 ```bash
-agentmesh relay init --invite am1-...
+agentmesh relay init --invite am2-...
 agentmesh relay serve --listen 0.0.0.0:7447
 ```
 

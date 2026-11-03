@@ -62,7 +62,7 @@ def test_init_creates_a_team(tmp_path: Path, capsys: pytest.CaptureFixture[str])
     out = capsys.readouterr().out
     assert out.startswith(f"created team with gef as admin in {home}")
     assert "signing key  software (passphrase-protected file)" in out
-    assert "invite  am1-" in out
+    assert "invite  am2-" in out
     config = json.loads((home / "config.json").read_text())
     assert config["exchange"] == str((tmp_path / "shared").resolve())
 
@@ -100,7 +100,7 @@ def test_invite_then_join(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     capsys.readouterr()
     assert main(["--home", gef, "invite"]) == 0
     code = capsys.readouterr().out.split()[0]
-    assert code.startswith("am1-")
+    assert code.startswith("am2-")
     assert main(["--home", tobi, "join", code, "--handle", "tobi"]) == 0
     out = capsys.readouterr().out
     assert out.startswith(f"joined as tobi in {tobi}\nsigning key  software")
