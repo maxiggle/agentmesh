@@ -6,6 +6,7 @@ import pytest
 
 from ehor.log.authorize import Verdict
 from ehor.log.entry import Entry, EntryContent, Kind, Signature
+from ehor.service.api import ApiError
 from ehor.service.device import Device
 
 PASSPHRASE = b"secret passphrase"
@@ -23,12 +24,31 @@ class Team:
         self.lee = stack.enter_context(
             Device.join(root / "lee", self.gef.invite, "lee", PASSPHRASE, exchange=self.shared)
         )
-        self.all = (self.gef, self.tobi, self.lee)
+        self.ana = stack.enter_context(
+            Device.join(root / "ana", self.gef.invite, "ana", PASSPHRASE, exchange=self.shared)
+        )
+        self.kai = stack.enter_context(
+            Device.join(root / "kai", self.gef.invite, "kai", PASSPHRASE, exchange=self.shared)
+        )
+        self.all = (self.gef, self.tobi, self.lee, self.ana, self.kai)
         self.sync()
         self.gef.call("roster.add", {"handle": "tobi", "key": self.tobi.author.hex()})
         self.gef.call(
             "roster.add",
             {"handle": "lee", "key": self.lee.author.hex(), "channels": ["#mobile"]},
+        )
+        self.gef.call(
+            "roster.add",
+            {
+                "handle": "ana",
+                "key": self.ana.author.hex(),
+                "roles": ["@mobile"],
+                "channels": ["#mobile"],
+            },
+        )
+        self.gef.call(
+            "roster.add",
+            {"handle": "kai", "key": self.kai.author.hex(), "channels": ["#ios"]},
         )
         self.sync()
 
@@ -69,6 +89,28 @@ def test_members_cannot_read_channels_they_are_not_in(team: Team) -> None:
     inbox = team.lee.call("inbox", {})
     assert "backend only" not in inbox
     assert mobile in inbox
+
+
+def test_role_post_is_routed_to_a_channel_its_holders_read(team: Team) -> None:
+    result = team.gef.call("post", {"to": ["@mobile"], "type": "fyi", "summary": "freeze"})
+    assert "in #mobile" in result
+    message_id = result.split()[1]
+    team.sync()
+    assert message_id in team.ana.call("inbox", {})
+    assert '"freeze"' in team.ana.call("read", {"id": message_id})
+
+
+def test_role_post_stays_sealed_from_members_outside_its_channel(team: Team) -> None:
+    message_id = _post(team.gef, "@mobile", "freeze")
+    team.sync()
+    assert message_id not in team.kai.call("inbox", {})
+    with pytest.raises(ApiError):
+        team.kai.call("read", {"id": message_id})
+
+
+def test_post_to_a_channel_the_addressed_cannot_read_is_refused(team: Team) -> None:
+    with pytest.raises(ApiError, match="ana"):
+        team.gef.call("post", {"to": ["#general", "@mobile"], "type": "fyi", "summary": "freeze"})
 
 
 def test_removed_member_cannot_read_later_messages(team: Team) -> None:

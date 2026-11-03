@@ -24,11 +24,14 @@ class Device:
         handle: KeyHandle,
         me: Identity,
         names: dict[bytes, str] | None = None,
+        members: tuple[Identity, ...] = (),
     ) -> None:
         self.store = SqliteStore(path)
         verifier = EntryVerifier(TEAM)
         local_log = LocalLog(self.store, signer, handle, TEAM, verifier)
-        self.messenger = Messenger(self.store, local_log, StaticDirectory(me, names))
+        self.messenger = Messenger(
+            self.store, local_log, StaticDirectory(me, names, members=members)
+        )
         self.ingestor = Ingestor(self.store, verifier)
 
     def pull(self, other: "Device") -> None:
@@ -261,3 +264,114 @@ def test_names_come_from_the_directory(
     assert tobi.messenger.display_name(tobi.messenger.author) == "me"
     assert [t.author for t in tobi.messenger.team()] == [gef_key]
     tobi.store.close()
+
+
+def _routed(
+    tmp_path: Path,
+    signer: SoftwareSigner,
+    handle: KeyHandle,
+    me: Identity,
+    *others: Identity,
+) -> Device:
+    return Device(tmp_path / "sender.db", signer, handle, me, members=(me, *others))
+
+
+def test_role_post_goes_to_the_channel_its_holders_read(
+    tmp_path: Path, signer: SoftwareSigner, handle: KeyHandle
+) -> None:
+    sender = _routed(
+        tmp_path, signer, handle, Identity("gef"), Identity("ana", ("@mobile",), ("#mobile",))
+    )
+    try:
+        entry = sender.messenger.post(["@mobile"], "fyi", "freeze")
+        assert entry.content.channel == "#mobile"
+    finally:
+        sender.store.close()
+
+
+def test_role_post_stays_in_general_when_holders_can_read_it(
+    tmp_path: Path, signer: SoftwareSigner, handle: KeyHandle
+) -> None:
+    sender = _routed(
+        tmp_path,
+        signer,
+        handle,
+        Identity("gef"),
+        Identity("ana", ("@mobile",), ("#general", "#mobile")),
+        Identity("kai", ("@mobile",), ("*",)),
+    )
+    try:
+        entry = sender.messenger.post(["@mobile"], "fyi", "freeze")
+        assert entry.content.channel == "#general"
+    finally:
+        sender.store.close()
+
+
+def test_explicit_channel_the_addressed_cannot_read_is_refused(
+    tmp_path: Path, signer: SoftwareSigner, handle: KeyHandle
+) -> None:
+    sender = _routed(
+        tmp_path, signer, handle, Identity("gef"), Identity("ana", ("@mobile",), ("#mobile",))
+    )
+    try:
+        with pytest.raises(MessengerError, match=r"not in #general: ana reads #mobile"):
+            sender.messenger.post(["#general", "@mobile"], "fyi", "freeze")
+    finally:
+        sender.store.close()
+
+
+def test_addressed_members_without_a_shared_channel_are_refused(
+    tmp_path: Path, signer: SoftwareSigner, handle: KeyHandle
+) -> None:
+    sender = _routed(
+        tmp_path,
+        signer,
+        handle,
+        Identity("gef"),
+        Identity("tobi", ("@mobile",), ("#mobile",)),
+        Identity("lee", ("@mobile",), ("#ios",)),
+    )
+    try:
+        with pytest.raises(MessengerError, match=r"no channel reaches tobi \(#mobile\) and lee"):
+            sender.messenger.post(["@mobile"], "fyi", "freeze")
+    finally:
+        sender.store.close()
+
+
+def test_channel_the_sender_cannot_post_in_is_skipped(
+    tmp_path: Path, signer: SoftwareSigner, handle: KeyHandle
+) -> None:
+    sender = _routed(
+        tmp_path,
+        signer,
+        handle,
+        Identity("gef", (), ("#ios",)),
+        Identity("ana", ("@mobile",), ("#mobile", "#ios")),
+    )
+    try:
+        entry = sender.messenger.post(["@mobile"], "fyi", "freeze")
+        assert entry.content.channel == "#ios"
+    finally:
+        sender.store.close()
+
+
+def test_unknown_role_still_goes_to_general(
+    tmp_path: Path, signer: SoftwareSigner, handle: KeyHandle
+) -> None:
+    sender = _routed(tmp_path, signer, handle, Identity("gef"), Identity("ana", (), ("#mobile",)))
+    try:
+        entry = sender.messenger.post(["@nobody"], "fyi", "hello")
+        assert entry.content.channel == "#general"
+    finally:
+        sender.store.close()
+
+
+def test_post_addressing_nobody_keeps_general_when_the_sender_cannot_post_there(
+    tmp_path: Path, signer: SoftwareSigner, handle: KeyHandle
+) -> None:
+    sender = _routed(tmp_path, signer, handle, Identity("gef", (), ("#mobile",)))
+    try:
+        entry = sender.messenger.post(["@nobody"], "fyi", "hello")
+        assert entry.content.channel == "#general"
+    finally:
+        sender.store.close()

@@ -64,3 +64,30 @@ def test_security_keys_are_not_listed_as_teammates(
     book = RosterBook(entry.id)
     book.accepted(entry)
     assert RosterDirectory(book, gef_key, "gef").known_authors() == (gef_key, laptop)
+
+
+def test_directory_lists_every_roster_member(
+    signer: SoftwareSigner,
+    handle: KeyHandle,
+    other_handle: KeyHandle,
+    make_content: Callable[..., EntryContent],
+) -> None:
+    gef_key = signer.public_key(handle)
+    tobi_key = signer.public_key(other_handle)
+    gef = Member("gef", ("@backend",), ("*",), (RosterDevice(gef_key, Trust.SOFTWARE, "mac"),))
+    tobi = Member(
+        "tobi", ("@mobile",), ("#mobile",), (RosterDevice(tobi_key, Trust.SOFTWARE, "mac"),)
+    )
+    roster = Roster(1, None, "Acme", ("gef",), (gef, tobi))
+    entry = make_content(kind=Kind.ROSTER, channel="_team", body=roster.encode()).sign(
+        signer, handle
+    )
+    book = RosterBook(entry.id)
+    directory = RosterDirectory(book, gef_key, "gef")
+    assert directory.members() == ()
+
+    book.accepted(entry)
+    assert directory.members() == (
+        Identity("gef", ("@backend",), ("*",)),
+        Identity("tobi", ("@mobile",), ("#mobile",)),
+    )

@@ -34,3 +34,9 @@ class RosterDirectory:
             for member in roster.members
             if (keys := [d.key for d in member.devices if d.trust is not Trust.SECURITY_KEY])
         )
+
+    def members(self) -> tuple[Identity, ...]:
+        roster = self._book.current
+        if roster is None:
+            return ()
+        return tuple(Identity(m.handle, m.roles, m.channels) for m in roster.members)

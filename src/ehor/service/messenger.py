@@ -33,6 +33,14 @@ class Identity:
     roles: tuple[str, ...] = ()
     channels: tuple[str, ...] = (ALL_CHANNELS,)
 
+    def can_use(self, channel: str) -> bool:
+        return ALL_CHANNELS in self.channels or channel in self.channels
+
+    def holds(self, target: str) -> bool:
+        return target == self.handle or (
+            ROLE.fullmatch(target) is not None and target in self.roles
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class Message:
@@ -90,11 +98,22 @@ class Directory(Protocol):
 
     def known_authors(self) -> tuple[bytes, ...]: ...
 
+    def members(self) -> tuple[Identity, ...]:
+        """Every roster member, including this device's own."""
+        ...
+
 
 class StaticDirectory:
-    def __init__(self, me: Identity, names: dict[bytes, str] | None = None) -> None:
+    def __init__(
+        self,
+        me: Identity,
+        names: dict[bytes, str] | None = None,
+        *,
+        members: Sequence[Identity] = (),
+    ) -> None:
         self._me = me
         self._names = dict(names or {})
+        self._members = tuple(members)
 
     def me(self) -> Identity:
         return self._me
@@ -104,6 +123,9 @@ class StaticDirectory:
 
     def known_authors(self) -> tuple[bytes, ...]:
         return tuple(self._names)
+
+    def members(self) -> tuple[Identity, ...]:
+        return self._members
 
 
 class BodyCodec(Protocol):
@@ -336,13 +358,26 @@ class Messenger:
             raise MessengerError(str(exc)) from exc
 
     def _channel_for(self, targets: tuple[str, ...]) -> str:
+        me = self._me
+        addressed = [
+            member
+            for member in self._directory.members()
+            if member.handle != me.handle and any(member.holds(target) for target in targets)
+        ]
         channels = [target for target in targets if TEAM_CHANNEL.fullmatch(target)]
         if channels:
+            _require_readers(channels[0], addressed)
             return channels[0]
         handles = [target for target in targets if HANDLE.fullmatch(target)]
-        if len(targets) == 1 and len(handles) == 1 and handles[0] != self._me.handle:
-            return dm_channel(self._me.handle, handles[0])
-        return DEFAULT_CHANNEL
+        if len(targets) == 1 and len(handles) == 1 and handles[0] != me.handle:
+            return dm_channel(me.handle, handles[0])
+        if not addressed:
+            return DEFAULT_CHANNEL
+        explicit = sorted({c for member in addressed for c in member.channels if c != ALL_CHANNELS})
+        for candidate in (DEFAULT_CHANNEL, *explicit):
+            if me.can_use(candidate) and all(member.can_use(candidate) for member in addressed):
+                return candidate
+        raise MessengerError(_unreachable(addressed))
 
     def _resolve(self, id_prefix: str) -> Message:
         text = id_prefix.strip().lower()
@@ -389,13 +424,10 @@ class Messenger:
         members = dm_members(channel)
         if members is not None:
             return self._me.handle in members
-        return ALL_CHANNELS in self._me.channels or channel in self._me.channels
+        return self._me.can_use(channel)
 
     def _names_me(self, message: Message) -> bool:
-        return any(
-            target == self._me.handle or (ROLE.fullmatch(target) and target in self._me.roles)
-            for target in message.body.to
-        )
+        return any(self._me.holds(target) for target in message.body.to)
 
     def _statuses(self, message_id: bytes) -> list[tuple[Entry, StatusBody]]:
         return [
@@ -423,6 +455,22 @@ class Messenger:
         if not heads:
             return Status.OPEN
         return max(heads, key=lambda pair: pair[0].id)[1].status
+
+
+def _require_readers(channel: str, addressed: Sequence[Identity]) -> None:
+    outside = [member for member in addressed if not member.can_use(channel)]
+    if outside:
+        who = ", ".join(f"{member.handle} reads {_reads(member)}" for member in outside)
+        raise MessengerError(f"not in {channel}: {who}")
+
+
+def _unreachable(addressed: Sequence[Identity]) -> str:
+    who = " and ".join(f"{member.handle} ({_reads(member)})" for member in addressed)
+    return f"no channel reaches {who}; post to each channel"
+
+
+def _reads(member: Identity) -> str:
+    return "all channels" if ALL_CHANNELS in member.channels else " ".join(member.channels)
 
 
 def _clean(text: str) -> str:
