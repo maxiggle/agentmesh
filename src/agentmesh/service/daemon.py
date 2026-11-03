@@ -1,12 +1,18 @@
 import asyncio
 from collections.abc import Mapping, Sequence
+from typing import Protocol
 
 from agentmesh.service.api import ApiError
 from agentmesh.service.device import Device
-from agentmesh.service.peer_sync import PeerSync
 from agentmesh.service.rpc import Endpoint, RpcServer
 
 DEFAULT_SYNC_INTERVAL = 2.0
+
+
+class Syncer(Protocol):
+    async def run(self, stop: asyncio.Event) -> None: ...
+
+    def poke(self) -> None: ...
 
 
 class Daemon:
@@ -17,7 +23,7 @@ class Daemon:
         device: Device,
         endpoint: Endpoint,
         interval: float = DEFAULT_SYNC_INTERVAL,
-        peers: Sequence[PeerSync] = (),
+        peers: Sequence[Syncer] = (),
     ) -> None:
         self._device = device
         self._endpoint = endpoint
