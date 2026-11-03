@@ -44,7 +44,7 @@ class SwiftHelper:
 
     def binary(self) -> Path:
         source = files("ehor.identity").joinpath(_SOURCE).read_bytes()
-        target = self._cache / f"agentmesh-se-{hashlib.sha256(source).hexdigest()[:16]}"
+        target = self._cache / f"ehor-se-{hashlib.sha256(source).hexdigest()[:16]}"
         if target.exists():
             return target
         if sys.platform != "darwin":

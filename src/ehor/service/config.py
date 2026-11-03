@@ -9,7 +9,7 @@ from ehor.log.names import HANDLE, parse_address
 
 CONFIG_FILE = "config.json"
 ENDPOINT_SIZE = 32
-HOME_ENV = "AGENTMESH_HOME"
+HOME_ENV = "EHOR_HOME"
 
 
 class ConfigError(Exception):
@@ -18,7 +18,7 @@ class ConfigError(Exception):
 
 def default_home() -> Path:
     override = os.environ.get(HOME_ENV)
-    return Path(override) if override else Path.home() / ".agentmesh"
+    return Path(override) if override else Path.home() / ".ehor"
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +77,6 @@ class DeviceConfig:
                 bootstrap_endpoint=None if bootstrap is None else bytes.fromhex(bootstrap),
             )
         except FileNotFoundError as exc:
-            raise ConfigError(f"no device at {home}; run `agentmesh init` first") from exc
+            raise ConfigError(f"no device at {home}; run `ehor init` first") from exc
         except (ValueError, KeyError, TypeError) as exc:
             raise ConfigError(f"invalid {path}: {exc}") from exc

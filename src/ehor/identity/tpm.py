@@ -36,7 +36,7 @@ class TpmSigner:
     def __init__(self, directory: Path, runner: ToolRunner = run_tool) -> None:
         self._directory = directory
         self._runner = runner
-        self._work = tempfile.TemporaryDirectory(prefix="agentmesh-tpm-")
+        self._work = tempfile.TemporaryDirectory(prefix="ehor-tpm-")
         self._loaded: set[str] = set()
         self._public: dict[str, bytes] = {}
 

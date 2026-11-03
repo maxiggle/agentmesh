@@ -15,7 +15,7 @@ class FakeClient:
 
     async def call(self, method: str, params: Mapping[str, object] | None = None) -> str:
         if self._fail:
-            raise RpcError("agentmesh service is not running")
+            raise RpcError("ehor service is not running")
         self.calls.append((method, dict(params or {})))
         return f"{method} ok"
 
