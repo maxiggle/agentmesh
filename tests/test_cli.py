@@ -21,7 +21,7 @@ from security_key_emulator import SoftwareAuthenticator
 
 @pytest.fixture(autouse=True)
 def passphrase(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AGENTMESH_PASSPHRASE", "test passphrase")
+    monkeypatch.setenv("EHOR_PASSPHRASE", "test passphrase")
 
 
 @pytest.fixture(autouse=True)
@@ -91,7 +91,7 @@ def test_init_refuses_an_existing_device(
 
 def test_serve_needs_a_device(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["--home", str(tmp_path), "serve"]) == 1
-    assert "agentmesh init" in capsys.readouterr().err
+    assert "ehor init" in capsys.readouterr().err
 
 
 def test_invite_then_join(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -105,7 +105,7 @@ def test_invite_then_join(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     out = capsys.readouterr().out
     assert out.startswith(f"joined as tobi in {tobi}\nsigning key  software")
     assert "\nask an admin to run:\n" in out
-    assert "  agentmesh roster add tobi 0" in out
+    assert "  ehor roster add tobi 0" in out
     assert "--hardware" not in out
     config = json.loads((tmp_path / "tobi" / "config.json").read_text())
     invite = Invite.decode(code)
@@ -116,7 +116,7 @@ def test_invite_then_join(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     ("args", "error"),
     [
         (["join", "nonsense", "--handle", "tobi"], "invite codes start with"),
-        (["invite"], "agentmesh init"),
+        (["invite"], "ehor init"),
         (["roster"], "not running"),
         (["roster", "add", "tobi", "00"], "not running"),
         (["roster", "remove", "tobi"], "not running"),
@@ -137,7 +137,7 @@ def test_relay_init_from_an_invite(tmp_path: Path, capsys: pytest.CaptureFixture
     assert main(["--home", str(tmp_path / "relay"), "relay", "init", "--invite", code]) == 0
     out = capsys.readouterr().out
     assert out.startswith(f"created relay in {tmp_path / 'relay'}")
-    assert "  agentmesh roster relay-add <public-host>:7447 0" in out
+    assert "  ehor roster relay-add <public-host>:7447 0" in out
     assert (tmp_path / "relay" / "relay.json").exists()
 
 

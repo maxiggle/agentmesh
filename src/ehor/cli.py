@@ -30,7 +30,7 @@ from ehor.transport.iroh import IrohMode, IrohTransport
 from ehor.transport.lan import ZeroconfDiscovery
 from ehor.transport.relays import RelayDirectory
 
-PASSPHRASE_ENV = "AGENTMESH_PASSPHRASE"  # noqa: S105 - env var name, not a secret
+PASSPHRASE_ENV = "EHOR_PASSPHRASE"  # noqa: S105 - env var name, not a secret
 DEFAULT_RELAY_PORT = 7447
 AUTO_KEY = "auto"
 KEY_CHOICES = [AUTO_KEY, *(backend.value for backend in Backend)]
@@ -54,7 +54,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agentmesh", description="Signed messaging between Claude agents."
+        prog="ehor", description="Signed messaging between Claude agents."
     )
     parser.add_argument("--home", type=Path, default=None, help="device folder")
     commands = parser.add_subparsers(required=True, metavar="command")
@@ -99,7 +99,7 @@ def _add_roster_commands(commands: "argparse._SubParsersAction[argparse.Argument
     roster_commands = roster.add_subparsers(metavar="action")
     add = roster_commands.add_parser("add", help="add a member or a device (admins only)")
     add.add_argument("handle")
-    add.add_argument("key", help="device key printed by `agentmesh join`")
+    add.add_argument("key", help="device key printed by `ehor join`")
     add.add_argument("--role", action="append", default=[], help="a role such as @mobile")
     add.add_argument("--channel", action="append", default=[], help="a channel such as #mobile")
     add.add_argument("--admin", action="store_true", help="allow this member to change the roster")
@@ -113,7 +113,7 @@ def _add_roster_commands(commands: "argparse._SubParsersAction[argparse.Argument
     remove.set_defaults(run=_roster_remove)
     relay_add = roster_commands.add_parser("relay-add", help="add a relay (admins only)")
     relay_add.add_argument("address", help="host:port the relay listens on")
-    relay_add.add_argument("key", help="relay key printed by `agentmesh relay init`")
+    relay_add.add_argument("key", help="relay key printed by `ehor relay init`")
     relay_add.set_defaults(run=_roster_relay_add)
     relay_remove = roster_commands.add_parser("relay-remove", help="remove a relay (admins only)")
     relay_remove.add_argument("address")
@@ -171,7 +171,7 @@ def _init(args: argparse.Namespace) -> int:
             f"created team with {args.handle} as admin in {home}\n"
             f"{_describe_key(device.config.key_backend)}\n"
             f"invite  {device.invite.encode()}\n"
-            "next: run `agentmesh serve`, then add `agentmesh mcp` to Claude\n"
+            "next: run `ehor serve`, then add `ehor mcp` to Claude\n"
         )
     return 0
 
@@ -189,7 +189,7 @@ def _invite(args: argparse.Namespace) -> int:
         ).encode()
     except InviteError as exc:
         raise CliError(str(exc)) from exc
-    sys.stdout.write(f"{code}\nshare this with a teammate; they run `agentmesh join {code}`\n")
+    sys.stdout.write(f"{code}\nshare this with a teammate; they run `ehor join {code}`\n")
     return 0
 
 
@@ -213,7 +213,7 @@ def _join(args: argparse.Namespace) -> int:
             f"joined as {args.handle} in {home}\n"
             f"{_describe_key(device.config.key_backend)}\n"
             "ask an admin to run:\n"
-            f"  agentmesh roster add {args.handle} {device.author.hex()}{hardware}\n"
+            f"  ehor roster add {args.handle} {device.author.hex()}{hardware}\n"
         )
     return 0
 
@@ -261,7 +261,7 @@ def _roster_enroll_key(args: argparse.Namespace) -> int:
     home = _home(args)
     keys = security_key_signer(home, _connect_security_key)
     enrolled = _enrolled_key(keys, args.security_key)
-    sys.stderr.write("touch the new security key to create its agentmesh credential\n")
+    sys.stderr.write("touch the new security key to create its ehor credential\n")
     handle = keys.create_key(args.label)
     params: dict[str, object] = {"key": keys.public_key(handle).hex(), "label": args.label}
     try:
@@ -342,7 +342,7 @@ def _ask(prompt: str) -> None:
 
 def _relay_home(args: argparse.Namespace) -> Path:
     home: Path | None = args.home
-    return home if home is not None else Path.home() / ".agentmesh-relay"
+    return home if home is not None else Path.home() / ".ehor-relay"
 
 
 def _relay_init(args: argparse.Namespace) -> int:
@@ -354,8 +354,8 @@ def _relay_init(args: argparse.Namespace) -> int:
     with Relay.create(home, invite.team, invite.genesis, _passphrase(confirm=True)) as relay:
         sys.stdout.write(
             f"created relay in {home}\n"
-            "run it with `agentmesh relay serve`, then ask an admin to run:\n"
-            f"  agentmesh roster relay-add <public-host>:{DEFAULT_RELAY_PORT} {relay.key.hex()}\n"
+            "run it with `ehor relay serve`, then ask an admin to run:\n"
+            f"  ehor roster relay-add <public-host>:{DEFAULT_RELAY_PORT} {relay.key.hex()}\n"
         )
     return 0
 
@@ -367,7 +367,7 @@ def _relay_serve(args: argparse.Namespace) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     home = _relay_home(args)
     with Relay.open(home, _passphrase(confirm=False)) as relay:
-        sys.stderr.write(f"agentmesh relay {relay.key.hex()} listening on {args.listen}\n")
+        sys.stderr.write(f"ehor relay {relay.key.hex()} listening on {args.listen}\n")
         asyncio.run(_run_relay(relay, *parsed))
     return 0
 
@@ -397,7 +397,7 @@ def _serve(args: argparse.Namespace) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     home = _home(args)
     with Device.open(home, _passphrase(confirm=False)) as device:
-        sys.stderr.write(f"agentmesh serving {device.config.handle} from {home}\n")
+        sys.stderr.write(f"ehor serving {device.config.handle} from {home}\n")
         direct = None if args.no_p2p else _direct_sync(device)
         peers: list[Syncer] = [_relay_sync(device, args.lan_interval, direct)]
         if not args.no_lan:

@@ -42,7 +42,7 @@ class RelayConfig:
             data = json.loads((home / CONFIG_FILE).read_text())
             return cls(bytes.fromhex(data["team"]), bytes.fromhex(data["genesis"]))
         except FileNotFoundError as exc:
-            raise RelayError(f"no relay at {home}; run `agentmesh relay init` first") from exc
+            raise RelayError(f"no relay at {home}; run `ehor relay init` first") from exc
         except (ValueError, KeyError, TypeError) as exc:
             raise RelayError(f"invalid {home / CONFIG_FILE}: {exc}") from exc
 
