@@ -1,7 +1,7 @@
 import pytest
 
-from agentmesh.log.canonical import encode
-from agentmesh.log.envelope import Encryption, Envelope, EnvelopeError, body_aad
+from ehor.log.canonical import encode
+from ehor.log.envelope import Encryption, Envelope, EnvelopeError, body_aad
 
 KEYS = ((b"\x01" * 8, b"\x02" * 48), (b"\x03" * 8, b"\x04" * 48))
 

@@ -3,9 +3,9 @@ from dataclasses import replace
 
 import pytest
 
-from agentmesh.identity import es256
-from agentmesh.log.canonical import decode, encode
-from agentmesh.log.entry import Entry, EntryContent, EntryFormatError, Kind, Signature
+from ehor.identity import es256
+from ehor.log.canonical import decode, encode
+from ehor.log.entry import Entry, EntryContent, EntryFormatError, Kind, Signature
 from security_key_emulator import SoftwareAuthenticator
 
 

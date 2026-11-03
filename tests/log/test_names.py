@@ -1,6 +1,6 @@
 import pytest
 
-from agentmesh.log.names import dm_channel, dm_members, parse_address
+from ehor.log.names import dm_channel, dm_members, parse_address
 
 
 def test_dm_channel_is_order_independent() -> None:

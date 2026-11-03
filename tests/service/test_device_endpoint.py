@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.service import iroh_key
-from agentmesh.service.device import Device
+from ehor.service import iroh_key
+from ehor.service.device import Device
 
 PASSPHRASE = b"endpoint passphrase"
 ENDPOINT = b"\x05" * 32

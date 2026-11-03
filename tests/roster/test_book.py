@@ -3,14 +3,14 @@ from dataclasses import replace
 
 import pytest
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.authorize import Verdict
-from agentmesh.log.canonical import encode
-from agentmesh.log.entry import Entry, EntryContent, Kind, Signature
-from agentmesh.log.envelope import Encryption, Envelope
-from agentmesh.log.roster import Member, RelayInfo, Roster, RosterDevice, Trust
-from agentmesh.roster.book import RosterBook
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.authorize import Verdict
+from ehor.log.canonical import encode
+from ehor.log.entry import Entry, EntryContent, Kind, Signature
+from ehor.log.envelope import Encryption, Envelope
+from ehor.log.roster import Member, RelayInfo, Roster, RosterDevice, Trust
+from ehor.roster.book import RosterBook
 from security_key_emulator import SoftwareAuthenticator
 
 

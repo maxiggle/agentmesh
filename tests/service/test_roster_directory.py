@@ -1,12 +1,12 @@
 from collections.abc import Callable
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.entry import EntryContent, Kind
-from agentmesh.log.roster import Member, Roster, RosterDevice, Trust
-from agentmesh.roster.book import RosterBook
-from agentmesh.service.directory import RosterDirectory
-from agentmesh.service.messenger import Identity
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.entry import EntryContent, Kind
+from ehor.log.roster import Member, Roster, RosterDevice, Trust
+from ehor.roster.book import RosterBook
+from ehor.service.directory import RosterDirectory
+from ehor.service.messenger import Identity
 
 
 def test_directory_follows_the_roster(

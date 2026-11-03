@@ -1,7 +1,7 @@
 import pytest
 
-from agentmesh.log.canonical import encode
-from agentmesh.log.endpoint_announce import EndpointAnnounce, EndpointAnnounceError
+from ehor.log.canonical import encode
+from ehor.log.endpoint_announce import EndpointAnnounce, EndpointAnnounceError
 
 
 def test_round_trip() -> None:

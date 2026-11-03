@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.log.authorize import Verdict
-from agentmesh.log.entry import Entry, EntryContent, Kind, Signature
-from agentmesh.service.device import Device
+from ehor.log.authorize import Verdict
+from ehor.log.entry import Entry, EntryContent, Kind, Signature
+from ehor.service.device import Device
 
 PASSPHRASE = b"secret passphrase"
 

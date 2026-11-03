@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.identity import (
+from ehor.identity import (
     IdentityError,
     InvalidLabelError,
     KeyExistsError,
@@ -12,7 +12,7 @@ from agentmesh.identity import (
     Signer,
     es256,
 )
-from agentmesh.identity.software import SoftwareSigner
+from ehor.identity.software import SoftwareSigner
 
 PASSPHRASE = b"correct horse"
 

@@ -3,16 +3,16 @@ import secrets
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 
-from agentmesh.identity import IdentityError
-from agentmesh.identity.assertion import (
+from ehor.identity import IdentityError
+from ehor.identity.assertion import (
     FLAG_USER_PRESENT,
     RP_ID,
     Assertion,
     client_data_hash,
     rp_id_hash,
 )
-from agentmesh.identity.es256 import compress_public_key, raw_signature
-from agentmesh.identity.security_key import Credential
+from ehor.identity.es256 import compress_public_key, raw_signature
+from ehor.identity.security_key import Credential
 
 
 class SoftwareAuthenticator:

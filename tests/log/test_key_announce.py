@@ -1,7 +1,7 @@
 import pytest
 
-from agentmesh.log.canonical import encode
-from agentmesh.log.key_announce import KeyAnnounce, KeyAnnounceError
+from ehor.log.canonical import encode
+from ehor.log.key_announce import KeyAnnounce, KeyAnnounceError
 
 
 def test_round_trip() -> None:

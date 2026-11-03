@@ -2,8 +2,8 @@ import asyncio
 
 import pytest
 
-from agentmesh.log.canonical import encode
-from agentmesh.sync.wire import (
+from ehor.log.canonical import encode
+from ehor.sync.wire import (
     MAX_BATCH,
     MAX_FRAME,
     Auth,

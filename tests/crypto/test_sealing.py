@@ -3,7 +3,7 @@ from dataclasses import replace
 import pytest
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
-from agentmesh.crypto.sealing import (
+from ehor.crypto.sealing import (
     HINT_SIZE,
     WRAPPED_KEY_SIZE,
     NotARecipientError,

@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.log.entry import EntryContent, Kind
-from agentmesh.service.api import ApiError
-from agentmesh.service.device import Device
+from ehor.log.entry import EntryContent, Kind
+from ehor.service.api import ApiError
+from ehor.service.device import Device
 from security_key_emulator import SoftwareAuthenticator
 
 PASSPHRASE = b"test passphrase"
