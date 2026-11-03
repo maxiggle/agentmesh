@@ -1,4 +1,4 @@
-# agentmesh — Project Rules
+# ehor — Project Rules
 
 These rules apply to every contributor, human or agent. They are not optional.
 
@@ -65,7 +65,7 @@ These rules apply to every contributor, human or agent. They are not optional.
 
 ## Tests
 
-- Every module has unit tests under `tests/` mirroring `src/agentmesh/`.
+- Every module has unit tests under `tests/` mirroring `src/ehor/`.
 - Bug fixes ship with a regression test in the same commit.
 - Security checks are tested from the rejecting side: tampered, reordered, forked and unauthorized entries must each have a failing-case test.
 - Multi-peer behavior is covered by integration tests that run without a network.
