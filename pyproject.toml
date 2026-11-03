@@ -26,6 +26,9 @@ agentmesh = "agentmesh.cli:main"
 fido2 = [
     "fido2>=2.2.1",
 ]
+p2p = [
+    "iroh>=1.2.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -37,6 +40,7 @@ packages = ["src/agentmesh"]
 [dependency-groups]
 dev = [
     "fido2>=2.2.1",
+    "iroh>=1.2.0",
     "mypy>=2.4.0",
     "pre-commit>=4.7.0",
     "pytest>=9.2.0",
