@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import Callable
 from contextlib import suppress
 
 from agentmesh.sync.session import SyncError, SyncNode, SyncResult
@@ -13,7 +14,8 @@ class PeerSync:
     """Keeps this device in sync with the peers a discovery source finds.
 
     With `listen`, it also accepts sessions from those peers, as on a LAN. Peers that
-    only accept connections, like relays, need no listener on this side.
+    only accept connections, like relays, need no listener on this side. `should_sync` is
+    asked at the start of each round; when it says no, the round does nothing.
     """
 
     def __init__(
@@ -24,12 +26,14 @@ class PeerSync:
         host: str = "0.0.0.0",  # noqa: S104 - teammates on the LAN must be able to connect
         interval: float = DEFAULT_PEER_INTERVAL,
         listen: bool = True,
+        should_sync: Callable[[], bool] = lambda: True,
     ) -> None:
         self._node = node
         self._discovery = discovery
         self._host = host
         self._interval = interval
         self._listen = listen
+        self._should_sync = should_sync
         self._wake = asyncio.Event()
         self._port: int | None = None
         discovery.subscribe(self.poke)
@@ -58,7 +62,9 @@ class PeerSync:
                 await server.wait_closed()
 
     async def sync_all(self) -> list[SyncResult]:
-        results = []
+        results: list[SyncResult] = []
+        if not self._should_sync():
+            return results
         for peer in self._discovery.peers():
             try:
                 results.append(await self._node.sync_with(peer.host, peer.port))

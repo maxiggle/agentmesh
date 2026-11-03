@@ -110,3 +110,26 @@ async def _woken(root: Path) -> bool:
 
 def test_poke_and_stop_do_not_hang(tmp_path: Path) -> None:
     assert asyncio.run(asyncio.wait_for(_woken(tmp_path), 5))
+
+
+async def _gated(root: Path) -> tuple[int, int]:
+    with ExitStack() as stack:
+        gef = stack.enter_context(Device.create_team(root / "gef", "gef", PASSPHRASE))
+        tobi = stack.enter_context(Device.join(root / "tobi", gef.invite, "tobi", PASSPHRASE))
+        listener = Node(gef)
+        await listener.start()
+        discovery = StaticDiscovery()
+        discovery.set_peers((listener.address,))
+        open_gate = [False]
+        gated = PeerSync(
+            tobi.sync_node, discovery, interval=60, should_sync=lambda: open_gate[0], listen=False
+        )
+        closed = len(await gated.sync_all())
+        open_gate[0] = True
+        opened = len(await gated.sync_all())
+        await listener.halt()
+        return closed, opened
+
+
+def test_a_closed_gate_makes_no_connections(tmp_path: Path) -> None:
+    assert asyncio.run(_gated(tmp_path)) == (0, 1)
