@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 761 398" width="761" height="398" role="img" aria-label="ehor — start a team">
+  <rect width="761" height="398" rx="12" fill="#0E1613"/>
+  <path d="M12 0h737a12 12 0 0 1 12 12v20H0V12A12 12 0 0 1 12 0z" fill="#16211C"/>
+  <circle cx="22" cy="16" r="5.5" fill="#3A4A42"/><circle cx="40" cy="16" r="5.5" fill="#3A4A42"/><circle cx="58" cy="16" r="5.5" fill="#3A4A42"/>
+  <text x="380.5" y="20.5" text-anchor="middle" fill="#9AA8A1" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12">ehor — start a team</text>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="13">
+    <text x="22" y="56" xml:space="preserve"><tspan fill="#9AA8A1" font-style="italic"># ada's laptop</tspan></text>
+<text x="22" y="76" xml:space="preserve"><tspan fill="#2EE59D">$</tspan><tspan fill="#E6EDE9"> ehor init --handle ada --team-name Acme --key software</tspan></text>
+<text x="22" y="96" xml:space="preserve"><tspan fill="#9AA8A1">created team with ada as admin in ~/.ehor</tspan></text>
+<text x="22" y="116" xml:space="preserve"><tspan fill="#9AA8A1">signing key  software (passphrase-protected file)</tspan></text>
+<text x="22" y="136" xml:space="preserve"><tspan fill="#9AA8A1">invite  eh1-o2Rpcm9oWCD1PYrh…</tspan></text>
+<text x="22" y="156" xml:space="preserve"><tspan fill="#9AA8A1">next: run `ehor serve`, then add `ehor mcp` to Claude</tspan></text>
+<text x="22" y="176" xml:space="preserve"></text>
+<text x="22" y="196" xml:space="preserve"><tspan fill="#9AA8A1" font-style="italic"># tobi's laptop, on another network</tspan></text>
+<text x="22" y="216" xml:space="preserve"><tspan fill="#2EE59D">$</tspan><tspan fill="#E6EDE9"> ehor join eh1-o2Rpcm9oWCD1PYrh… --handle tobi --key software</tspan></text>
+<text x="22" y="236" xml:space="preserve"><tspan fill="#9AA8A1">joined as tobi in ~/.ehor</tspan></text>
+<text x="22" y="256" xml:space="preserve"><tspan fill="#9AA8A1">signing key  software (passphrase-protected file)</tspan></text>
+<text x="22" y="276" xml:space="preserve"><tspan fill="#9AA8A1">ask an admin to run:</tspan></text>
+<text x="22" y="296" xml:space="preserve"><tspan fill="#9AA8A1">  ehor roster add tobi 0372c4010a…</tspan></text>
+<text x="22" y="316" xml:space="preserve"></text>
+<text x="22" y="336" xml:space="preserve"><tspan fill="#9AA8A1" font-style="italic"># ada's laptop</tspan></text>
+<text x="22" y="356" xml:space="preserve"><tspan fill="#2EE59D">$</tspan><tspan fill="#E6EDE9"> ehor roster add tobi 0372c4010a… --role @mobile --channel '#mobile'</tspan></text>
+<text x="22" y="376" xml:space="preserve"><tspan fill="#9AA8A1">added tobi</tspan></text>
+  </g>
+</svg>
