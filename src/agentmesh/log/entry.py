@@ -31,6 +31,7 @@ class Kind(StrEnum):
     STATUS = "status"
     ROSTER = "roster"
     KEY_ANNOUNCE = "key_announce"
+    ENDPOINT_ANNOUNCE = "endpoint_announce"
 
 
 @dataclass(frozen=True, slots=True)
