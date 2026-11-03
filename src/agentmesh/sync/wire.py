@@ -1,5 +1,6 @@
 import asyncio
 from dataclasses import dataclass
+from typing import Protocol
 
 from agentmesh.identity.es256 import PUBLIC_KEY_SIZE, SIGNATURE_SIZE
 from agentmesh.log.canonical import CanonicalError, CborValue, decode, encode
@@ -16,6 +17,22 @@ _AUTH_TAG = b"agentmesh/auth/v0\x00"
 
 class WireError(Exception):
     pass
+
+
+class SyncReader(Protocol):
+    async def readexactly(self, n: int, /) -> bytes: ...
+
+    async def read(self) -> bytes:
+        """Everything until the peer closes its end."""
+        ...
+
+
+class SyncWriter(Protocol):
+    def write(self, data: bytes, /) -> None: ...
+
+    async def drain(self) -> None: ...
+
+    def close(self) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,13 +121,13 @@ def decode_message(raw: bytes) -> Message:
     raise WireError(f"unknown frame type {kind!r}")
 
 
-async def write_message(writer: asyncio.StreamWriter, message: Message) -> None:
+async def write_message(writer: SyncWriter, message: Message) -> None:
     body = encode_message(message)
     writer.write(len(body).to_bytes(_LENGTH_SIZE, "big") + body)
     await writer.drain()
 
 
-async def read_message(reader: asyncio.StreamReader) -> Message:
+async def read_message(reader: SyncReader) -> Message:
     try:
         length = int.from_bytes(await reader.readexactly(_LENGTH_SIZE), "big")
         if length > MAX_FRAME:

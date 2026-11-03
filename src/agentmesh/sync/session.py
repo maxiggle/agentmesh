@@ -18,6 +18,8 @@ from agentmesh.sync.wire import (
     Frontier,
     Hello,
     Message,
+    SyncReader,
+    SyncWriter,
     WireError,
     auth_input,
     read_message,
@@ -80,13 +82,30 @@ class SyncNode:
         except (OSError, TimeoutError) as exc:
             raise SyncError(f"cannot reach {host}:{port}: {exc}") from exc
         try:
-            result = await self._session(reader, writer, initiator=True)
-            await self._await_peer_close(reader)
-            return result
+            return await self.initiate(reader, writer)
         finally:
             writer.close()
 
-    async def _await_peer_close(self, reader: asyncio.StreamReader) -> None:
+    async def initiate(self, reader: SyncReader, writer: SyncWriter) -> SyncResult:
+        """Run one session as initiator on a stream the caller opened.
+
+        Returns only after the responder has closed its end, so the result reflects both
+        sides. The caller owns the stream and must close the writer afterwards, also on error.
+        """
+        result = await self._session(reader, writer, initiator=True)
+        await self._await_peer_close(reader)
+        return result
+
+    async def respond(self, reader: SyncReader, writer: SyncWriter) -> SyncResult:
+        """Run one session as responder on a stream the caller accepted.
+
+        Returns once everything received is stored. The caller owns the stream and must
+        close the writer only after this returns (also on error): that close is what tells
+        the initiator the responder has finished.
+        """
+        return await self._session(reader, writer, initiator=False)
+
+    async def _await_peer_close(self, reader: SyncReader) -> None:
         """The responder closes only after storing everything it received, so waiting for
         that close means a returned result really is the state on both sides."""
         try:
@@ -96,7 +115,7 @@ class SyncNode:
 
     async def _accept(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         try:
-            result = await self._session(reader, writer, initiator=False)
+            result = await self.respond(reader, writer)
             _log.debug("synced with %s: %s", result.peer[1:4].hex(), result)
         except SyncError as exc:
             _log.info("sync from %s refused: %s", writer.get_extra_info("peername"), exc)
@@ -104,7 +123,7 @@ class SyncNode:
             writer.close()
 
     async def _session(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, *, initiator: bool
+        self, reader: SyncReader, writer: SyncWriter, *, initiator: bool
     ) -> SyncResult:
         try:
             return await asyncio.wait_for(self._exchange(reader, writer, initiator), self._timeout)
@@ -114,7 +133,7 @@ class SyncNode:
             raise SyncError(str(exc)) from exc
 
     async def _exchange(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, initiator: bool
+        self, reader: SyncReader, writer: SyncWriter, initiator: bool
     ) -> SyncResult:
         peer = await self._handshake(reader, writer, initiator)
         member = self._is_member(peer)
@@ -125,9 +144,7 @@ class SyncNode:
         )
         return SyncResult(peer, member, sent, received, stored)
 
-    async def _handshake(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, initiator: bool
-    ) -> bytes:
+    async def _handshake(self, reader: SyncReader, writer: SyncWriter, initiator: bool) -> bytes:
         nonce = secrets.token_bytes(NONCE_SIZE)
         await write_message(writer, Hello(self._team, nonce))
         hello = await _expect(reader, Hello)
@@ -151,9 +168,7 @@ class SyncNode:
             raise SyncError("connected to itself")
         return auth.key
 
-    async def _send(
-        self, writer: asyncio.StreamWriter, heads: dict[bytes, int], *, member: bool
-    ) -> int:
+    async def _send(self, writer: SyncWriter, heads: dict[bytes, int], *, member: bool) -> int:
         batch: list[bytes] = []
         sent = 0
         for author, seq in self._store.frontier().items():
@@ -173,7 +188,7 @@ class SyncNode:
         await write_message(writer, Done())
         return sent
 
-    async def _receive(self, reader: asyncio.StreamReader) -> tuple[int, int]:
+    async def _receive(self, reader: SyncReader) -> tuple[int, int]:
         received = stored = 0
         while True:
             message = await read_message(reader)
@@ -187,7 +202,7 @@ class SyncNode:
                 stored += (receipt.outcome is Outcome.STORED) + len(receipt.released)
 
 
-async def _expect(reader: asyncio.StreamReader, kind: type[_M]) -> _M:
+async def _expect(reader: SyncReader, kind: type[_M]) -> _M:
     message = await read_message(reader)
     if not isinstance(message, kind):
         raise SyncError(f"expected {kind.__name__}, got {type(message).__name__}")
