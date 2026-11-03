@@ -335,6 +335,12 @@ Logs are per author, not per channel, so a member receives every channel's entri
 
 On a LAN, devices find each other with mDNS service type `_agentmesh._tcp.local.`. The TXT record carries `team`, the first 8 bytes of SHA-256 of the team ID in hex, so the team ID itself is not broadcast, and `key`, a short fingerprint of the device key used to skip itself.
 
+### 8.1 Direct connections over iroh
+
+Devices on different networks can also sync over an iroh QUIC connection with ALPN `agentmesh/sync/0`. The dialer opens one bidirectional stream and first sends a single `0x00` byte, which the acceptor discards; QUIC does not announce a stream until data is sent. The session above then runs on that stream unchanged, `hello` and `auth` included. The iroh endpoint ID is never trusted as identity; only the `auth` signature is.
+
+To close, each side finishes its send stream, sends one `0x01` byte on a new unidirectional stream, waits a bounded time for the peer's `0x01`, then closes the connection. Closing a QUIC connection discards data the peer has not read, so neither side closes before the other has consumed everything.
+
 ## 9. Domain separation tags
 
 | Tag                   | Used for |
