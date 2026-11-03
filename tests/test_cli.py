@@ -169,6 +169,17 @@ def test_invite_can_name_a_relay(tmp_path: Path, capsys: pytest.CaptureFixture[s
     assert "host:port" in capsys.readouterr().err
 
 
+def test_a_damaged_iroh_key_is_a_short_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    home = str(tmp_path)
+    main(["--home", home, "init", "--handle", "gef"])
+    capsys.readouterr()
+    (tmp_path / "keys" / "iroh.key").write_bytes(b"short")
+    assert main(["--home", home, "invite"]) == 1
+    assert "delete it to get a new address" in capsys.readouterr().err
+
+
 def test_invite_carries_the_endpoint_of_this_device(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

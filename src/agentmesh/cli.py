@@ -22,6 +22,7 @@ from agentmesh.service.daemon import DEFAULT_SYNC_INTERVAL, Daemon, Syncer
 from agentmesh.service.device import Device, security_key_signer
 from agentmesh.service.direct_sync import DirectSync
 from agentmesh.service.invite import Invite, InviteError
+from agentmesh.service.iroh_key import IrohKeyError
 from agentmesh.service.peer_sync import DEFAULT_PEER_INTERVAL, PeerSync
 from agentmesh.service.relay_policy import RelayGate, devices_to_reach
 from agentmesh.service.rpc import RpcClient, RpcError, default_endpoint
@@ -46,7 +47,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         return int(args.run(args))
-    except (CliError, ConfigError, IdentityError, RelayError, RpcError) as exc:
+    except (CliError, ConfigError, IdentityError, IrohKeyError, RelayError, RpcError) as exc:
         sys.stderr.write(f"error: {exc}\n")
         return 1
 
