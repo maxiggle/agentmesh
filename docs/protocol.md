@@ -1,4 +1,4 @@
-# agentmesh protocol — v0
+# ehor protocol — v0
 
 Status: draft. This document is the source of truth for the wire format. Code that disagrees with it is a bug, and changes to the format land in the same commit as the code that implements them.
 
@@ -71,7 +71,7 @@ The fields other than `sig` are the **header + body**, called the *signed conten
 
 ```
 signed_bytes = deterministic_cbor(entry without "sig")
-entry_id     = SHA-256("agentmesh/entry/v0" || 0x00 || signed_bytes)
+entry_id     = SHA-256("ehor/entry/v0" || 0x00 || signed_bytes)
 ```
 
 The ID covers the signed content but **not** the signature. ECDSA signatures are malleable and non-deterministic: the same content can carry many valid signatures. Hashing the signature would let anyone mint a second ID for the same entry and fake a fork (§5.4). With this rule, two copies of an entry that differ only in signature have the same ID and dedupe.
@@ -85,7 +85,7 @@ sig = { "alg": tstr, "value": bstr, ? "auth_data": bstr }
 The signature input is:
 
 ```
-signing_input = "agentmesh/sig/v0" || 0x00 || signed_bytes
+signing_input = "ehor/sig/v0" || 0x00 || signed_bytes
 ```
 
 | `alg`         | `value` | `auth_data` |
@@ -101,7 +101,7 @@ A FIDO2 authenticator (a security key such as a YubiKey) cannot sign arbitrary b
 
 ```
 clientDataHash = SHA-256(signing_input)
-rpId           = "agentmesh:"
+rpId           = "ehor:"
 ```
 
 `clientDataHash` is the hash of `signing_input` itself, not of a WebAuthn `clientDataJSON`. The `rpId` ends in a colon so it is not a valid web domain: no website can get a browser to request an assertion for it. `author` is the credential's public key in compressed form (§2.2). The authenticator returns a DER signature, which writers convert to `r || s`.
@@ -119,7 +119,7 @@ A verifier MUST check, and reject the entry unless:
 
 1. `kind` is `roster`. Security keys sign roster entries only.
 2. `auth_data` is at least 37 bytes, `AT` is clear, and `auth_data` is longer than 37 bytes iff `ED` is set.
-3. `rpIdHash` equals SHA-256(`"agentmesh:"`).
+3. `rpIdHash` equals SHA-256(`"ehor:"`).
 4. `UP` is set. This is what makes a roster change need a physical touch.
 5. `value` verifies under `author` over `auth_data || SHA-256(signing_input)`.
 
@@ -288,7 +288,7 @@ encrypted_body = deterministic_cbor({
 
 1. Pick a random 32-byte content key and 12-byte nonce. `data` is AES-256-GCM of the encoded body under the content key, with additional authenticated data `deterministic_cbor([v, author, team, channel, kind])`, so a ciphertext cannot be moved to another author, team, channel or kind.
 2. Generate a one-time X25519 key pair; its public half is `ephemeral`.
-3. For each recipient public key `R`: `hint` is the first 8 bytes of SHA-256(`R`), and the wrapping key is HKDF-SHA256 of X25519(ephemeral private, `R`) with no salt and info `"agentmesh/wrap/v0" || 0x00 || ephemeral || R`. `wrapped` is AES-256-GCM of the content key under the wrapping key, with a nonce of 12 zero bytes and `hint` as additional data. The ephemeral key is new for every message, so each wrapping key is used exactly once.
+3. For each recipient public key `R`: `hint` is the first 8 bytes of SHA-256(`R`), and the wrapping key is HKDF-SHA256 of X25519(ephemeral private, `R`) with no salt and info `"ehor/wrap/v0" || 0x00 || ephemeral || R`. `wrapped` is AES-256-GCM of the content key under the wrapping key, with a nonce of 12 zero bytes and `hint` as additional data. The ephemeral key is new for every message, so each wrapping key is used exactly once.
 
 A recipient finds its `hint`, derives the same wrapping key with its private key and `ephemeral`, unwraps the content key and decrypts `data`.
 
@@ -320,7 +320,7 @@ The exchange:
 
 1. The side that opened the connection is the **initiator**. Both sides send `hello`. A peer whose `team` differs is disconnected.
 2. Both sides send `auth`. Each signs, with its device key:
-   `"agentmesh/auth/v0" || 0x00 || team || role || initiator_nonce || responder_nonce`
+   `"ehor/auth/v0" || 0x00 || team || role || initiator_nonce || responder_nonce`
    where `role` is `I` for the initiator and `R` for the responder, so a signature can never be reflected back to its signer. A bad signature ends the session.
 3. Each side classifies the other by the current roster: a **member** if the key is a roster device or one of the roster's `relays`, otherwise a **guest**.
 4. Both sides send `frontier`.
@@ -333,22 +333,22 @@ Peers sync again on a timer, whenever a new peer is discovered, and soon after a
 
 Logs are per author, not per channel, so a member receives every channel's entries; leaving some out would leave gaps that could never be filled. Keeping a channel's content from members outside it is the job of channel encryption (§6), not of sync.
 
-On a LAN, devices find each other with mDNS service type `_agentmesh._tcp.local.`. The TXT record carries `team`, the first 8 bytes of SHA-256 of the team ID in hex, so the team ID itself is not broadcast, and `key`, a short fingerprint of the device key used to skip itself.
+On a LAN, devices find each other with mDNS service type `_ehor._tcp.local.`. The TXT record carries `team`, the first 8 bytes of SHA-256 of the team ID in hex, so the team ID itself is not broadcast, and `key`, a short fingerprint of the device key used to skip itself.
 
 ### 8.1 Direct connections over iroh
 
-Devices on different networks can also sync over an iroh QUIC connection with ALPN `agentmesh/sync/0`. The dialer opens one bidirectional stream and first sends a single `0x00` byte, which the acceptor discards; QUIC does not announce a stream until data is sent. The session above then runs on that stream unchanged, `hello` and `auth` included. The iroh endpoint ID is never trusted as identity; only the `auth` signature is.
+Devices on different networks can also sync over an iroh QUIC connection with ALPN `ehor/sync/0`. The dialer opens one bidirectional stream and first sends a single `0x00` byte, which the acceptor discards; QUIC does not announce a stream until data is sent. The session above then runs on that stream unchanged, `hello` and `auth` included. The iroh endpoint ID is never trusted as identity; only the `auth` signature is.
 
 To close, each side finishes its send stream, sends one `0x01` byte on a new unidirectional stream, waits a bounded time for the peer's `0x01`, then closes the connection. Closing a QUIC connection discards data the peer has not read, so neither side closes before the other has consumed everything.
 
 ## 9. Domain separation tags
 
-| Tag                   | Used for |
-|-----------------------|----------|
-| `agentmesh/entry/v0`  | Entry ID (§3.1) |
-| `agentmesh/sig/v0`    | Entry signature (§3.2) |
-| `agentmesh/auth/v0`   | Sync handshake challenge (§8) |
-| `agentmesh/wrap/v0`   | Wrapping-key derivation (§6) |
+| Tag              | Used for |
+|------------------|----------|
+| `ehor/entry/v0`  | Entry ID (§3.1) |
+| `ehor/sig/v0`    | Entry signature (§3.2) |
+| `ehor/auth/v0`   | Sync handshake challenge (§8) |
+| `ehor/wrap/v0`   | Wrapping-key derivation (§6) |
 
 Every hash or signature input starts with its tag and a `0x00` byte, so a value made for one purpose can never be valid for another.
 

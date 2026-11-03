@@ -15,7 +15,7 @@ HINT_SIZE = 8
 NONCE_SIZE = 12
 CONTENT_KEY_SIZE = 32
 WRAPPED_KEY_SIZE = CONTENT_KEY_SIZE + 16
-_WRAP_INFO = b"agentmesh/wrap/v0\x00"
+_WRAP_INFO = b"ehor/wrap/v0\x00"
 _WRAP_NONCE = bytes(NONCE_SIZE)
 
 

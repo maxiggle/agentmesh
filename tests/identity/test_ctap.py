@@ -20,7 +20,7 @@ from ehor.identity.ctap import Ctap2Authenticator
 from ehor.identity.security_key import SecurityKeySigner
 
 REAL_KEY = os.environ.get("EHOR_FIDO2_TEST") == "1"
-MESSAGE = b"agentmesh/sig/v0\x00roster"
+MESSAGE = b"ehor/sig/v0\x00roster"
 PIN = "123456"
 AAGUID = b"\x00" * 16
 _MAKE_CREDENTIAL, _GET_ASSERTION, _GET_INFO, _CLIENT_PIN = 0x01, 0x02, 0x04, 0x06

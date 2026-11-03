@@ -13,8 +13,8 @@ TEAM_ID_SIZE = 16
 SIG_ALG_ES256 = "es256"
 SIG_ALG_FIDO2 = "es256-fido2"
 
-_ENTRY_TAG = b"agentmesh/entry/v0\x00"
-_SIG_TAG = b"agentmesh/sig/v0\x00"
+_ENTRY_TAG = b"ehor/entry/v0\x00"
+_SIG_TAG = b"ehor/sig/v0\x00"
 _CONTENT_FIELDS = frozenset(
     {"v", "author", "seq", "prev", "team", "channel", "kind", "refs", "ts", "body"}
 )

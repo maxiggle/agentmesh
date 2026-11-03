@@ -41,7 +41,7 @@ def test_auth_input_binds_role_and_both_nonces() -> None:
     team, a, b = b"\x01" * 16, b"\x02" * 32, b"\x03" * 32
     mine = auth_input(team, initiator=True, initiator_nonce=a, responder_nonce=b)
     theirs = auth_input(team, initiator=False, initiator_nonce=a, responder_nonce=b)
-    assert mine.startswith(b"agentmesh/auth/v0\x00")
+    assert mine.startswith(b"ehor/auth/v0\x00")
     assert mine != theirs
     assert mine != auth_input(team, initiator=True, initiator_nonce=b, responder_nonce=a)
 
