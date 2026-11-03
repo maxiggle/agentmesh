@@ -269,7 +269,7 @@ Receivers SHOULD rate-limit entries per author. The limit is local policy, not p
 
 ## 6. Encryption
 
-`message` and `status` bodies are sealed for every device allowed to read the channel when the entry is written.
+`message` and `status` bodies are sealed for every device allowed to read the channel, and for the devices of members the message is addressed to, when the entry is written.
 
 ```
 encrypted_body = deterministic_cbor({
@@ -282,7 +282,7 @@ encrypted_body = deterministic_cbor({
 })
 ```
 
-**Recipients** are the X25519 keys, from each device's latest `key_announce` (§4.4), of every roster device whose member may read the channel: members whose `channels` allow a team channel, both members of a `dm:` channel, and always the writer's own devices. A device that has not announced a key cannot be a recipient.
+**Recipients** are the X25519 keys, from each device's latest `key_announce` (§4.4), of every roster device whose member may read the channel: members whose `channels` allow a team channel, both members of a `dm:` channel, members named in the message's `to`, by handle or by role (§4.1), and always the writer's own devices. For a `status`, members named in the `to` of its target message are recipients too. A device that has not announced a key cannot be a recipient.
 
 **Sealing**:
 
