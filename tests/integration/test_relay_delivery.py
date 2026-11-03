@@ -1,10 +1,10 @@
 import asyncio
 from pathlib import Path
 
-from agentmesh.relay.server import Relay
-from agentmesh.service.device import Device
-from agentmesh.service.peer_sync import PeerSync
-from agentmesh.transport.relays import RelayDirectory
+from ehor.relay.server import Relay
+from ehor.service.device import Device
+from ehor.service.peer_sync import PeerSync
+from ehor.transport.relays import RelayDirectory
 
 PASSPHRASE = b"relay passphrase"
 

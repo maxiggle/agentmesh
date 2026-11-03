@@ -6,17 +6,17 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.identity import Signer
-from agentmesh.identity.backends import Backend
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.roster import Trust
-from agentmesh.service import device as device_module
-from agentmesh.service.api import ApiError
-from agentmesh.service.config import ConfigError, DeviceConfig, default_home
-from agentmesh.service.daemon import Daemon
-from agentmesh.service.device import Device
-from agentmesh.service.invite import Invite
-from agentmesh.service.rpc import RpcClient, TcpEndpoint
+from ehor.identity import Signer
+from ehor.identity.backends import Backend
+from ehor.identity.software import SoftwareSigner
+from ehor.log.roster import Trust
+from ehor.service import device as device_module
+from ehor.service.api import ApiError
+from ehor.service.config import ConfigError, DeviceConfig, default_home
+from ehor.service.daemon import Daemon
+from ehor.service.device import Device
+from ehor.service.invite import Invite
+from ehor.service.rpc import RpcClient, TcpEndpoint
 
 PASSPHRASE = b"test passphrase"
 TEAM = b"\x09" * 16

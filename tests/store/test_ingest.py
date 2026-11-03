@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.entry import Entry, EntryContent, Signature
-from agentmesh.log.verify import MAX_ENTRY_SIZE, EntryVerifier
-from agentmesh.store.ingest import Ingestor, Outcome
-from agentmesh.store.sqlite import SqliteStore
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.entry import Entry, EntryContent, Signature
+from ehor.log.verify import MAX_ENTRY_SIZE, EntryVerifier
+from ehor.store.ingest import Ingestor, Outcome
+from ehor.store.sqlite import SqliteStore
 
 CURVE_ORDER = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
 

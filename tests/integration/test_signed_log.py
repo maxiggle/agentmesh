@@ -3,14 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.body import MessageBody, MessageType
-from agentmesh.log.entry import Entry, Kind
-from agentmesh.log.envelope import Envelope
-from agentmesh.log.verify import DroppedEntryError, EntryVerifier, RejectedEntryError
-from agentmesh.store.ingest import Ingestor, Outcome
-from agentmesh.store.local_log import LocalLog
-from agentmesh.store.sqlite import SqliteStore
+from ehor.identity.software import SoftwareSigner
+from ehor.log.body import MessageBody, MessageType
+from ehor.log.entry import Entry, Kind
+from ehor.log.envelope import Envelope
+from ehor.log.verify import DroppedEntryError, EntryVerifier, RejectedEntryError
+from ehor.store.ingest import Ingestor, Outcome
+from ehor.store.local_log import LocalLog
+from ehor.store.sqlite import SqliteStore
 
 TEAM = b"\x42" * 16
 ENTRY_COUNT = 100

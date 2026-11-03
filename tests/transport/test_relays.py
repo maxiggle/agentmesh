@@ -1,7 +1,7 @@
 import asyncio
 
-from agentmesh.transport.lan import PeerAddress
-from agentmesh.transport.relays import RelayDirectory
+from ehor.transport.lan import PeerAddress
+from ehor.transport.relays import RelayDirectory
 
 
 def test_lists_valid_addresses_and_skips_the_rest() -> None:

@@ -2,16 +2,16 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.identity.backends import (
+from ehor.identity.backends import (
     Backend,
     detect_hardware,
     hardware_candidates,
     hardware_signer,
     open_signer,
 )
-from agentmesh.identity.secure_enclave import SecureEnclaveSigner
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.identity.tpm import TpmSigner
+from ehor.identity.secure_enclave import SecureEnclaveSigner
+from ehor.identity.software import SoftwareSigner
+from ehor.identity.tpm import TpmSigner
 
 
 @pytest.mark.parametrize(

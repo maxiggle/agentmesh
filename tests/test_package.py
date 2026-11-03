@@ -1,7 +1,7 @@
 import re
 
-import agentmesh
+import ehor
 
 
 def test_version_is_semver() -> None:
-    assert re.fullmatch(r"\d+\.\d+\.\d+.*", agentmesh.__version__)
+    assert re.fullmatch(r"\d+\.\d+\.\d+.*", ehor.__version__)

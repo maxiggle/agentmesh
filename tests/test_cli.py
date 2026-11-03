@@ -6,16 +6,16 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh import cli as cli_module
-from agentmesh.cli import main
-from agentmesh.identity import Signer
-from agentmesh.identity.backends import Backend
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.service import device as device_module
-from agentmesh.service.api import ApiError
-from agentmesh.service.device import Device
-from agentmesh.service.invite import Invite
-from agentmesh.service.rpc import RpcError
+from ehor import cli as cli_module
+from ehor.cli import main
+from ehor.identity import Signer
+from ehor.identity.backends import Backend
+from ehor.identity.software import SoftwareSigner
+from ehor.service import device as device_module
+from ehor.service.api import ApiError
+from ehor.service.device import Device
+from ehor.service.invite import Invite
+from ehor.service.rpc import RpcError
 from security_key_emulator import SoftwareAuthenticator
 
 
@@ -348,7 +348,7 @@ def test_a_failed_enrollment_forgets_the_credential(
 def test_enrolling_without_the_fido2_extra_says_how_to_get_it(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setitem(sys.modules, "agentmesh.identity.ctap", None)
+    monkeypatch.setitem(sys.modules, "ehor.identity.ctap", None)
     Device.create_team(tmp_path / "gef", "gef", b"test passphrase").close()
     assert _gef(tmp_path, "roster", "enroll-key") == 1
-    assert "pip install 'agentmesh[fido2]'" in capsys.readouterr().err
+    assert "pip install 'ehor[fido2]'" in capsys.readouterr().err

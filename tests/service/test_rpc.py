@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.service.rpc import (
+from ehor.service.rpc import (
     Endpoint,
     RpcClient,
     RpcError,

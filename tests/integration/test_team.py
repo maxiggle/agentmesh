@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.entry import EntryContent, Kind
-from agentmesh.service.api import ApiError
-from agentmesh.service.device import Device
-from agentmesh.service.invite import Invite
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.entry import EntryContent, Kind
+from ehor.service.api import ApiError
+from ehor.service.device import Device
+from ehor.service.invite import Invite
 from security_key_emulator import SoftwareAuthenticator
 
 PASSPHRASE = b"team passphrase"

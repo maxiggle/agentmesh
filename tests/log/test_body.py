@@ -1,6 +1,6 @@
 import pytest
 
-from agentmesh.log.body import (
+from ehor.log.body import (
     SUMMARY_MAX,
     BodyError,
     MessageBody,
@@ -8,7 +8,7 @@ from agentmesh.log.body import (
     Status,
     StatusBody,
 )
-from agentmesh.log.canonical import encode
+from ehor.log.canonical import encode
 
 
 def test_message_round_trip() -> None:

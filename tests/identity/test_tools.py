@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.identity import HardwareUnavailableError
-from agentmesh.identity.tools import ToolError, ToolRunner, run_tool
+from ehor.identity import HardwareUnavailableError
+from ehor.identity.tools import ToolError, ToolRunner, run_tool
 
 PYTHON = sys.executable
 

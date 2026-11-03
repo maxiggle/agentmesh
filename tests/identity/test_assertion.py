@@ -2,7 +2,7 @@ from dataclasses import replace
 
 import pytest
 
-from agentmesh.identity.assertion import (
+from ehor.identity.assertion import (
     FLAG_ATTESTED_CREDENTIAL,
     FLAG_EXTENSIONS,
     FLAG_USER_PRESENT,

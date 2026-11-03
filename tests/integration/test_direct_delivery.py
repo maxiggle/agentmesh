@@ -3,11 +3,11 @@ from collections.abc import Callable
 from contextlib import ExitStack
 from pathlib import Path
 
-from agentmesh.service.api import ApiError
-from agentmesh.service.device import Device
-from agentmesh.service.direct_sync import DirectSync
-from agentmesh.service.invite import Invite
-from agentmesh.transport.iroh import IrohMode, IrohTransport
+from ehor.service.api import ApiError
+from ehor.service.device import Device
+from ehor.service.direct_sync import DirectSync
+from ehor.service.invite import Invite
+from ehor.transport.iroh import IrohMode, IrohTransport
 
 PASSPHRASE = b"direct passphrase"
 TIMEOUT = 60.0

@@ -7,7 +7,7 @@ import pytest
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
-from agentmesh.identity import (
+from ehor.identity import (
     HardwareUnavailableError,
     IdentityError,
     InvalidLabelError,
@@ -17,8 +17,8 @@ from agentmesh.identity import (
     Signer,
     es256,
 )
-from agentmesh.identity.secure_enclave import SecureEnclaveSigner, SwiftHelper
-from agentmesh.identity.tools import ToolError
+from ehor.identity.secure_enclave import SecureEnclaveSigner, SwiftHelper
+from ehor.identity.tools import ToolError
 
 
 class FakeEnclave:

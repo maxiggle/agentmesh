@@ -2,8 +2,8 @@ from dataclasses import replace
 
 import pytest
 
-from agentmesh.log.canonical import decode, encode
-from agentmesh.log.roster import Member, RelayInfo, Roster, RosterDevice, RosterError, Trust
+from ehor.log.canonical import decode, encode
+from ehor.log.roster import Member, RelayInfo, Roster, RosterDevice, RosterError, Trust
 
 KEY_A = b"\x02" + b"\x01" * 32
 KEY_B = b"\x02" + b"\x02" * 32

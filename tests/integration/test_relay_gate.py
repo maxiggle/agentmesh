@@ -2,12 +2,12 @@ import asyncio
 from collections.abc import Callable
 from pathlib import Path
 
-from agentmesh.relay.server import Relay
-from agentmesh.service.device import Device
-from agentmesh.service.direct_sync import RoundReport
-from agentmesh.service.peer_sync import PeerSync
-from agentmesh.service.relay_policy import RelayGate, devices_to_reach
-from agentmesh.transport.relays import RelayDirectory
+from ehor.relay.server import Relay
+from ehor.service.device import Device
+from ehor.service.direct_sync import RoundReport
+from ehor.service.peer_sync import PeerSync
+from ehor.service.relay_policy import RelayGate, devices_to_reach
+from ehor.transport.relays import RelayDirectory
 
 PASSPHRASE = b"relay gate passphrase"
 

@@ -3,14 +3,14 @@ from dataclasses import replace
 
 import pytest
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.body import MessageBody, MessageType, Status, StatusBody
-from agentmesh.log.canonical import decode, encode
-from agentmesh.log.entry import Entry, EntryContent, Kind, Signature
-from agentmesh.log.envelope import Encryption, Envelope
-from agentmesh.log.roster import Member, Roster, RosterDevice, Trust
-from agentmesh.log.verify import (
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.body import MessageBody, MessageType, Status, StatusBody
+from ehor.log.canonical import decode, encode
+from ehor.log.entry import Entry, EntryContent, Kind, Signature
+from ehor.log.envelope import Encryption, Envelope
+from ehor.log.roster import Member, Roster, RosterDevice, Trust
+from ehor.log.verify import (
     MAX_ENTRY_SIZE,
     DroppedEntryError,
     EntryVerifier,
@@ -308,7 +308,7 @@ def test_rejects_security_key_signature_without_user_presence(
 def test_rejects_security_key_signature_for_another_rp_id(
     verifier: EntryVerifier, make_content: Callable[..., EntryContent]
 ) -> None:
-    key = SoftwareAuthenticator(rp_id="agentmesh.example.com")
+    key = SoftwareAuthenticator(rp_id="ehor.example.com")
     content = _roster_content(make_content, key)
     entry = content.with_assertion(key.sign(content.signing_input))
     with pytest.raises(RejectedEntryError, match="wrong rpId"):

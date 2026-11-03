@@ -4,15 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from agentmesh.identity import KeyHandle
-from agentmesh.identity.software import SoftwareSigner
-from agentmesh.log.entry import Kind
-from agentmesh.log.verify import EntryVerifier
-from agentmesh.store.ingest import Ingestor
-from agentmesh.store.local_log import LocalLog
-from agentmesh.store.sqlite import SqliteStore
-from agentmesh.sync.session import SyncError, SyncNode, SyncResult
-from agentmesh.sync.wire import SyncReader, SyncWriter
+from ehor.identity import KeyHandle
+from ehor.identity.software import SoftwareSigner
+from ehor.log.entry import Kind
+from ehor.log.verify import EntryVerifier
+from ehor.store.ingest import Ingestor
+from ehor.store.local_log import LocalLog
+from ehor.store.sqlite import SqliteStore
+from ehor.sync.session import SyncError, SyncNode, SyncResult
+from ehor.sync.wire import SyncReader, SyncWriter
 
 
 class MemoryReader:

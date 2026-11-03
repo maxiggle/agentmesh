@@ -2,9 +2,9 @@ import asyncio
 from contextlib import ExitStack
 from pathlib import Path
 
-from agentmesh.service.device import Device
-from agentmesh.service.peer_sync import PeerSync
-from agentmesh.transport.lan import PeerAddress, StaticDiscovery
+from ehor.service.device import Device
+from ehor.service.peer_sync import PeerSync
+from ehor.transport.lan import PeerAddress, StaticDiscovery
 
 PASSPHRASE = b"lan passphrase"
 
