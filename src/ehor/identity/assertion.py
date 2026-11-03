@@ -3,8 +3,8 @@ from dataclasses import dataclass
 
 from ehor.identity import es256
 
-RP_ID = "agentmesh:"
-"""Relying party ID for agentmesh credentials. The colon makes it an invalid web domain,
+RP_ID = "ehor:"
+"""Relying party ID for ehor credentials. The colon makes it an invalid web domain,
 so no website can ask a browser for an assertion under it (OpenSSH uses `ssh:` likewise)."""
 
 RP_ID_HASH_SIZE = 32

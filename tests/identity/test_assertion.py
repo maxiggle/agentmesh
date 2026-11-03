@@ -13,7 +13,7 @@ from ehor.identity.assertion import (
 )
 from security_key_emulator import SoftwareAuthenticator
 
-MESSAGE = b"agentmesh/sig/v0\x00content"
+MESSAGE = b"ehor/sig/v0\x00content"
 USER_VERIFIED = 0x04
 
 
@@ -22,7 +22,7 @@ def _flip(data: bytes, index: int) -> bytes:
 
 
 def test_rp_id_is_not_a_web_domain() -> None:
-    assert RP_ID == "agentmesh:"
+    assert RP_ID == "ehor:"
 
 
 def test_accepts_a_user_present_assertion() -> None:

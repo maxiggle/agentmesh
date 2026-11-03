@@ -8,8 +8,7 @@ from ehor.log.canonical import encode as cbor_encode
 from ehor.log.entry import ENTRY_ID_SIZE, TEAM_ID_SIZE
 from ehor.log.names import parse_address
 
-PREFIX = "am2-"
-LEGACY_PREFIX = "am1-"
+PREFIX = "eh1-"
 IROH_ENDPOINT_SIZE = 32
 _KEYS = frozenset({"team", "genesis", "relay", "iroh"})
 
@@ -50,14 +49,9 @@ class Invite:
     @classmethod
     def decode(cls, code: str) -> "Invite":
         text = code.strip()
-        if text.startswith(PREFIX):
-            return cls._decode_current(_unbase64(text[len(PREFIX) :]))
-        if text.startswith(LEGACY_PREFIX):
-            return cls._decode_legacy(_unbase64(text[len(LEGACY_PREFIX) :]))
-        raise InviteError(f"invite codes start with {PREFIX}")
-
-    @classmethod
-    def _decode_current(cls, raw: bytes) -> "Invite":
+        if not text.startswith(PREFIX):
+            raise InviteError(f"invite codes start with {PREFIX}")
+        raw = _unbase64(text[len(PREFIX) :])
         try:
             fields = cbor_decode(raw)
         except CanonicalError as exc:
@@ -76,17 +70,6 @@ class Invite:
         if iroh is not None and not isinstance(iroh, bytes):
             raise InviteError("invite iroh endpoint is not bytes")
         return cls(team, genesis, relay, iroh)
-
-    @classmethod
-    def _decode_legacy(cls, raw: bytes) -> "Invite":
-        fixed = TEAM_ID_SIZE + ENTRY_ID_SIZE
-        if len(raw) < fixed:
-            raise InviteError("invite code is too short")
-        try:
-            relay = raw[fixed:].decode() or None
-        except UnicodeDecodeError as exc:
-            raise InviteError("invite relay address is not text") from exc
-        return cls(raw[:TEAM_ID_SIZE], raw[TEAM_ID_SIZE:fixed], relay)
 
 
 def _unbase64(body: str) -> bytes:

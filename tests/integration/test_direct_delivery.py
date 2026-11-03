@@ -114,7 +114,7 @@ async def _joined_from_a_code(root: Path) -> None:
     with ExitStack() as stack:
         gef = stack.enter_context(Device.create_team(root / "gef", "gef", PASSPHRASE))
         code = gef.invite.encode()
-        assert code.startswith("am2-")
+        assert code.startswith("eh1-")
         tobi = stack.enter_context(
             Device.join(root / "tobi", Invite.decode(code), "tobi", PASSPHRASE)
         )

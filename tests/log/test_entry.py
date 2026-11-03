@@ -16,7 +16,7 @@ def test_round_trips(make_entry: Callable[..., Entry]) -> None:
 
 def test_signature_covers_tagged_content(make_entry: Callable[..., Entry]) -> None:
     entry = make_entry()
-    assert entry.content.signing_input.startswith(b"agentmesh/sig/v0\x00")
+    assert entry.content.signing_input.startswith(b"ehor/sig/v0\x00")
     assert es256.verify(entry.author, entry.sig.value, entry.content.signing_input)
 
 
