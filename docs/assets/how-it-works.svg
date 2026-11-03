@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 400" width="880" height="400" role="img" aria-label="Two laptops, each running Claude with the ehor MCP server and background service, sync directly over an encrypted iroh connection. n0's relays help only when a router blocks the direct path; a self-hosted ehor relay holds messages for teammates who are offline.">
+  <defs>
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="300" y1="0" x2="580" y2="0"><stop offset="0" stop-color="#2EE59D"/><stop offset="1" stop-color="#22C3E6"/></linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#2EE59D"/></marker>
+  </defs>
+  <rect width="880" height="400" rx="16" fill="#0E1613"/>
+  <g font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <g transform="translate(40 48)">
+      <rect width="250" height="196" rx="14" fill="#16211C" stroke="#2A3A32"/>
+      <text x="20" y="32" fill="#E6EDE9" font-size="15" font-weight="600">ada's laptop</text>
+      <rect x="20" y="50" width="210" height="36" rx="8" fill="#1E2C25"/><text x="36" y="73" fill="#E6EDE9" font-size="13">Claude Code / Desktop</text>
+      <rect x="20" y="96" width="210" height="36" rx="8" fill="#1E2C25"/><text x="36" y="119" fill="#2EE59D" font-size="13" font-family="ui-monospace, Menlo, Consolas, monospace">ehor mcp</text>
+      <rect x="20" y="142" width="210" height="36" rx="8" fill="#1E2C25"/><text x="36" y="165" fill="#2EE59D" font-size="13" font-family="ui-monospace, Menlo, Consolas, monospace">ehor serve</text><text x="128" y="165" fill="#9AA8A1" font-size="12">signed log</text>
+    </g>
+    <g transform="translate(590 48)">
+      <rect width="250" height="196" rx="14" fill="#16211C" stroke="#2A3A32"/>
+      <text x="20" y="32" fill="#E6EDE9" font-size="15" font-weight="600">tobi's laptop</text>
+      <rect x="20" y="50" width="210" height="36" rx="8" fill="#1E2C25"/><text x="36" y="73" fill="#E6EDE9" font-size="13">Claude Code / Desktop</text>
+      <rect x="20" y="96" width="210" height="36" rx="8" fill="#1E2C25"/><text x="36" y="119" fill="#2EE59D" font-size="13" font-family="ui-monospace, Menlo, Consolas, monospace">ehor mcp</text>
+      <rect x="20" y="142" width="210" height="36" rx="8" fill="#1E2C25"/><text x="36" y="165" fill="#2EE59D" font-size="13" font-family="ui-monospace, Menlo, Consolas, monospace">ehor serve</text><text x="128" y="165" fill="#9AA8A1" font-size="12">signed log</text>
+    </g>
+    <line x1="300" y1="208" x2="580" y2="208" stroke="url(#g)" stroke-width="4" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+    <text x="440" y="188" text-anchor="middle" fill="#E6EDE9" font-size="14" font-weight="600">direct connection</text>
+    <text x="440" y="232" text-anchor="middle" fill="#9AA8A1" font-size="12">iroh · QUIC · end-to-end encrypted</text>
+    <path d="M300 120 C 370 120, 380 90, 418 90 M462 90 C 500 90, 510 120, 580 120" fill="none" stroke="#6CC4F0" stroke-width="2" stroke-dasharray="6 6"/>
+    <circle cx="440" cy="90" r="20" fill="#16211C" stroke="#6CC4F0" stroke-width="2"/>
+    <text x="440" y="95" text-anchor="middle" fill="#6CC4F0" font-size="12" font-weight="600">n0</text>
+    <text x="440" y="54" text-anchor="middle" fill="#9AA8A1" font-size="12">relays only if a router blocks the direct path</text>
+    <path d="M165 244 C 165 320, 300 330, 360 330 M520 330 C 580 330, 715 320, 715 244" fill="none" stroke="#F5B83D" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round"/>
+    <rect x="360" y="306" width="160" height="48" rx="10" fill="#16211C" stroke="#F5B83D" stroke-width="1.5"/>
+    <text x="440" y="336" text-anchor="middle" fill="#F5B83D" font-size="13" font-family="ui-monospace, Menlo, Consolas, monospace">ehor relay</text>
+    <text x="440" y="378" text-anchor="middle" fill="#9AA8A1" font-size="12">optional mailbox: used only while a teammate is out of reach</text>
+  </g>
+</svg>
