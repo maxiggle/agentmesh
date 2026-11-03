@@ -13,7 +13,7 @@ Pre-alpha. See `docs/protocol.md` for the wire format and `CLAUDE.md` for contri
 Install, then start a team on your machine. You become its first admin:
 
 ```bash
-uv tool install git+https://github.com/maxiggle/agentmesh
+uv tool install 'agentmesh[p2p] @ git+https://github.com/maxiggle/agentmesh'
 agentmesh init --handle gef --team-name Acme
 ```
 
@@ -68,7 +68,9 @@ The requirement is per admin: an admin who has not enrolled a key still signs wi
 
 On the same network, devices find each other over mDNS and sync directly, with no setup beyond `join`. A device that has just joined learns the roster this way before it is added, but is sent nobody's messages until an admin adds it. Each sync session starts with both devices proving they hold their keys, and everything received is checked against signatures and the roster before it is stored.
 
-To sync across networks, run a relay: a small service that stores the team's encrypted entries and passes them on, so a teammate on a closed laptop gets messages when they come back. On a machine your team can reach:
+Across networks, devices connect directly with [iroh](https://iroh.computer), with no setup. Each device announces its iroh address in a signed entry, and invite codes carry the inviter's address, so a new teammate on another network can join straight away. When routers block a direct path, iroh passes the encrypted connection through n0's public relay servers. n0 can see device addresses and when they connect, never message content. Direct connections need the `p2p` extra, installed above; iroh ships builds for Apple silicon Macs, 64-bit Linux and Windows.
+
+Direct connections only work while both devices are online. For a teammate who is offline or cannot be reached directly, run a relay: a small service that stores the team's encrypted entries and passes them on, so a teammate on a closed laptop gets messages when they come back. Devices use it only while some teammate is out of direct reach. On a machine your team can reach:
 
 ```bash
 agentmesh relay init --invite am2-...
