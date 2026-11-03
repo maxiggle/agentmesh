@@ -30,7 +30,7 @@ do {
         let message = FileHandle.standardInput.readDataToEndOfFile()
         output = try loadKey(args[1]).signature(for: message).rawRepresentation
     default:
-        fail("usage: agentmesh-se available | create | public KEY | sign KEY", status: 2)
+        fail("usage: ehor-se available | create | public KEY | sign KEY", status: 2)
     }
     FileHandle.standardOutput.write(output)
 } catch {

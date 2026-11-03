@@ -43,7 +43,7 @@ class UnixEndpoint:
         try:
             return await asyncio.open_unix_connection(self._path, limit=MAX_MESSAGE_SIZE)
         except OSError as exc:
-            raise RpcError("agentmesh service is not running") from exc
+            raise RpcError("ehor service is not running") from exc
 
 
 class TcpEndpoint:
@@ -81,7 +81,7 @@ class TcpEndpoint:
                 "127.0.0.1", details["port"], limit=MAX_MESSAGE_SIZE
             )
         except (OSError, ValueError, KeyError) as exc:
-            raise RpcError("agentmesh service is not running") from exc
+            raise RpcError("ehor service is not running") from exc
         writer.write(f"{details['token']}\n".encode())
         await writer.drain()
         return reader, writer
@@ -152,7 +152,7 @@ class RpcClient:
         finally:
             writer.close()
         if not line:
-            raise RpcError("agentmesh service closed the connection")
+            raise RpcError("ehor service closed the connection")
         response = json.loads(line)
         if not response.get("ok"):
             raise RpcError(str(response.get("error", "unknown error")))

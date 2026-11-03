@@ -18,7 +18,7 @@ class ToolClient(Protocol):
 
 
 def build_server(client: ToolClient) -> MCPServer:
-    server = MCPServer("agentmesh", instructions=INSTRUCTIONS)
+    server = MCPServer("ehor", instructions=INSTRUCTIONS)
 
     async def relay(method: str, **params: object) -> str:
         try:

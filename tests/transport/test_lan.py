@@ -82,8 +82,8 @@ async def _find_each_other() -> tuple[tuple[PeerAddress, ...], tuple[PeerAddress
 
 
 @pytest.mark.skipif(
-    os.environ.get("AGENTMESH_MDNS_TEST") != "1",
-    reason="needs multicast; set AGENTMESH_MDNS_TEST=1 to run",
+    os.environ.get("EHOR_MDNS_TEST") != "1",
+    reason="needs multicast; set EHOR_MDNS_TEST=1 to run",
 )
 def test_two_devices_find_each_other_over_mdns() -> None:
     first, second = asyncio.run(_find_each_other())

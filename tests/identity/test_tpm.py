@@ -21,7 +21,7 @@ from ehor.identity import (
 from ehor.identity.tools import ToolError
 from ehor.identity.tpm import TpmSigner
 
-REAL_TPM = os.environ.get("AGENTMESH_TPM_TEST") == "1"
+REAL_TPM = os.environ.get("EHOR_TPM_TEST") == "1"
 
 
 class FakeTpm:
@@ -218,7 +218,7 @@ def _missing_tools(
     raise HardwareUnavailableError(f"{args[0]} is not installed")
 
 
-@pytest.mark.skipif(not REAL_TPM, reason="set AGENTMESH_TPM_TEST=1 with a TPM or simulator")
+@pytest.mark.skipif(not REAL_TPM, reason="set EHOR_TPM_TEST=1 with a TPM or simulator")
 def test_real_tpm_key(tmp_path: Path) -> None:
     signer = TpmSigner(tmp_path)
     assert signer.available()

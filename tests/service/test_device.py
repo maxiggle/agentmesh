@@ -105,7 +105,7 @@ def test_config_rejects_bad_values(kwargs: dict[str, object], error: str) -> Non
 
 
 def test_load_reports_missing_and_broken_config(tmp_path: Path) -> None:
-    with pytest.raises(ConfigError, match="agentmesh init"):
+    with pytest.raises(ConfigError, match="ehor init"):
         DeviceConfig.load(tmp_path)
     (tmp_path / "config.json").write_text(json.dumps({"handle": "gef"}))
     with pytest.raises(ConfigError, match="invalid"):
@@ -113,10 +113,10 @@ def test_load_reports_missing_and_broken_config(tmp_path: Path) -> None:
 
 
 def test_home_can_be_overridden(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("AGENTMESH_HOME", str(tmp_path))
+    monkeypatch.setenv("EHOR_HOME", str(tmp_path))
     assert default_home() == tmp_path
-    monkeypatch.delenv("AGENTMESH_HOME")
-    assert default_home().name == ".agentmesh"
+    monkeypatch.delenv("EHOR_HOME")
+    assert default_home().name == ".ehor"
 
 
 def test_create_team_then_reopen(tmp_path: Path) -> None:

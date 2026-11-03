@@ -34,7 +34,7 @@ class FakeEnclave:
         self.calls.append(args[0])
         if args[0] == "available":
             if not self.is_available:
-                raise ToolError("agentmesh-se failed: this Mac has no Secure Enclave")
+                raise ToolError("ehor-se failed: this Mac has no Secure Enclave")
             return b""
         if args[0] == "create":
             key = ec.generate_private_key(ec.SECP256R1())

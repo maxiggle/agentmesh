@@ -19,7 +19,7 @@ from ehor.identity.assertion import RP_ID, check_assertion, rp_id_hash
 from ehor.identity.ctap import Ctap2Authenticator
 from ehor.identity.security_key import SecurityKeySigner
 
-REAL_KEY = os.environ.get("AGENTMESH_FIDO2_TEST") == "1"
+REAL_KEY = os.environ.get("EHOR_FIDO2_TEST") == "1"
 MESSAGE = b"agentmesh/sig/v0\x00roster"
 PIN = "123456"
 AAGUID = b"\x00" * 16
@@ -274,10 +274,10 @@ def test_connect_uses_the_only_key(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     check_assertion(signer.public_key(handle), signer.sign_assertion(handle, MESSAGE), MESSAGE)
 
 
-@pytest.mark.skipif(not REAL_KEY, reason="set AGENTMESH_FIDO2_TEST=1 and plug in a security key")
+@pytest.mark.skipif(not REAL_KEY, reason="set EHOR_FIDO2_TEST=1 and plug in a security key")
 def test_real_security_key(tmp_path: Path) -> None:
-    """Needs two touches: one to enroll, one to sign. Set AGENTMESH_FIDO2_PIN if it has a PIN."""
-    pin = os.environ.get("AGENTMESH_FIDO2_PIN")
+    """Needs two touches: one to enroll, one to sign. Set EHOR_FIDO2_PIN if it has a PIN."""
+    pin = os.environ.get("EHOR_FIDO2_PIN")
     signer = SecurityKeySigner(
         tmp_path, lambda: Ctap2Authenticator.connect(pin=None if pin is None else lambda: pin)
     )

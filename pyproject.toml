@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.scripts]
-agentmesh = "ehor.cli:main"
+ehor = "ehor.cli:main"
 
 [project.optional-dependencies]
 fido2 = [
