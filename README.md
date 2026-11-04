@@ -13,19 +13,19 @@
   <a href="https://github.com/maxiggle/agentmesh/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-1667C9" alt="MIT license"></a>
 </p>
 
-<p align="center">Signed, encrypted, serverless messaging between Claude agents.</p>
+<p align="center">Signed, encrypted, serverless messaging between AI agents like Claude and Codex.</p>
 
 <p align="center">
   <img alt="Two laptops, each running Claude with ehor, sync directly over an encrypted iroh connection. n0's relays help only when a router blocks the direct path; a self-hosted ehor relay holds messages for teammates who are offline." src="https://raw.githubusercontent.com/maxiggle/agentmesh/main/docs/assets/how-it-works.svg" width="760">
 </p>
 
-<p align="center"><i>Each teammate's Claude talks to its own <code>ehor</code> service. The services sync directly, with an optional mailbox for whoever is offline.</i></p>
+<p align="center"><i>Each teammate's agent talks to its own <code>ehor</code> service. The services sync directly, with an optional mailbox for whoever is offline.</i></p>
 
 *Ehor* means "message" in Benue.
 
 ## Highlights
 
-- Lets Claude Code and Claude Desktop agents on different machines hand each other
+- Lets Claude and Codex agents on different machines hand each other
   [requests, questions and status updates](#messages-for-agents) through seven MCP tools.
 - **No server to run.** Devices find each other on the LAN and
   [connect directly across networks](#direct-connections-across-networks) with
@@ -84,7 +84,7 @@ ehor roster add tobi 0372c4010a... --role @mobile --channel '#mobile'
   <img alt="Terminal: ada runs ehor init, tobi runs ehor join with the invite code on another network, and ada adds tobi to the roster." src="https://raw.githubusercontent.com/maxiggle/agentmesh/main/docs/assets/screenshot-setup.svg" width="760">
 </p>
 
-Installing ehor doesn't connect it to Claude. Do these two steps on every device.
+Installing ehor doesn't connect it to your agent. Do these two steps on every device.
 
 Run the background service. It syncs messages with your teammates, so keep it running while
 you work. If it's stopped, nothing is sent or received until you start it again:
@@ -116,11 +116,34 @@ into your project's `CLAUDE.md`, and
 `.claude/commands/` for the `/inbox` and `/handoff` commands. These aren't part of the PyPI
 package, so grab them from GitHub.
 
+Connect Codex instead with one command. The Codex CLI, IDE extension and app share this setting:
+
+```bash
+codex mcp add ehor -- ehor mcp
+```
+
+Or add ehor to `~/.codex/config.toml` yourself:
+
+```toml
+[mcp_servers.ehor]
+command = "ehor"
+args = ["mcp"]
+```
+
+Run `/mcp` in Codex to check that ehor is connected. Optionally, copy
+[`codex/AGENTS.md`](https://github.com/maxiggle/agentmesh/blob/main/codex/AGENTS.md) into your
+project's `AGENTS.md`, and
+[`codex/skills/`](https://github.com/maxiggle/agentmesh/tree/main/codex/skills) into
+`~/.agents/skills/` for the `$ehor-inbox` and `$ehor-handoff` skills.
+
+Claude and Codex users can be on the same team. Messages are signed by devices, so it doesn't
+matter which agent sent them.
+
 ## Features
 
 ### Messages for agents
 
-Claude works with your team through seven MCP tools. Results are short plain text, and every
+Your agent works with your team through seven MCP tools. Results are short plain text, and every
 message from a teammate is labelled as data from another person, never as instructions.
 
 | Tool         | Does |
@@ -254,9 +277,9 @@ uv run pytest
 No. Devices sync with each other directly. n0's public relays only help two devices find a path
 when a router is in the way, and the optional ehor relay is a mailbox you host yourself.
 
-#### Will Claude act on a teammate's message by itself?
+#### Will an agent act on a teammate's message by itself?
 
-No. Tool results present teammates' messages as data from a named person. The receiving Claude
+No. Tool results present teammates' messages as data from a named person. The receiving agent
 decides what to do under its own user's permissions, and roster changes cannot be made through
 MCP at all.
 
