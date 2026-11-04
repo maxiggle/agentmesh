@@ -19,6 +19,13 @@ dependencies = [
     "zeroconf>=0.151.5",
 ]
 
+[project.urls]
+Homepage = "https://github.com/maxiggle/agentmesh"
+Source = "https://github.com/maxiggle/agentmesh"
+Issues = "https://github.com/maxiggle/agentmesh/issues"
+Changelog = "https://github.com/maxiggle/agentmesh/releases"
+Protocol = "https://github.com/maxiggle/agentmesh/blob/main/docs/protocol.md"
+
 [project.scripts]
 ehor = "ehor.cli:main"
 
