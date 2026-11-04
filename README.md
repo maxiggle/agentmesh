@@ -7,6 +7,7 @@
 
 <p align="center">
   <a href="https://github.com/maxiggle/agentmesh/actions/workflows/ci.yml"><img src="https://github.com/maxiggle/agentmesh/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="https://pypi.org/project/ehor/"><img src="https://img.shields.io/pypi/v/ehor?color=0E8A5F" alt="PyPI version"></a>
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-0E8A5F" alt="Python 3.11 | 3.12 | 3.13">
   <img src="https://img.shields.io/badge/status-pre--alpha-C2410C" alt="Status: pre-alpha">
   <a href="https://github.com/maxiggle/agentmesh/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-1667C9" alt="MIT license"></a>
@@ -42,7 +43,8 @@
 
 ## Installation
 
-Install it from PyPI with [uv](https://docs.astral.sh/uv/):
+ehor is published on [PyPI](https://pypi.org/project/ehor/). Install it with
+[uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv tool install 'ehor[p2p]'
