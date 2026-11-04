@@ -6,7 +6,6 @@ import pytest
 
 from ehor.log.authorize import Verdict
 from ehor.log.entry import Entry, EntryContent, Kind, Signature
-from ehor.service.api import ApiError
 from ehor.service.device import Device
 
 PASSPHRASE = b"secret passphrase"
@@ -24,24 +23,12 @@ class Team:
         self.lee = stack.enter_context(
             Device.join(root / "lee", self.gef.invite, "lee", PASSPHRASE, exchange=self.shared)
         )
-        self.ana = stack.enter_context(
-            Device.join(root / "ana", self.gef.invite, "ana", PASSPHRASE, exchange=self.shared)
-        )
-        self.all = (self.gef, self.tobi, self.lee, self.ana)
+        self.all = (self.gef, self.tobi, self.lee)
         self.sync()
         self.gef.call("roster.add", {"handle": "tobi", "key": self.tobi.author.hex()})
         self.gef.call(
             "roster.add",
             {"handle": "lee", "key": self.lee.author.hex(), "channels": ["#mobile"]},
-        )
-        self.gef.call(
-            "roster.add",
-            {
-                "handle": "ana",
-                "key": self.ana.author.hex(),
-                "roles": ["@mobile"],
-                "channels": ["#mobile"],
-            },
         )
         self.sync()
 
@@ -82,29 +69,6 @@ def test_members_cannot_read_channels_they_are_not_in(team: Team) -> None:
     inbox = team.lee.call("inbox", {})
     assert "backend only" not in inbox
     assert mobile in inbox
-
-
-def test_role_addressed_post_is_readable_by_the_role_holder(team: Team) -> None:
-    message_id = _post(team.gef, "@mobile", "mobile release freeze")
-    team.sync()
-    assert message_id in team.ana.call("inbox", {})
-    assert '"mobile release freeze"' in team.ana.call("read", {"id": message_id})
-
-
-def test_role_addressed_post_stays_sealed_from_other_members(team: Team) -> None:
-    message_id = _post(team.gef, "@mobile", "mobile release freeze")
-    team.sync()
-    assert message_id not in team.lee.call("inbox", {})
-    with pytest.raises(ApiError):
-        team.lee.call("read", {"id": message_id})
-
-
-def test_role_holder_can_read_status_changes_on_addressed_message(team: Team) -> None:
-    message_id = _post(team.gef, "@mobile", "mobile release freeze")
-    team.sync()
-    team.tobi.call("set_status", {"id": message_id, "status": "done", "note": "shipped"})
-    team.sync()
-    assert "shipped" in team.ana.call("read", {"id": message_id})
 
 
 def test_removed_member_cannot_read_later_messages(team: Team) -> None:

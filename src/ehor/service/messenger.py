@@ -109,9 +109,7 @@ class StaticDirectory:
 class BodyCodec(Protocol):
     """Turns a body into what is stored in an entry, and back."""
 
-    def seal(
-        self, channel: str, kind: Kind, body: bytes, audience: Sequence[str] = ()
-    ) -> bytes: ...
+    def seal(self, channel: str, kind: Kind, body: bytes) -> bytes: ...
 
     def open(self, entry: Entry) -> bytes | None:
         """The plaintext body, or None if this device cannot read it."""
@@ -119,7 +117,7 @@ class BodyCodec(Protocol):
 
 
 class PlainCodec:
-    def seal(self, channel: str, kind: Kind, body: bytes, audience: Sequence[str] = ()) -> bytes:
+    def seal(self, channel: str, kind: Kind, body: bytes) -> bytes:
         return Envelope.plain(body).encode()
 
     def open(self, entry: Entry) -> bytes | None:
@@ -181,9 +179,7 @@ class Messenger:
             acceptance=acceptance,
             detail=detail,
         )
-        return self._append(
-            self._channel_for(targets), Kind.MESSAGE, body.encode(), (), audience=targets
-        )
+        return self._append(self._channel_for(targets), Kind.MESSAGE, body.encode(), ())
 
     def reply(self, id_prefix: str, summary: str, *, links: Sequence[str] = ()) -> Entry:
         original = self._resolve(id_prefix)
@@ -211,7 +207,6 @@ class Messenger:
             Kind.STATUS,
             body.encode(),
             (target.entry.id, *replaced),
-            audience=target.body.to,
         )
 
     def inbox(
@@ -312,18 +307,9 @@ class Messenger:
         except BodyError:
             return None
 
-    def _append(
-        self,
-        channel: str,
-        kind: Kind,
-        body: bytes,
-        refs: Iterable[bytes],
-        *,
-        audience: Sequence[str] = (),
-    ) -> Entry:
+    def _append(self, channel: str, kind: Kind, body: bytes, refs: Iterable[bytes]) -> Entry:
         try:
-            sealed = self._codec.seal(channel, kind, body, audience)
-            return self._log.append(channel, kind, sealed, refs)
+            return self._log.append(channel, kind, self._codec.seal(channel, kind, body), refs)
         except NotAuthorizedError as exc:
             raise MessengerError(f"cannot post: {exc}") from exc
 

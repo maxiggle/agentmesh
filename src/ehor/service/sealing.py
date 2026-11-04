@@ -1,5 +1,3 @@
-from collections.abc import Sequence
-
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
 from ehor.crypto.sealing import Recipient, Sealed, SealError, open_sealed, public_bytes, seal
@@ -32,7 +30,7 @@ class KeyDirectory:
 
 
 class SealingCodec:
-    """Seals bodies for the channel's readers and addressed members (protocol §6)."""
+    """Seals bodies for every device allowed to read the channel (protocol §6)."""
 
     def __init__(
         self,
@@ -53,13 +51,13 @@ class SealingCodec:
     def public_key(self) -> bytes:
         return self._public
 
-    def recipients(self, channel: str, audience: Sequence[str] = ()) -> list[Recipient]:
+    def recipients(self, channel: str) -> list[Recipient]:
         roster = self._book.current
         announced = self._keys.encryption_keys()
         found = [Recipient(self._public)]
         if roster is None:
             return found
-        readers = [m for m in roster.members if _can_read(m, channel) or _is_addressed(m, audience)]
+        readers = [m for m in roster.members if _can_read(m, channel)]
         me = roster.member_for_key(self._author)
         if me is not None and me not in readers:
             readers.append(me)
@@ -70,9 +68,8 @@ class SealingCodec:
                     found.append(Recipient(key))
         return found
 
-    def seal(self, channel: str, kind: Kind, body: bytes, audience: Sequence[str] = ()) -> bytes:
-        recipients = self.recipients(channel, audience)
-        sealed = seal(body, recipients, self._aad(self._author, channel, kind))
+    def seal(self, channel: str, kind: Kind, body: bytes) -> bytes:
+        sealed = seal(body, self.recipients(channel), self._aad(self._author, channel, kind))
         roster = self._book.current
         return Envelope(
             Encryption.SEALED,
@@ -106,7 +103,3 @@ class SealingCodec:
 def _can_read(member: Member, channel: str) -> bool:
     members = dm_members(channel)
     return member.handle in members if members is not None else member.can_use(channel)
-
-
-def _is_addressed(member: Member, audience: Sequence[str]) -> bool:
-    return member.handle in audience or any(role in audience for role in member.roles)
