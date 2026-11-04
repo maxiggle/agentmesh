@@ -53,9 +53,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="ehor", description="Signed messaging between Claude agents."
-    )
+    parser = argparse.ArgumentParser(prog="ehor", description="Signed messaging between AI agents.")
     parser.add_argument("--home", type=Path, default=None, help="device folder")
     commands = parser.add_subparsers(required=True, metavar="command")
 
@@ -87,7 +85,9 @@ def _parser() -> argparse.ArgumentParser:
     serve.add_argument("--lan-interval", type=float, default=DEFAULT_PEER_INTERVAL)
     serve.set_defaults(run=_serve)
 
-    commands.add_parser("mcp", help="run the MCP server for Claude").set_defaults(run=_mcp)
+    commands.add_parser(
+        "mcp", help="run the MCP server for Claude, Codex or another agent"
+    ).set_defaults(run=_mcp)
     for tool in ("digest", "inbox", "team"):
         commands.add_parser(tool, help=f"show {tool}").set_defaults(run=_tool, tool=tool)
     return parser
@@ -171,7 +171,7 @@ def _init(args: argparse.Namespace) -> int:
             f"created team with {args.handle} as admin in {home}\n"
             f"{_describe_key(device.config.key_backend)}\n"
             f"invite  {device.invite.encode()}\n"
-            "next: run `ehor serve`, then add `ehor mcp` to Claude\n"
+            "next: run `ehor serve`, then add `ehor mcp` to Claude or Codex\n"
         )
     return 0
 
