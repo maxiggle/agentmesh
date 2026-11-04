@@ -42,7 +42,13 @@
 
 ## Installation
 
-ehor is not on PyPI yet. Install it from GitHub with [uv](https://docs.astral.sh/uv/):
+Install it from PyPI with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv tool install 'ehor[p2p]'
+```
+
+To try the latest unreleased code from `main` instead:
 
 ```bash
 uv tool install 'ehor[p2p] @ git+https://github.com/maxiggle/agentmesh'
@@ -50,7 +56,7 @@ uv tool install 'ehor[p2p] @ git+https://github.com/maxiggle/agentmesh'
 
 The `p2p` extra adds direct connections across networks. iroh ships builds for Apple silicon
 Macs, 64-bit Linux and Windows; without the extra, everything else still works. Add `fido2` as
-well for [admin security keys](#admin-security-keys): `'ehor[p2p,fido2] @ git+…'`.
+well for [admin security keys](#admin-security-keys): `'ehor[p2p,fido2]'`.
 
 ## Quick start
 
