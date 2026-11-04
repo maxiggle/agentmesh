@@ -11,6 +11,8 @@ from typing import Protocol
 
 MAX_MESSAGE_SIZE = 1024 * 1024
 _OWNER_ONLY = 0o600
+# sun_path holds 108 bytes on Linux and 104 on macOS and the BSDs, including the trailing NUL.
+_MAX_SOCKET_PATH = 107 if sys.platform.startswith("linux") else 103
 _log = logging.getLogger(__name__)
 
 Handler = Callable[[asyncio.StreamReader, asyncio.StreamWriter], Awaitable[None]]
@@ -33,13 +35,23 @@ class UnixEndpoint:
     def __init__(self, path: Path) -> None:
         self._path = path
 
+    def _check_length(self) -> None:
+        length = len(os.fsencode(self._path))
+        if length > _MAX_SOCKET_PATH:
+            raise RpcError(
+                f"socket path {self._path} is {length} bytes, over the "
+                f"{_MAX_SOCKET_PATH}-byte limit: use a shorter --home"
+            )
+
     async def serve(self, handler: Handler) -> asyncio.Server:
+        self._check_length()
         self._path.unlink(missing_ok=True)
         server = await asyncio.start_unix_server(handler, path=self._path, limit=MAX_MESSAGE_SIZE)
         self._path.chmod(_OWNER_ONLY)
         return server
 
     async def connect(self) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+        self._check_length()
         try:
             return await asyncio.open_unix_connection(self._path, limit=MAX_MESSAGE_SIZE)
         except OSError as exc:

@@ -123,3 +123,18 @@ def test_endpoint_files_are_owner_only(short_dir: Path) -> None:
     asyncio.run(start_and_stop(TcpEndpoint(short_dir / "service.json")))
     assert (short_dir / "service.json").stat().st_mode & 0o777 == 0o600
     asyncio.run(start_and_stop(UnixEndpoint(short_dir / "s.sock")))
+
+
+async def _serve_nothing(endpoint: Endpoint) -> None:
+    async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        writer.close()
+
+    await endpoint.serve(handler)
+
+
+def test_socket_path_too_long_is_a_clear_error(short_dir: Path) -> None:
+    endpoint = UnixEndpoint(short_dir / ("x" * 120) / "service.sock")
+    with pytest.raises(RpcError, match="shorter --home"):
+        asyncio.run(_serve_nothing(endpoint))
+    with pytest.raises(RpcError, match="shorter --home"):
+        asyncio.run(RpcClient(endpoint).call("echo"))

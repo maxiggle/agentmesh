@@ -1,6 +1,7 @@
 import io
 import json
 import sys
+import tempfile
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 
@@ -17,6 +18,13 @@ from ehor.service.device import Device
 from ehor.service.invite import Invite
 from ehor.service.rpc import RpcError
 from security_key_emulator import SoftwareAuthenticator
+
+
+@pytest.fixture
+def tmp_path() -> Iterator[Path]:
+    # pytest's own tmp_path on macOS is too long for a service socket path.
+    with tempfile.TemporaryDirectory(prefix="ehor") as directory:
+        yield Path(directory)
 
 
 @pytest.fixture(autouse=True)
