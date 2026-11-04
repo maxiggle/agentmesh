@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
-    <img alt="ehor" src="docs/assets/logo-light.svg" width="300">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/maxiggle/agentmesh/main/docs/assets/logo-dark.svg">
+    <img alt="ehor" src="https://raw.githubusercontent.com/maxiggle/agentmesh/main/docs/assets/logo-light.svg" width="300">
   </picture>
 </p>
 
@@ -9,13 +9,13 @@
   <a href="https://github.com/maxiggle/agentmesh/actions/workflows/ci.yml"><img src="https://github.com/maxiggle/agentmesh/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-0E8A5F" alt="Python 3.11 | 3.12 | 3.13">
   <img src="https://img.shields.io/badge/status-pre--alpha-C2410C" alt="Status: pre-alpha">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1667C9" alt="MIT license"></a>
+  <a href="https://github.com/maxiggle/agentmesh/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-1667C9" alt="MIT license"></a>
 </p>
 
 <p align="center">Signed, encrypted, serverless messaging between Claude agents.</p>
 
 <p align="center">
-  <img alt="Two laptops, each running Claude with ehor, sync directly over an encrypted iroh connection. n0's relays help only when a router blocks the direct path; a self-hosted ehor relay holds messages for teammates who are offline." src="docs/assets/how-it-works.svg" width="760">
+  <img alt="Two laptops, each running Claude with ehor, sync directly over an encrypted iroh connection. n0's relays help only when a router blocks the direct path; a self-hosted ehor relay holds messages for teammates who are offline." src="https://raw.githubusercontent.com/maxiggle/agentmesh/main/docs/assets/how-it-works.svg" width="760">
 </p>
 
 <p align="center"><i>Each teammate's Claude talks to its own <code>ehor</code> service. The services sync directly, with an optional mailbox for whoever is offline.</i></p>
@@ -73,7 +73,7 @@ ehor roster add tobi 0372c4010a... --role @mobile --channel '#mobile'
 ```
 
 <p align="center">
-  <img alt="Terminal: ada runs ehor init, tobi runs ehor join with the invite code on another network, and ada adds tobi to the roster." src="docs/assets/screenshot-setup.svg" width="760">
+  <img alt="Terminal: ada runs ehor init, tobi runs ehor join with the invite code on another network, and ada adds tobi to the roster." src="https://raw.githubusercontent.com/maxiggle/agentmesh/main/docs/assets/screenshot-setup.svg" width="760">
 </p>
 
 Then, on every device, run the background service and connect Claude:
@@ -84,8 +84,8 @@ claude mcp add ehor -- ehor mcp
 ```
 
 For Claude Desktop, add the same command to `claude_desktop_config.json` under `mcpServers`.
-Copy [`claude/CLAUDE.md`](claude/CLAUDE.md) into your project's `CLAUDE.md`, and
-[`claude/commands/`](claude/commands) into `.claude/commands/` for the `/inbox` and `/handoff`
+Copy [`claude/CLAUDE.md`](https://github.com/maxiggle/agentmesh/blob/main/claude/CLAUDE.md) into your project's `CLAUDE.md`, and
+[`claude/commands/`](https://github.com/maxiggle/agentmesh/tree/main/claude/commands) into `.claude/commands/` for the `/inbox` and `/handoff`
 commands.
 
 ## Features
@@ -106,7 +106,7 @@ message from a teammate is labelled as data from another person, never as instru
 | `team`       | You, your teammates, and who is working on what |
 
 <p align="center">
-  <img alt="The inbox and read tool results that tobi's Claude sees: a question and a feature request from ada, with acceptance criteria and a link." src="docs/assets/screenshot-claude.svg" width="760">
+  <img alt="The inbox and read tool results that tobi's Claude sees: a question and a feature request from ada, with acceptance criteria and a link." src="https://raw.githubusercontent.com/maxiggle/agentmesh/main/docs/assets/screenshot-claude.svg" width="760">
 </p>
 
 Messages have a type (`feature_request`, `shipped`, `blocked`, `question` or `fyi`), a summary of
@@ -114,7 +114,7 @@ at most 140 characters, and optional links, acceptance criteria and detail. Stat
 sender see who has picked up what:
 
 <p align="center">
-  <img alt="Terminal: ada runs ehor team and sees tobi working on her request, then ehor inbox shows tobi's claim and reply." src="docs/assets/screenshot-team.svg" width="760">
+  <img alt="Terminal: ada runs ehor team and sees tobi working on her request, then ehor inbox shows tobi's claim and reply." src="https://raw.githubusercontent.com/maxiggle/agentmesh/main/docs/assets/screenshot-team.svg" width="760">
 </p>
 
 Roster changes are not MCP tools, so a teammate's message can never get Claude to change who is
@@ -206,11 +206,11 @@ laptop can no longer change who is on the team.
 ## Documentation
 
 The wire format, validation rules and security model are specified in
-[`docs/protocol.md`](docs/protocol.md). Every command has `--help`.
+[`docs/protocol.md`](https://github.com/maxiggle/agentmesh/blob/main/docs/protocol.md). Every command has `--help`.
 
 ## Contributing
 
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the checks every
+Contributions are welcome. Read [CONTRIBUTING.md](https://github.com/maxiggle/agentmesh/blob/main/CONTRIBUTING.md) for setup, the checks every
 commit must pass, and how commits and pull requests are written. To start:
 
 ```bash
@@ -252,4 +252,4 @@ ehor builds on [iroh](https://github.com/n0-computer/iroh) for direct connection
 
 ## License
 
-ehor is licensed under the [MIT license](LICENSE).
+ehor is licensed under the [MIT license](https://github.com/maxiggle/agentmesh/blob/main/LICENSE).
