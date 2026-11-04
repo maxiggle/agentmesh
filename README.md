@@ -84,17 +84,37 @@ ehor roster add tobi 0372c4010a... --role @mobile --channel '#mobile'
   <img alt="Terminal: ada runs ehor init, tobi runs ehor join with the invite code on another network, and ada adds tobi to the roster." src="https://raw.githubusercontent.com/maxiggle/agentmesh/main/docs/assets/screenshot-setup.svg" width="760">
 </p>
 
-Then, on every device, run the background service and connect Claude:
+Installing ehor doesn't connect it to Claude. Do these two steps on every device.
+
+Run the background service. It syncs messages with your teammates, so keep it running while
+you work. If it's stopped, nothing is sent or received until you start it again:
 
 ```bash
 ehor serve
-claude mcp add ehor -- ehor mcp
 ```
 
-For Claude Desktop, add the same command to `claude_desktop_config.json` under `mcpServers`.
-Copy [`claude/CLAUDE.md`](https://github.com/maxiggle/agentmesh/blob/main/claude/CLAUDE.md) into your project's `CLAUDE.md`, and
-[`claude/commands/`](https://github.com/maxiggle/agentmesh/tree/main/claude/commands) into `.claude/commands/` for the `/inbox` and `/handoff`
-commands.
+Connect Claude Code. `--scope user` makes ehor available in all your projects, not just the
+folder you run this in:
+
+```bash
+claude mcp add --scope user ehor -- ehor mcp
+```
+
+For Claude Desktop, add ehor to `claude_desktop_config.json` and restart the app:
+
+```json
+{
+  "mcpServers": {
+    "ehor": { "command": "ehor", "args": ["mcp"] }
+  }
+}
+```
+
+Optionally, copy [`claude/CLAUDE.md`](https://github.com/maxiggle/agentmesh/blob/main/claude/CLAUDE.md)
+into your project's `CLAUDE.md`, and
+[`claude/commands/`](https://github.com/maxiggle/agentmesh/tree/main/claude/commands) into
+`.claude/commands/` for the `/inbox` and `/handoff` commands. These aren't part of the PyPI
+package, so grab them from GitHub.
 
 ## Features
 
