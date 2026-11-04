@@ -16,7 +16,7 @@ class Syncer(Protocol):
 
 
 class Daemon:
-    """Serves tool calls and keeps syncing while Claude is closed."""
+    """Serves tool calls and keeps syncing while the agent is closed."""
 
     def __init__(
         self,
