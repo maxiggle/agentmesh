@@ -37,6 +37,24 @@ KEY_CHOICES = [AUTO_KEY, *(backend.value for backend in Backend)]
 _KEY_HELP = "where the signing key lives; auto uses a hardware key if this machine has one"
 _SECURITY_KEY_HELP = "label of the enrolled security key to sign with, if there are several"
 _FIDO2_EXTRA = "security keys need the fido2 extra: pip install 'ehor[fido2]'"
+_SKIP_PROMPT = f"Set {PASSPHRASE_ENV} to skip this prompt."
+_NEW_DEVICE_PROMPT = (
+    "ehor encrypts this device's keys with a passphrase. You'll enter it each time you run"
+    " `ehor serve`.\nIf you forget it, this device can't read its messages and you'll need to"
+    " set it up again."
+)
+_DEVICE_PROMPT = (
+    "Enter the passphrase you chose at `ehor init` or `ehor join` to unlock this device's keys."
+    f" {_SKIP_PROMPT}"
+)
+_NEW_RELAY_PROMPT = (
+    "ehor encrypts this relay's signing key with a passphrase. You'll enter it each time you run"
+    " `ehor relay serve`."
+)
+_RELAY_PROMPT = (
+    "Enter the passphrase you chose at `ehor relay init` to unlock this relay's key."
+    f" {_SKIP_PROMPT}"
+)
 
 
 class CliError(Exception):
@@ -144,15 +162,27 @@ def _home(args: argparse.Namespace) -> Path:
     return home if home is not None else default_home()
 
 
-def _passphrase(*, confirm: bool) -> bytes:
+def _new_passphrase(explanation: str) -> bytes:
     from_env = os.environ.get(PASSPHRASE_ENV)
     if from_env:
         return from_env.encode()
-    passphrase = getpass.getpass("Key passphrase: ")
-    if confirm and getpass.getpass("Repeat passphrase: ") != passphrase:
-        raise CliError("passphrases do not match")
+    sys.stderr.write(f"{explanation}\n")
+    passphrase = getpass.getpass("Choose a passphrase: ")
     if not passphrase:
-        raise CliError("passphrase must not be empty")
+        raise CliError("the passphrase can't be empty; run the command again")
+    if getpass.getpass("Type it again to confirm: ") != passphrase:
+        raise CliError("the passphrases didn't match; run the command again")
+    return passphrase.encode()
+
+
+def _existing_passphrase(explanation: str) -> bytes:
+    from_env = os.environ.get(PASSPHRASE_ENV)
+    if from_env:
+        return from_env.encode()
+    sys.stderr.write(f"{explanation}\n")
+    passphrase = getpass.getpass("Passphrase: ")
+    if not passphrase:
+        raise CliError("the passphrase can't be empty")
     return passphrase.encode()
 
 
@@ -162,7 +192,7 @@ def _init(args: argparse.Namespace) -> int:
     with Device.create_team(
         home,
         args.handle,
-        _passphrase(confirm=True),
+        _new_passphrase(_NEW_DEVICE_PROMPT),
         team_name=args.team_name,
         exchange=exchange,
         key_backend=_key_backend(args),
@@ -204,7 +234,7 @@ def _join(args: argparse.Namespace) -> int:
         home,
         invite,
         args.handle,
-        _passphrase(confirm=True),
+        _new_passphrase(_NEW_DEVICE_PROMPT),
         exchange=exchange,
         key_backend=_key_backend(args),
     ) as device:
@@ -351,7 +381,9 @@ def _relay_init(args: argparse.Namespace) -> int:
     except InviteError as exc:
         raise CliError(str(exc)) from exc
     home = _relay_home(args)
-    with Relay.create(home, invite.team, invite.genesis, _passphrase(confirm=True)) as relay:
+    with Relay.create(
+        home, invite.team, invite.genesis, _new_passphrase(_NEW_RELAY_PROMPT)
+    ) as relay:
         sys.stdout.write(
             f"created relay in {home}\n"
             "run it with `ehor relay serve`, then ask an admin to run:\n"
@@ -366,7 +398,7 @@ def _relay_serve(args: argparse.Namespace) -> int:
         raise CliError(f"--listen must be host:port, got {args.listen!r}")
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     home = _relay_home(args)
-    with Relay.open(home, _passphrase(confirm=False)) as relay:
+    with Relay.open(home, _existing_passphrase(_RELAY_PROMPT)) as relay:
         sys.stderr.write(f"ehor relay {relay.key.hex()} listening on {args.listen}\n")
         asyncio.run(_run_relay(relay, *parsed))
     return 0
@@ -396,7 +428,7 @@ def _rpc(home: Path, method: str, params: dict[str, object]) -> str:
 def _serve(args: argparse.Namespace) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     home = _home(args)
-    with Device.open(home, _passphrase(confirm=False)) as device:
+    with Device.open(home, _existing_passphrase(_DEVICE_PROMPT)) as device:
         sys.stderr.write(f"ehor serving {device.config.handle} from {home}\n")
         direct = None if args.no_p2p else _direct_sync(device)
         peers: list[Syncer] = [_relay_sync(device, args.lan_interval, direct)]

@@ -1,3 +1,4 @@
+import getpass
 import io
 import json
 import sys
@@ -360,3 +361,59 @@ def test_enrolling_without_the_fido2_extra_says_how_to_get_it(
     Device.create_team(tmp_path / "gef", "gef", b"test passphrase").close()
     assert _gef(tmp_path, "roster", "enroll-key") == 1
     assert "pip install 'ehor[fido2]'" in capsys.readouterr().err
+
+
+class Keyboard:
+    """Types answers into passphrase prompts and records the prompts shown."""
+
+    def __init__(self, *answers: str) -> None:
+        self.answers = list(answers)
+        self.prompts: list[str] = []
+
+    def getpass(self, prompt: str) -> str:
+        self.prompts.append(prompt)
+        return self.answers.pop(0)
+
+
+@pytest.fixture
+def keyboard(monkeypatch: pytest.MonkeyPatch) -> Keyboard:
+    keyboard = Keyboard()
+    monkeypatch.delenv("EHOR_PASSPHRASE")
+    monkeypatch.setattr(getpass, "getpass", keyboard.getpass)
+    return keyboard
+
+
+def test_init_explains_the_passphrase_before_asking(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], keyboard: Keyboard
+) -> None:
+    keyboard.answers += ["correct horse", "correct horse"]
+    assert main(["--home", str(tmp_path / "gef"), "init", "--handle", "gef"]) == 0
+    assert "encrypts this device's keys" in capsys.readouterr().err
+    assert keyboard.prompts == ["Choose a passphrase: ", "Type it again to confirm: "]
+
+
+def test_init_says_what_to_do_when_passphrases_differ(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], keyboard: Keyboard
+) -> None:
+    keyboard.answers += ["correct horse", "battery staple"]
+    assert main(["--home", str(tmp_path / "gef"), "init", "--handle", "gef"]) == 1
+    assert "didn't match; run the command again" in capsys.readouterr().err
+
+
+def test_init_refuses_an_empty_passphrase_without_asking_twice(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], keyboard: Keyboard
+) -> None:
+    keyboard.answers.append("")
+    assert main(["--home", str(tmp_path / "gef"), "init", "--handle", "gef"]) == 1
+    assert "can't be empty" in capsys.readouterr().err
+    assert keyboard.prompts == ["Choose a passphrase: "]
+
+
+def test_relay_init_explains_its_passphrase(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], keyboard: Keyboard
+) -> None:
+    keyboard.answers += ["team pass", "team pass", "relay pass", "relay pass"]
+    main(["--home", str(tmp_path / "gef"), "init", "--handle", "gef"])
+    code = capsys.readouterr().out.split("invite  ")[1].split()[0]
+    assert main(["--home", str(tmp_path / "relay"), "relay", "init", "--invite", code]) == 0
+    assert "encrypts this relay's signing key" in capsys.readouterr().err
