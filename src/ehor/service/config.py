@@ -5,7 +5,7 @@ from pathlib import Path
 
 from ehor.identity.backends import Backend
 from ehor.log.entry import ENTRY_ID_SIZE, TEAM_ID_SIZE
-from ehor.log.names import HANDLE, parse_address
+from ehor.log.names import HANDLE, HANDLE_RULE, parse_address
 
 CONFIG_FILE = "config.json"
 ENDPOINT_SIZE = 32
@@ -34,7 +34,7 @@ class DeviceConfig:
 
     def __post_init__(self) -> None:
         if not HANDLE.fullmatch(self.handle):
-            raise ConfigError(f"invalid handle {self.handle!r}")
+            raise ConfigError(f"invalid handle {self.handle!r}: {HANDLE_RULE}")
         if len(self.team) != TEAM_ID_SIZE:
             raise ConfigError(f"team id must be {TEAM_ID_SIZE} bytes")
         if len(self.genesis) != ENTRY_ID_SIZE:

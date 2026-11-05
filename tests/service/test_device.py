@@ -200,6 +200,33 @@ def test_setup_refuses_an_existing_device(tmp_path: Path) -> None:
         Device.create_team(tmp_path, "gef", PASSPHRASE)
 
 
+@pytest.mark.parametrize(
+    ("handle", "team_name", "error"),
+    [("Gef", "", "lowercase letters"), ("gef", "x" * 65, "team name")],
+)
+def test_bad_setup_is_refused_before_a_key_is_made(
+    tmp_path: Path, handle: str, team_name: str, error: str
+) -> None:
+    with pytest.raises(ConfigError, match=error):
+        Device.create_team(tmp_path, handle, PASSPHRASE, team_name=team_name)
+    assert not (tmp_path / "keys").exists()
+    Device.create_team(tmp_path, "gef", PASSPHRASE).close()
+
+
+def test_join_refuses_a_bad_handle_before_a_key_is_made(tmp_path: Path) -> None:
+    with Device.create_team(tmp_path / "gef", "gef", PASSPHRASE) as gef:
+        invite = gef.invite
+    with pytest.raises(ConfigError, match="lowercase letters"):
+        Device.join(tmp_path / "tobi", invite, "Tobi", PASSPHRASE)
+    assert not (tmp_path / "tobi" / "keys").exists()
+
+
+def test_setup_names_a_key_left_by_an_unfinished_setup(tmp_path: Path) -> None:
+    SoftwareSigner(tmp_path / "keys", PASSPHRASE).create_key("device")
+    with pytest.raises(ConfigError, match="didn't finish; delete"):
+        Device.create_team(tmp_path, "gef", PASSPHRASE)
+
+
 def test_joining_member_waits_for_an_admin(tmp_path: Path) -> None:
     shared = tmp_path / "shared"
     with (

@@ -188,6 +188,7 @@ def _existing_passphrase(explanation: str) -> bytes:
 
 def _init(args: argparse.Namespace) -> int:
     home = _home(args)
+    Device.check_setup(home, args.handle, args.team_name)
     exchange = None if args.exchange is None else args.exchange.resolve()
     with Device.create_team(
         home,
@@ -229,6 +230,7 @@ def _join(args: argparse.Namespace) -> int:
     except InviteError as exc:
         raise CliError(str(exc)) from exc
     home = _home(args)
+    Device.check_setup(home, args.handle)
     exchange = None if args.exchange is None else args.exchange.resolve()
     with Device.join(
         home,

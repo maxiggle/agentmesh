@@ -11,8 +11,16 @@ from ehor.identity.security_key import Authenticator, SecurityKeySigner
 from ehor.log.endpoint_announce import EndpointAnnounce
 from ehor.log.entry import TEAM_ID_SIZE, Kind
 from ehor.log.key_announce import KeyAnnounce
-from ehor.log.names import CONTROL_CHANNEL
-from ehor.log.roster import ALL_CHANNELS, Member, Roster, RosterDevice, RosterError, Trust
+from ehor.log.names import CONTROL_CHANNEL, HANDLE, HANDLE_RULE
+from ehor.log.roster import (
+    ALL_CHANNELS,
+    TEAM_NAME_MAX,
+    Member,
+    Roster,
+    RosterDevice,
+    RosterError,
+    Trust,
+)
 from ehor.log.verify import EntryVerifier
 from ehor.roster.book import RosterBook
 from ehor.service.api import Params, ToolApi
@@ -105,6 +113,7 @@ class Device:
 
         `key_backend=None` uses this machine's hardware key if it has one.
         """
+        cls.check_setup(home, handle, team_name)
         signer, key = cls._new_key(home, passphrase, key_backend)
         key_backend = Backend(key.backend)
         team = secrets.token_bytes(TEAM_ID_SIZE)
@@ -136,6 +145,7 @@ class Device:
 
         `key_backend=None` uses this machine's hardware key if it has one.
         """
+        cls.check_setup(home, handle)
         _, key = cls._new_key(home, passphrase, key_backend)
         config = DeviceConfig(
             handle,
@@ -159,11 +169,25 @@ class Device:
         return cls(home, DeviceConfig.load(home), passphrase)
 
     @staticmethod
+    def check_setup(home: Path, handle: str, team_name: str = "") -> None:
+        """Refuse a new device at `home` before any key is made or passphrase asked for."""
+        if (home / CONFIG_FILE).exists():
+            raise ConfigError(f"a device already exists at {home}; use --home for another one")
+        keys = home / _KEY_DIR
+        if keys.is_dir() and any(keys.glob(f"{_KEY_LABEL}.*")):
+            raise ConfigError(
+                f"{home} has a key from a setup that didn't finish;"
+                f" delete {home} and run this again"
+            )
+        if not HANDLE.fullmatch(handle):
+            raise ConfigError(f"invalid handle {handle!r}: {HANDLE_RULE}")
+        if len(team_name) > TEAM_NAME_MAX:
+            raise ConfigError(f"the team name can be at most {TEAM_NAME_MAX} characters")
+
+    @staticmethod
     def _new_key(
         home: Path, passphrase: bytes, backend: Backend | None
     ) -> tuple[Signer, KeyHandle]:
-        if (home / CONFIG_FILE).exists():
-            raise ConfigError(f"a device already exists at {home}")
         home.mkdir(parents=True, exist_ok=True, mode=_HOME_MODE)
         if backend is None:
             found = detect_hardware(home / _KEY_DIR, tools=home / _TOOLS_DIR)

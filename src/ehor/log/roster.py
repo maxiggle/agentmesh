@@ -4,7 +4,7 @@ from enum import StrEnum
 from ehor.identity.es256 import PUBLIC_KEY_SIZE
 from ehor.log.canonical import CanonicalError, CborValue, decode, encode
 from ehor.log.entry import ENTRY_ID_SIZE
-from ehor.log.names import HANDLE, ROLE, TEAM_CHANNEL, parse_address
+from ehor.log.names import HANDLE, HANDLE_RULE, ROLE, TEAM_CHANNEL, parse_address
 
 ALL_CHANNELS = "*"
 TEAM_NAME_MAX = 64
@@ -56,7 +56,7 @@ class Member:
 
     def __post_init__(self) -> None:
         if not HANDLE.fullmatch(self.handle):
-            raise RosterError(f"invalid handle {self.handle!r}")
+            raise RosterError(f"invalid handle {self.handle!r}: {HANDLE_RULE}")
         if list(self.roles) != sorted(set(self.roles)):
             raise RosterError(f"roles of {self.handle} must be sorted and unique")
         for role in self.roles:

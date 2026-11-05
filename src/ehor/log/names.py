@@ -3,6 +3,7 @@ import re
 CONTROL_CHANNEL = "_team"
 
 HANDLE = re.compile(r"[a-z0-9][a-z0-9_-]{0,31}")
+HANDLE_RULE = "use up to 32 lowercase letters, digits, - or _, starting with a letter or digit"
 ROLE = re.compile(r"@[a-z0-9][a-z0-9-]{0,31}")
 TEAM_CHANNEL = re.compile(r"#[a-z0-9][a-z0-9-]{0,31}")
 DM_CHANNEL = re.compile(rf"dm:({HANDLE.pattern})\+({HANDLE.pattern})")

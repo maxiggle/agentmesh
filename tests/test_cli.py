@@ -417,3 +417,12 @@ def test_relay_init_explains_its_passphrase(
     code = capsys.readouterr().out.split("invite  ")[1].split()[0]
     assert main(["--home", str(tmp_path / "relay"), "relay", "init", "--invite", code]) == 0
     assert "encrypts this relay's signing key" in capsys.readouterr().err
+
+
+def test_init_checks_the_handle_before_asking_for_a_passphrase(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], keyboard: Keyboard
+) -> None:
+    assert main(["--home", str(tmp_path / "gef"), "init", "--handle", "unpaidCTO"]) == 1
+    assert "invalid handle 'unpaidCTO': use up to 32 lowercase" in capsys.readouterr().err
+    assert keyboard.prompts == []
+    assert not (tmp_path / "gef" / "keys").exists()
