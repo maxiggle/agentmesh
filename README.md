@@ -68,6 +68,11 @@ Start a team. You become its first admin, and `init` prints an invite code:
 ehor init --handle ada --team-name Acme
 ```
 
+Your handle is how teammates and their agents address you: up to 32 lowercase letters, digits,
+`-` or `_`. `init` and `join` also ask you to choose a passphrase. It encrypts this device's keys
+on disk, and `ehor serve` asks for it each time it starts. If you forget it, the device can't read
+its messages and you'll need to set it up again.
+
 A teammate joins with the code, from any network:
 
 ```bash
