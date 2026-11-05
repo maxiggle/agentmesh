@@ -189,6 +189,7 @@ def _existing_passphrase(explanation: str) -> bytes:
 def _init(args: argparse.Namespace) -> int:
     home = _home(args)
     Device.check_setup(home, args.handle, args.team_name)
+    _discard_unfinished_setup(home)
     exchange = None if args.exchange is None else args.exchange.resolve()
     with Device.create_team(
         home,
@@ -205,6 +206,11 @@ def _init(args: argparse.Namespace) -> int:
             "next: run `ehor serve`, then add `ehor mcp` to Claude or Codex\n"
         )
     return 0
+
+
+def _discard_unfinished_setup(home: Path) -> None:
+    if Device.discard_unfinished_setup(home):
+        sys.stderr.write("Removed files left by an earlier setup that didn't finish.\n")
 
 
 def _invite(args: argparse.Namespace) -> int:
@@ -231,6 +237,7 @@ def _join(args: argparse.Namespace) -> int:
         raise CliError(str(exc)) from exc
     home = _home(args)
     Device.check_setup(home, args.handle)
+    _discard_unfinished_setup(home)
     exchange = None if args.exchange is None else args.exchange.resolve()
     with Device.join(
         home,

@@ -221,10 +221,17 @@ def test_join_refuses_a_bad_handle_before_a_key_is_made(tmp_path: Path) -> None:
     assert not (tmp_path / "tobi" / "keys").exists()
 
 
-def test_setup_names_a_key_left_by_an_unfinished_setup(tmp_path: Path) -> None:
+def test_setup_replaces_a_key_left_by_an_unfinished_setup(tmp_path: Path) -> None:
     SoftwareSigner(tmp_path / "keys", PASSPHRASE).create_key("device")
-    with pytest.raises(ConfigError, match="didn't finish; delete"):
-        Device.create_team(tmp_path, "gef", PASSPHRASE)
+    (tmp_path / "ehor.db").write_bytes(b"abandoned")
+    with Device.create_team(tmp_path, "gef", PASSPHRASE) as gef:
+        assert gef.config.handle == "gef"
+
+
+def test_a_finished_device_is_never_discarded(tmp_path: Path) -> None:
+    Device.create_team(tmp_path, "gef", PASSPHRASE).close()
+    assert not Device.discard_unfinished_setup(tmp_path)
+    Device.open(tmp_path, PASSPHRASE).close()
 
 
 def test_joining_member_waits_for_an_admin(tmp_path: Path) -> None:

@@ -114,6 +114,7 @@ class Device:
         `key_backend=None` uses this machine's hardware key if it has one.
         """
         cls.check_setup(home, handle, team_name)
+        cls.discard_unfinished_setup(home)
         signer, key = cls._new_key(home, passphrase, key_backend)
         key_backend = Backend(key.backend)
         team = secrets.token_bytes(TEAM_ID_SIZE)
@@ -146,6 +147,7 @@ class Device:
         `key_backend=None` uses this machine's hardware key if it has one.
         """
         cls.check_setup(home, handle)
+        cls.discard_unfinished_setup(home)
         _, key = cls._new_key(home, passphrase, key_backend)
         config = DeviceConfig(
             handle,
@@ -173,16 +175,32 @@ class Device:
         """Refuse a new device at `home` before any key is made or passphrase asked for."""
         if (home / CONFIG_FILE).exists():
             raise ConfigError(f"a device already exists at {home}; use --home for another one")
-        keys = home / _KEY_DIR
-        if keys.is_dir() and any(keys.glob(f"{_KEY_LABEL}.*")):
-            raise ConfigError(
-                f"{home} has a key from a setup that didn't finish;"
-                f" delete {home} and run this again"
-            )
         if not HANDLE.fullmatch(handle):
             raise ConfigError(f"invalid handle {handle!r}: {HANDLE_RULE}")
         if len(team_name) > TEAM_NAME_MAX:
             raise ConfigError(f"the team name can be at most {TEAM_NAME_MAX} characters")
+
+    @staticmethod
+    def discard_unfinished_setup(home: Path) -> bool:
+        """Remove what an earlier init or join left behind before it saved a config.
+
+        Without a config no team ever used these files, and a leftover key would
+        otherwise block every later setup in this folder.
+        """
+        if (home / CONFIG_FILE).exists():
+            return False
+        keys = home / _KEY_DIR
+        leftovers = [
+            *(keys.glob(f"{_KEY_LABEL}.*") if keys.is_dir() else ()),
+            *(keys / name for name in (_ENCRYPTION_KEY, _IROH_KEY)),
+            *(home / f"{_DB_FILE}{suffix}" for suffix in ("", "-wal", "-shm")),
+        ]
+        removed = False
+        for path in leftovers:
+            if path.is_file():
+                path.unlink()
+                removed = True
+        return removed
 
     @staticmethod
     def _new_key(

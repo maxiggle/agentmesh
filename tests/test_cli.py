@@ -426,3 +426,14 @@ def test_init_checks_the_handle_before_asking_for_a_passphrase(
     assert "invalid handle 'unpaidCTO': use up to 32 lowercase" in capsys.readouterr().err
     assert keyboard.prompts == []
     assert not (tmp_path / "gef" / "keys").exists()
+
+
+def test_init_cleans_up_after_a_setup_that_did_not_finish(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    home = tmp_path / "gef"
+    SoftwareSigner(home / "keys", b"forgotten").create_key("device")
+    assert main(["--home", str(home), "init", "--handle", "gef"]) == 0
+    captured = capsys.readouterr()
+    assert "Removed files left by an earlier setup" in captured.err
+    assert "created team with gef" in captured.out
