@@ -104,11 +104,10 @@ class DirectSync:
                 await pause(stop, self._wake, self._interval)
         finally:
             self._running = False
-            listener.cancel()
-            sessions = [listener, *self._inbound]
-            for session in sessions[1:]:
-                session.cancel()
-            await asyncio.gather(*sessions, return_exceptions=True)
+            tasks = [listener, *self._inbound]
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
             await self._transport.close()
 
     async def sync_all(self) -> RoundReport:
