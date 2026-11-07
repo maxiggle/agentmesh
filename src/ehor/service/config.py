@@ -6,6 +6,7 @@ from pathlib import Path
 from ehor.identity.backends import Backend
 from ehor.log.entry import ENTRY_ID_SIZE, TEAM_ID_SIZE
 from ehor.log.names import HANDLE, HANDLE_RULE, parse_address
+from ehor.service.notify import NotifyError, PhoneTarget
 
 CONFIG_FILE = "config.json"
 ENDPOINT_SIZE = 32
@@ -32,6 +33,7 @@ class DeviceConfig:
     relay: str | None = None
     bootstrap_endpoint: bytes | None = None
     notifications: bool = True
+    phone: str | None = None
 
     def __post_init__(self) -> None:
         if not HANDLE.fullmatch(self.handle):
@@ -46,6 +48,11 @@ class DeviceConfig:
             raise ConfigError(f"bootstrap endpoint must be {ENDPOINT_SIZE} bytes")
         if not isinstance(self.notifications, bool):
             raise ConfigError("notifications must be true or false")
+        if self.phone is not None:
+            try:
+                PhoneTarget(self.phone)
+            except NotifyError as exc:
+                raise ConfigError(str(exc)) from exc
 
     def save(self, home: Path) -> None:
         data = {
@@ -60,6 +67,7 @@ class DeviceConfig:
                 None if self.bootstrap_endpoint is None else self.bootstrap_endpoint.hex()
             ),
             "notifications": self.notifications,
+            "phone": self.phone,
         }
         (home / CONFIG_FILE).write_text(json.dumps(data, indent=2) + "\n")
 
@@ -80,6 +88,7 @@ class DeviceConfig:
                 relay=data.get("relay"),
                 bootstrap_endpoint=None if bootstrap is None else bytes.fromhex(bootstrap),
                 notifications=data.get("notifications", True),
+                phone=data.get("phone"),
             )
         except FileNotFoundError as exc:
             raise ConfigError(f"no device at {home}; run `ehor init` first") from exc

@@ -61,6 +61,17 @@ def test_config_keeps_the_notification_setting(tmp_path: Path) -> None:
     assert DeviceConfig.load(tmp_path) == config
 
 
+def test_config_keeps_the_phone_target(tmp_path: Path) -> None:
+    config = DeviceConfig("gef", TEAM, GENESIS, phone="https://ntfy.sh/ehor-abc")
+    config.save(tmp_path)
+    assert DeviceConfig.load(tmp_path) == config
+
+
+def test_config_refuses_a_phone_target_that_is_not_https(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="https"):
+        DeviceConfig("gef", TEAM, GENESIS, phone="http://ntfy.sh/ehor-abc")
+
+
 def test_config_saved_before_notifications_has_them_on(tmp_path: Path) -> None:
     DeviceConfig("gef", TEAM, GENESIS, notifications=False).save(tmp_path)
     data = json.loads((tmp_path / "config.json").read_text())
