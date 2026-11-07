@@ -1,8 +1,13 @@
+import json
 import os
+import re
+import secrets
 import shutil
 import subprocess
 import sys
 import unicodedata
+import urllib.parse
+import urllib.request
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol
@@ -15,6 +20,9 @@ _COMMAND_TIMEOUT = 10.0
 _WINDOWS_APP_ID = r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe"
 _TITLE_ENV = "EHOR_NOTIFY_TITLE"
 _BODY_ENV = "EHOR_NOTIFY_BODY"
+NTFY_SERVER = "https://ntfy.sh"
+NTFY_TOPIC = re.compile(r"[A-Za-z0-9_-]{1,64}")
+_TOPIC_BYTES = 24
 
 
 class NotifyError(Exception):
@@ -149,3 +157,72 @@ def _plain(text: str, limit: int) -> str:
 def _escape(text: str) -> str:
     """notify-send bodies may be read as markup, which could hide text or add links."""
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+Poster = Callable[[str, bytes], None]
+
+
+def post_json(url: str, body: bytes) -> None:
+    request = urllib.request.Request(  # noqa: S310 - PhoneTarget only allows https URLs
+        url, data=body, headers={"Content-Type": "application/json"}, method="POST"
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=_COMMAND_TIMEOUT):  # noqa: S310 - as above
+            pass
+    except (OSError, ValueError) as exc:
+        raise NotifyError(f"could not reach {urllib.parse.urlsplit(url).netloc}: {exc}") from exc
+
+
+@dataclass(frozen=True, slots=True)
+class PhoneTarget:
+    """An ntfy topic URL, like https://ntfy.sh/<topic>. Anyone who knows it can read it."""
+
+    url: str
+
+    def __post_init__(self) -> None:
+        parts = urllib.parse.urlsplit(self.url)
+        if parts.scheme != "https" or not parts.netloc:
+            raise NotifyError(f"phone target must be an https URL, got {self.url!r}")
+        if parts.query or parts.fragment or not NTFY_TOPIC.fullmatch(self.topic):
+            raise NotifyError("phone target must end in an ntfy topic: letters, digits, - and _")
+
+    @classmethod
+    def generate(cls, server: str = NTFY_SERVER) -> "PhoneTarget":
+        return cls(f"{server}/{APP_NAME}-{secrets.token_urlsafe(_TOPIC_BYTES)}")
+
+    @property
+    def server(self) -> str:
+        return self.url.rsplit("/", 1)[0]
+
+    @property
+    def topic(self) -> str:
+        return urllib.parse.urlsplit(self.url).path.rsplit("/", 1)[-1]
+
+
+class NtfyNotifier:
+    """Pushes to a phone through an ntfy server, which sees the sender and summary."""
+
+    def __init__(self, target: PhoneTarget, post: Poster = post_json) -> None:
+        self._target = target
+        self._post = post
+
+    def notify(self, alert: Alert) -> None:
+        message = {"topic": self._target.topic, "title": alert.title, "message": alert.body}
+        self._post(self._target.server, json.dumps(message).encode())
+
+
+class NotifierGroup:
+    """Shows each alert on every notifier, even when an earlier one fails."""
+
+    def __init__(self, notifiers: Sequence[Notifier]) -> None:
+        self._notifiers = tuple(notifiers)
+
+    def notify(self, alert: Alert) -> None:
+        errors: list[str] = []
+        for notifier in self._notifiers:
+            try:
+                notifier.notify(alert)
+            except NotifyError as exc:
+                errors.append(str(exc))
+        if errors:
+            raise NotifyError("; ".join(errors))
