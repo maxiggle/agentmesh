@@ -53,6 +53,15 @@ def test_member_channels() -> None:
     assert member("gef", KEY_A).can_use("#anything")
 
 
+def test_member_reads_team_channels_it_uses_and_only_its_own_dms() -> None:
+    limited = member("tobi", KEY_B, channels=("#mobile",))
+    assert limited.can_read("#mobile")
+    assert not limited.can_read("#backend")
+    assert limited.can_read("dm:gef+tobi")
+    assert not limited.can_read("dm:gef+zoe")
+    assert not member("gef", KEY_A).can_read("dm:tobi+zoe")
+
+
 def test_successor_bumps_version_and_sorts_members() -> None:
     roster = genesis()
     added = roster.successor(PREVIOUS, members=(member("zed", KEY_C), *roster.members))

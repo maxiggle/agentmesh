@@ -4,7 +4,7 @@ from enum import StrEnum
 from ehor.identity.es256 import PUBLIC_KEY_SIZE
 from ehor.log.canonical import CanonicalError, CborValue, decode, encode
 from ehor.log.entry import ENTRY_ID_SIZE
-from ehor.log.names import HANDLE, HANDLE_RULE, ROLE, TEAM_CHANNEL, parse_address
+from ehor.log.names import HANDLE, HANDLE_RULE, ROLE, TEAM_CHANNEL, dm_members, parse_address
 
 ALL_CHANNELS = "*"
 TEAM_NAME_MAX = 64
@@ -75,6 +75,11 @@ class Member:
 
     def can_use(self, channel: str) -> bool:
         return ALL_CHANNELS in self.channels or channel in self.channels
+
+    def can_read(self, channel: str) -> bool:
+        """A DM is readable by its two members only; a team channel by those who use it."""
+        members = dm_members(channel)
+        return self.handle in members if members is not None else self.can_use(channel)
 
     @property
     def has_security_key(self) -> bool:

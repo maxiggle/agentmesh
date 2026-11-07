@@ -4,8 +4,6 @@ from ehor.crypto.sealing import Recipient, Sealed, SealError, open_sealed, publi
 from ehor.log.entry import PROTOCOL_VERSION, Entry, Kind
 from ehor.log.envelope import Encryption, Envelope, EnvelopeError, body_aad
 from ehor.log.key_announce import KeyAnnounce, KeyAnnounceError
-from ehor.log.names import dm_members
-from ehor.log.roster import Member
 from ehor.roster.book import RosterBook
 from ehor.store.base import Store
 
@@ -57,7 +55,7 @@ class SealingCodec:
         found = [Recipient(self._public)]
         if roster is None:
             return found
-        readers = [m for m in roster.members if _can_read(m, channel)]
+        readers = [m for m in roster.members if m.can_read(channel)]
         me = roster.member_for_key(self._author)
         if me is not None and me not in readers:
             readers.append(me)
@@ -98,8 +96,3 @@ class SealingCodec:
 
     def _aad(self, author: bytes, channel: str, kind: Kind) -> bytes:
         return body_aad(PROTOCOL_VERSION, author, self._team, channel, kind.value)
-
-
-def _can_read(member: Member, channel: str) -> bool:
-    members = dm_members(channel)
-    return member.handle in members if members is not None else member.can_use(channel)

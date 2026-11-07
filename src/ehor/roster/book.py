@@ -3,7 +3,7 @@ from collections.abc import Iterable
 from ehor.log.authorize import Decision, Verdict
 from ehor.log.entry import SIG_ALG_FIDO2, Entry, Kind
 from ehor.log.envelope import Encryption, Envelope, EnvelopeError
-from ehor.log.names import CONTROL_CHANNEL, dm_members
+from ehor.log.names import CONTROL_CHANNEL
 from ehor.log.roster import Member, Roster, RosterError, Trust
 
 
@@ -72,14 +72,7 @@ class RosterBook:
 
     @staticmethod
     def _authorize_channel(member: Member, channel: str) -> Decision:
-        members = dm_members(channel)
-        if channel == CONTROL_CHANNEL:
-            allowed = True
-        elif members is not None:
-            allowed = member.handle in members
-        else:
-            allowed = member.can_use(channel)
-        if allowed:
+        if channel == CONTROL_CHANNEL or member.can_read(channel):
             return Decision.allow()
         return Decision.wait(f"{member.handle} may not post in {channel}")
 
