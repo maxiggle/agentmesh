@@ -9,7 +9,14 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from ehor.agents import Agent, SetupError, default_target, install, instructions
+from ehor.agents import (
+    Agent,
+    SetupError,
+    command_names,
+    default_target,
+    install,
+    instructions,
+)
 from ehor.identity import HardwareUnavailableError, IdentityError, KeyHandle
 from ehor.identity.backends import Backend
 from ehor.identity.security_key import Authenticator, SecurityKeySigner
@@ -242,7 +249,7 @@ def _setup(args: argparse.Namespace) -> int:
         return 0
     target: Path = args.dir if args.dir is not None else default_target(agent, Path.home())
     result = install(agent, target, force=args.force)
-    names = "/inbox and /handoff" if agent is Agent.CLAUDE else "$ehor-inbox and $ehor-handoff"
+    names = ", ".join(command_names(agent))
     state = "installed" if result.written else "already up to date:"
     sys.stdout.write(f"{state} {names} in {target}\n")
     sys.stdout.write("".join(f"  wrote {path}\n" for path in result.written))

@@ -115,7 +115,7 @@ For Claude Desktop, add ehor to `claude_desktop_config.json` and restart the app
 }
 ```
 
-Add the `/inbox` and `/handoff` commands to Claude Code, then restart it:
+Add ehor's slash commands to Claude Code, then restart it:
 
 ```bash
 ehor setup claude
@@ -143,9 +143,8 @@ command = "ehor"
 args = ["mcp"]
 ```
 
-Run `/mcp` in Codex to check that ehor is connected. Then add the `$ehor-inbox` and
-`$ehor-handoff` skills, which go in `~/.agents/skills/`, and optionally ehor's instructions for
-your project's `AGENTS.md`:
+Run `/mcp` in Codex to check that ehor is connected. Then add ehor's skills, which go in
+`~/.agents/skills/`, and optionally ehor's instructions for your project's `AGENTS.md`:
 
 ```bash
 ehor setup codex
@@ -155,7 +154,19 @@ ehor setup codex
 ehor setup codex --instructions >> AGENTS.md
 ```
 
-`ehor setup` never replaces a file you've edited unless you pass `--force`.
+`ehor setup` never replaces a file you've edited unless you pass `--force`. It installs these
+commands; in Codex, each is a skill named `$ehor-<name>`, such as `$ehor-inbox`:
+
+| Command    | Does |
+|------------|------|
+| `/inbox`   | Summarizes new messages, grouped by what needs you |
+| `/team`    | Shows who is on the team and who is working on what |
+| `/handoff` | Drafts a message about this session's work |
+| `/reply`   | Drafts a reply to a message |
+| `/claim`   | Marks a request as taken on, so the sender sees it |
+| `/done`    | Marks a request as finished |
+
+Commands that send or change something show you a draft and wait for your approval.
 
 Claude and Codex users can be on the same team. Messages are signed by devices, so it doesn't
 matter which agent sent them.

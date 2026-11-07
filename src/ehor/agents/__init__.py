@@ -38,6 +38,14 @@ def default_target(agent: Agent, user_home: Path) -> Path:
     return user_home / _LAYOUTS[agent].target
 
 
+def command_names(agent: Agent) -> tuple[str, ...]:
+    """How the user invokes each bundled command or skill, such as `/inbox` or `$ehor-inbox`."""
+    bundle = _root(agent).joinpath(_LAYOUTS[agent].bundle)
+    if agent is Agent.CLAUDE:
+        return tuple(f"/{PurePosixPath(item.name).stem}" for item in _sorted(bundle))
+    return tuple(f"${item.name}" for item in _sorted(bundle) if item.is_dir())
+
+
 def instructions(agent: Agent) -> str:
     """The snippet that tells `agent` how to use ehor, for a project's CLAUDE.md or AGENTS.md."""
     return _root(agent).joinpath(_LAYOUTS[agent].instructions).read_text(encoding="utf-8")
@@ -75,12 +83,16 @@ def _root(agent: Agent) -> Traversable:
 
 def _walk(node: Traversable, relative: PurePosixPath) -> list[tuple[PurePosixPath, bytes]]:
     found: list[tuple[PurePosixPath, bytes]] = []
-    for child in sorted(node.iterdir(), key=lambda item: item.name):
+    for child in _sorted(node):
         if child.is_dir():
             found += _walk(child, relative / child.name)
         else:
             found.append((relative / child.name, child.read_bytes()))
     return found
+
+
+def _sorted(node: Traversable) -> list[Traversable]:
+    return sorted(node.iterdir(), key=lambda item: item.name)
 
 
 def _differs(path: Path, data: bytes) -> bool:

@@ -444,7 +444,7 @@ def test_setup_installs_claude_commands_and_says_what_is_next(
 ) -> None:
     assert main(["setup", "claude", "--dir", str(tmp_path)]) == 0
     out = capsys.readouterr().out
-    assert out.startswith(f"installed /inbox and /handoff in {tmp_path}")
+    assert out.startswith(f"installed /claim, /done, /handoff, /inbox, /reply, /team in {tmp_path}")
     assert "claude mcp add --scope user ehor -- ehor mcp" in out
     assert (tmp_path / "inbox.md").is_file()
 
