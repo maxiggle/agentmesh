@@ -12,6 +12,7 @@ class SetupError(Exception):
 class Agent(Enum):
     CLAUDE = "claude"
     CODEX = "codex"
+    OPENCODE = "opencode"
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +25,7 @@ class _Layout:
 _LAYOUTS = {
     Agent.CLAUDE: _Layout("commands", "CLAUDE.md", PurePosixPath(".claude/commands")),
     Agent.CODEX: _Layout("skills", "AGENTS.md", PurePosixPath(".agents/skills")),
+    Agent.OPENCODE: _Layout("commands", "AGENTS.md", PurePosixPath(".config/opencode/commands")),
 }
 
 
@@ -41,7 +43,7 @@ def default_target(agent: Agent, user_home: Path) -> Path:
 def command_names(agent: Agent) -> tuple[str, ...]:
     """How the user invokes each bundled command or skill, such as `/inbox` or `$ehor-inbox`."""
     bundle = _root(agent).joinpath(_LAYOUTS[agent].bundle)
-    if agent is Agent.CLAUDE:
+    if agent is not Agent.CODEX:
         return tuple(f"/{PurePosixPath(item.name).stem}" for item in _sorted(bundle))
     return tuple(f"${item.name}" for item in _sorted(bundle) if item.is_dir())
 

@@ -113,7 +113,7 @@ def _parser() -> argparse.ArgumentParser:
     _add_relay_commands(commands)
 
     setup = commands.add_parser(
-        "setup", help="install ehor's slash commands for Claude or skills for Codex"
+        "setup", help="install ehor's slash commands for Claude or opencode, or skills for Codex"
     )
     setup.add_argument("agent", choices=[agent.value for agent in Agent])
     setup.add_argument("--dir", type=Path, help="install here instead of your user folder")
@@ -263,9 +263,12 @@ def _setup_next_steps(agent: Agent, home: Path | None) -> str:
         scope = "--scope user " if home is None else ""
         add = f"claude mcp add {scope}ehor -- {serve}"
         app, snippet = "Claude Code", "CLAUDE.md"
-    else:
+    elif agent is Agent.CODEX:
         add = f"codex mcp add ehor -- {serve}"
         app, snippet = "Codex", "AGENTS.md"
+    else:
+        add = f"run `opencode mcp add` and add a local server named ehor that runs `{serve}`"
+        app, snippet = "opencode", "AGENTS.md"
     return (
         "next:\n"
         f"  connect ehor to {app}, if you haven't:  {add}\n"

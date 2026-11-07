@@ -154,8 +154,23 @@ ehor setup codex
 ehor setup codex --instructions >> AGENTS.md
 ```
 
+For opencode, run `opencode mcp add` and add a local server named `ehor` that runs `ehor mcp`.
+To edit `opencode.json` yourself instead, see opencode's
+[MCP servers guide](https://opencode.ai/docs/mcp-servers/). Then add ehor's slash commands, which go
+in `~/.config/opencode/commands/`, and optionally ehor's instructions for your project's
+`AGENTS.md`:
+
+```bash
+ehor setup opencode
+```
+
+```bash
+ehor setup opencode --instructions >> AGENTS.md
+```
+
 `ehor setup` never replaces a file you've edited unless you pass `--force`. It installs these
-commands; in Codex, each is a skill named `$ehor-<name>`, such as `$ehor-inbox`:
+commands, with the same names in Claude Code and opencode; in Codex, each is a skill named
+`$ehor-<name>`, such as `$ehor-inbox`:
 
 | Command    | Does |
 |------------|------|
