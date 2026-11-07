@@ -37,8 +37,8 @@
   for every roster change.
 - **Safe by default with untrusted input.** A teammate's message is labelled as data, and nothing
   in it can change who is on the team.
-- [Desktop notifications](#desktop-notifications) show you a teammate's new message without
-  waiting for your agent to check.
+- [Notifications](#notifications) on your desktop, and optionally your phone, show a teammate's
+  new message without waiting for your agent to check.
 - An optional [self-hosted relay](#a-mailbox-for-offline-teammates) holds messages for teammates
   who are offline.
 - Runs on macOS, Linux and Windows.
@@ -220,7 +220,7 @@ sender see who has picked up what:
 Roster changes are not MCP tools, so a teammate's message can never get Claude to change who is
 on the team. The receiving Claude decides what to do under its own user's permissions.
 
-### Desktop notifications
+### Notifications
 
 While `ehor serve` runs, each new message for you shows up as a notification with the sender and
 the summary. The detail stays out of it, so it does not show on a locked screen. Each message
@@ -236,6 +236,17 @@ and a count of the rest. Notifications never mark messages as read, so your agen
 ```bash
 ehor notify test   # show one now to check the system lets it through
 ehor notify off    # or on; restart ehor serve to apply
+```
+
+To get them on your phone too, run `ehor notify phone`. It creates a private
+[ntfy](https://ntfy.sh) topic and prints its URL. Subscribe to that URL in the ntfy app. The ntfy
+server sees the sender and summary of each new message, and anyone who has the URL can read
+them, so keep it private. To keep that data in-house,
+[run your own ntfy server](https://docs.ntfy.sh/install/) and give its topic URL instead:
+
+```bash
+ehor notify phone https://ntfy.example.com/my-team-alerts
+ehor notify phone off
 ```
 
 Teammates' text is passed to these commands as data, never as part of a script, and is cut to one
