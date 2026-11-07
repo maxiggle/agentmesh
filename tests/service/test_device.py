@@ -55,6 +55,29 @@ def test_config_keeps_the_bootstrap_endpoint(tmp_path: Path) -> None:
     assert DeviceConfig.load(tmp_path).bootstrap_endpoint is None
 
 
+def test_config_keeps_the_notification_setting(tmp_path: Path) -> None:
+    config = DeviceConfig("gef", TEAM, GENESIS, notifications=False)
+    config.save(tmp_path)
+    assert DeviceConfig.load(tmp_path) == config
+
+
+def test_config_saved_before_notifications_has_them_on(tmp_path: Path) -> None:
+    DeviceConfig("gef", TEAM, GENESIS, notifications=False).save(tmp_path)
+    data = json.loads((tmp_path / "config.json").read_text())
+    del data["notifications"]
+    (tmp_path / "config.json").write_text(json.dumps(data))
+    assert DeviceConfig.load(tmp_path).notifications is True
+
+
+def test_config_refuses_a_notification_setting_that_is_not_a_flag(tmp_path: Path) -> None:
+    DeviceConfig("gef", TEAM, GENESIS).save(tmp_path)
+    data = json.loads((tmp_path / "config.json").read_text())
+    data["notifications"] = "no"
+    (tmp_path / "config.json").write_text(json.dumps(data))
+    with pytest.raises(ConfigError, match="true or false"):
+        DeviceConfig.load(tmp_path)
+
+
 def test_config_saved_before_bootstrap_endpoints_still_loads(tmp_path: Path) -> None:
     DeviceConfig("gef", TEAM, GENESIS).save(tmp_path)
     data = json.loads((tmp_path / "config.json").read_text())

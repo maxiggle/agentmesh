@@ -31,6 +31,7 @@ class DeviceConfig:
     exchange: Path | None = None
     relay: str | None = None
     bootstrap_endpoint: bytes | None = None
+    notifications: bool = True
 
     def __post_init__(self) -> None:
         if not HANDLE.fullmatch(self.handle):
@@ -43,6 +44,8 @@ class DeviceConfig:
             raise ConfigError(f"relay must be host:port, got {self.relay!r}")
         if self.bootstrap_endpoint is not None and len(self.bootstrap_endpoint) != ENDPOINT_SIZE:
             raise ConfigError(f"bootstrap endpoint must be {ENDPOINT_SIZE} bytes")
+        if not isinstance(self.notifications, bool):
+            raise ConfigError("notifications must be true or false")
 
     def save(self, home: Path) -> None:
         data = {
@@ -56,6 +59,7 @@ class DeviceConfig:
             "bootstrap_endpoint": (
                 None if self.bootstrap_endpoint is None else self.bootstrap_endpoint.hex()
             ),
+            "notifications": self.notifications,
         }
         (home / CONFIG_FILE).write_text(json.dumps(data, indent=2) + "\n")
 
@@ -75,6 +79,7 @@ class DeviceConfig:
                 exchange=None if exchange is None else Path(exchange),
                 relay=data.get("relay"),
                 bootstrap_endpoint=None if bootstrap is None else bytes.fromhex(bootstrap),
+                notifications=data.get("notifications", True),
             )
         except FileNotFoundError as exc:
             raise ConfigError(f"no device at {home}; run `ehor init` first") from exc
