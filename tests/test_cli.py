@@ -437,3 +437,38 @@ def test_init_cleans_up_after_a_setup_that_did_not_finish(
     captured = capsys.readouterr()
     assert "Removed files left by an earlier setup" in captured.err
     assert "created team with gef" in captured.out
+
+
+def test_setup_installs_claude_commands_and_says_what_is_next(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["setup", "claude", "--dir", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith(f"installed /inbox and /handoff in {tmp_path}")
+    assert "claude mcp add --scope user ehor -- ehor mcp" in out
+    assert (tmp_path / "inbox.md").is_file()
+
+
+def test_setup_points_the_agent_at_a_chosen_home(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    home = tmp_path / "joel"
+    assert main(["--home", str(home), "setup", "codex", "--dir", str(tmp_path / "skills")]) == 0
+    assert f"codex mcp add ehor -- ehor --home {home} mcp" in capsys.readouterr().out
+
+
+def test_setup_refuses_to_replace_an_edited_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "inbox.md").write_text("my own version")
+    assert main(["setup", "claude", "--dir", str(tmp_path)]) == 1
+    assert "rerun with --force" in capsys.readouterr().err
+
+
+def test_setup_prints_instructions_without_installing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert main(["setup", "claude", "--instructions"]) == 0
+    assert capsys.readouterr().out.startswith("## Team messages (ehor)")
+    assert not (tmp_path / ".claude").exists()
