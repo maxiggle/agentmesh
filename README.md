@@ -115,11 +115,10 @@ For Claude Desktop, add ehor to `claude_desktop_config.json` and restart the app
 }
 ```
 
-Optionally, copy [`claude/CLAUDE.md`](https://github.com/maxiggle/agentmesh/blob/main/claude/CLAUDE.md)
+Optionally, copy [`claude/CLAUDE.md`](https://github.com/maxiggle/agentmesh/blob/main/src/ehor/agents/claude/CLAUDE.md)
 into your project's `CLAUDE.md`, and
-[`claude/commands/`](https://github.com/maxiggle/agentmesh/tree/main/claude/commands) into
-`.claude/commands/` for the `/inbox` and `/handoff` commands. These aren't part of the PyPI
-package, so grab them from GitHub.
+[`claude/commands/`](https://github.com/maxiggle/agentmesh/tree/main/src/ehor/agents/claude/commands) into
+`.claude/commands/` for the `/inbox` and `/handoff` commands.
 
 Connect Codex instead with one command. The Codex CLI, IDE extension and app share this setting:
 
@@ -136,9 +135,9 @@ args = ["mcp"]
 ```
 
 Run `/mcp` in Codex to check that ehor is connected. Optionally, copy
-[`codex/AGENTS.md`](https://github.com/maxiggle/agentmesh/blob/main/codex/AGENTS.md) into your
+[`codex/AGENTS.md`](https://github.com/maxiggle/agentmesh/blob/main/src/ehor/agents/codex/AGENTS.md) into your
 project's `AGENTS.md`, and
-[`codex/skills/`](https://github.com/maxiggle/agentmesh/tree/main/codex/skills) into
+[`codex/skills/`](https://github.com/maxiggle/agentmesh/tree/main/src/ehor/agents/codex/skills) into
 `~/.agents/skills/` for the `$ehor-inbox` and `$ehor-handoff` skills.
 
 Claude and Codex users can be on the same team. Messages are signed by devices, so it doesn't
