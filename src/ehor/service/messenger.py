@@ -254,6 +254,25 @@ class Messenger:
         cursor = page[-1].position if page and page[-1].position is not None else after
         return InboxPage(page, cursor, len(relevant) - len(page))
 
+    def latest_arrival(self) -> int:
+        arrivals = self._store.arrivals(kinds=[Kind.MESSAGE])
+        return arrivals[-1].position if arrivals else 0
+
+    def unread_for_me(self, after: int) -> tuple[tuple[Message, ...], int]:
+        """Unread teammate messages for me that arrived after `after`, and the cursor past them.
+
+        Unlike `inbox`, this leaves them unread.
+        """
+        arrivals = self._store.arrivals(after, [Kind.MESSAGE], unread_only=True)
+        messages = tuple(
+            message
+            for arrival in arrivals
+            if arrival.entry.author != self.author
+            and (message := self._as_message(arrival.entry, arrival.position)) is not None
+            and self._is_for_me(message)
+        )
+        return messages, arrivals[-1].position if arrivals else after
+
     def read(self, id_prefix: str) -> MessageDetail:
         message = self._resolve(id_prefix)
         replies = tuple(

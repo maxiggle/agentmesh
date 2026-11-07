@@ -15,6 +15,10 @@ class Syncer(Protocol):
     def poke(self) -> None: ...
 
 
+class Watcher(Protocol):
+    async def check(self) -> int: ...
+
+
 class Daemon:
     """Serves tool calls and keeps syncing while the agent is closed."""
 
@@ -24,11 +28,13 @@ class Daemon:
         endpoint: Endpoint,
         interval: float = DEFAULT_SYNC_INTERVAL,
         peers: Sequence[Syncer] = (),
+        watcher: Watcher | None = None,
     ) -> None:
         self._device = device
         self._endpoint = endpoint
         self._interval = interval
         self._peers = tuple(peers)
+        self._watcher = watcher
 
     async def run(self, stop: asyncio.Event) -> None:
         server = await RpcServer(self._endpoint, self._dispatch, (ApiError,)).start()
@@ -50,6 +56,8 @@ class Daemon:
     async def _sync_folder(self, stop: asyncio.Event) -> None:
         while not stop.is_set():
             self._device.sync()
+            if self._watcher is not None:
+                await self._watcher.check()
             try:
                 await asyncio.wait_for(stop.wait(), self._interval)
             except TimeoutError:

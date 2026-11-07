@@ -25,12 +25,14 @@ from ehor.log.names import parse_address
 from ehor.log.roster import Roster, RosterError
 from ehor.mcp.server import build_server
 from ehor.relay.server import Relay, RelayError
+from ehor.service.alerts import AlertWatcher
 from ehor.service.config import ConfigError, DeviceConfig, default_home
 from ehor.service.daemon import DEFAULT_SYNC_INTERVAL, Daemon, Syncer
 from ehor.service.device import Device, security_key_signer
 from ehor.service.direct_sync import DirectSync
 from ehor.service.invite import Invite, InviteError
 from ehor.service.iroh_key import IrohKeyError
+from ehor.service.notify import default_notifier
 from ehor.service.peer_sync import DEFAULT_PEER_INTERVAL, PeerSync
 from ehor.service.relay_policy import RelayGate, devices_to_reach
 from ehor.service.rpc import RpcClient, RpcError, default_endpoint
@@ -510,8 +512,19 @@ def _serve(args: argparse.Namespace) -> int:
             peers.append(_lan_sync(device, args.lan_interval))
         if direct is not None:
             peers.append(direct)
-        asyncio.run(_run_daemon(Daemon(device, default_endpoint(home), args.interval, peers)))
+        daemon = Daemon(device, default_endpoint(home), args.interval, peers, _watcher(device))
+        asyncio.run(_run_daemon(daemon))
     return 0
+
+
+def _watcher(device: Device) -> AlertWatcher | None:
+    notifier = default_notifier()
+    if notifier is None:
+        logging.getLogger(__name__).info(
+            "notifications are off: no notification command found on this system"
+        )
+        return None
+    return AlertWatcher(device.alert_feed, notifier)
 
 
 def _relay_sync(device: Device, interval: float, direct: DirectSync | None) -> PeerSync:
