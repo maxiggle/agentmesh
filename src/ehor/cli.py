@@ -33,7 +33,15 @@ from ehor.service.device import Device, security_key_signer
 from ehor.service.direct_sync import DirectSync
 from ehor.service.invite import Invite, InviteError
 from ehor.service.iroh_key import IrohKeyError
-from ehor.service.notify import Alert, NotifyError, default_notifier
+from ehor.service.notify import (
+    Alert,
+    Notifier,
+    NotifierGroup,
+    NotifyError,
+    NtfyNotifier,
+    PhoneTarget,
+    default_notifier,
+)
 from ehor.service.peer_sync import DEFAULT_PEER_INTERVAL, PeerSync
 from ehor.service.relay_policy import RelayGate, devices_to_reach
 from ehor.service.rpc import RpcClient, RpcError, default_endpoint
@@ -49,6 +57,10 @@ _KEY_HELP = "where the signing key lives; auto uses a hardware key if this machi
 _SECURITY_KEY_HELP = "label of the enrolled security key to sign with, if there are several"
 _FIDO2_EXTRA = "security keys need the fido2 extra: pip install 'ehor[fido2]'"
 _NO_NOTIFIER = "this system has no notification command; on Linux, install notify-send"
+_PHONE_HELP = (
+    "Install the ntfy app (https://ntfy.sh) and subscribe to that URL. Keep it private: anyone"
+    " with it can read the sender and summary of your new messages, and so can its server."
+)
 _SKIP_PROMPT = f"Set {PASSPHRASE_ENV} to skip this prompt."
 _NEW_DEVICE_PROMPT = (
     "ehor encrypts this device's keys with a passphrase. You'll enter it each time you run"
@@ -136,10 +148,14 @@ def _parser() -> argparse.ArgumentParser:
     serve.add_argument("--lan-interval", type=float, default=DEFAULT_PEER_INTERVAL)
     serve.set_defaults(run=_serve)
 
-    notify = commands.add_parser("notify", help="show desktop notifications for new messages")
+    notify = commands.add_parser("notify", help="get notified about new messages")
     notify.add_argument(
-        "action", nargs="?", choices=["on", "off", "test"], help="omit to show the setting"
+        "action",
+        nargs="?",
+        choices=["on", "off", "phone", "test"],
+        help="on or off for the desktop, phone to push to a phone; omit to show the settings",
     )
+    notify.add_argument("target", nargs="?", help="for phone: an ntfy topic URL, or off")
     notify.set_defaults(run=_notify)
 
     commands.add_parser(
@@ -526,42 +542,72 @@ def _serve(args: argparse.Namespace) -> int:
 
 
 def _watcher(device: Device) -> AlertWatcher | None:
-    if not device.config.notifications:
-        return None
-    notifier = default_notifier()
-    if notifier is None:
-        logging.getLogger(__name__).info("notifications are off: %s", _NO_NOTIFIER)
-        return None
-    return AlertWatcher(device.alert_feed, notifier)
+    if device.config.notifications and default_notifier() is None:
+        logging.getLogger(__name__).info("desktop notifications are off: %s", _NO_NOTIFIER)
+    notifiers = _notifiers(device.config)
+    return None if not notifiers else AlertWatcher(device.alert_feed, NotifierGroup(notifiers))
+
+
+def _notifiers(config: DeviceConfig) -> list[Notifier]:
+    desktop = default_notifier() if config.notifications else None
+    phone = None if config.phone is None else NtfyNotifier(PhoneTarget(config.phone))
+    return [notifier for notifier in (desktop, phone) if notifier is not None]
 
 
 def _notify(args: argparse.Namespace) -> int:
     home = _home(args)
     config = DeviceConfig.load(home)
+    if args.target is not None and args.action != "phone":
+        raise CliError("only `ehor notify phone` takes a URL")
     if args.action == "test":
-        _show_test_notification()
+        _show_test_notification(config)
         return 0
-    if args.action is not None:
+    if args.action == "phone":
+        config = _set_phone(config, args.target)
+    elif args.action is not None:
         config = replace(config, notifications=args.action == "on")
+    if args.action is not None:
         config.save(home)
-    if not config.notifications:
-        state = "off"
-    elif default_notifier() is None:
-        state = f"on, but {_NO_NOTIFIER}"
-    else:
-        state = "on"
-    sys.stdout.write(f"notifications are {state}\n")
+    sys.stdout.write(_describe_notifications(config) + "\n")
+    if args.action == "phone" and config.phone is not None:
+        sys.stdout.write(_PHONE_HELP + "\n")
     if args.action is not None:
         sys.stdout.write("restart `ehor serve` to apply this\n")
     return 0
 
 
-def _show_test_notification() -> None:
-    notifier = default_notifier()
-    if notifier is None:
-        raise CliError(_NO_NOTIFIER)
+def _set_phone(config: DeviceConfig, target: str | None) -> DeviceConfig:
+    if target == "off":
+        return replace(config, phone=None)
+    if target is None and config.phone is not None:
+        return config
+    if target is None:
+        return replace(config, phone=PhoneTarget.generate().url)
     try:
-        notifier.notify(Alert("test", "notifications work"))
+        return replace(config, phone=PhoneTarget(target).url)
+    except NotifyError as exc:
+        raise CliError(str(exc)) from exc
+
+
+def _describe_notifications(config: DeviceConfig) -> str:
+    if not config.notifications:
+        desktop = "off"
+    elif default_notifier() is None:
+        desktop = f"on, but {_NO_NOTIFIER}"
+    else:
+        desktop = "on"
+    phone = "off" if config.phone is None else f"sent to {config.phone}"
+    return f"desktop notifications: {desktop}\nphone notifications: {phone}"
+
+
+def _show_test_notification(config: DeviceConfig) -> None:
+    notifiers = _notifiers(config)
+    if not notifiers:
+        raise CliError(
+            _NO_NOTIFIER if config.notifications else "notifications are off; see `ehor notify`"
+        )
+    try:
+        NotifierGroup(notifiers).notify(Alert("test", "notifications work"))
     except NotifyError as exc:
         raise CliError(str(exc)) from exc
 

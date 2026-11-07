@@ -17,7 +17,7 @@ from ehor.service import device as device_module
 from ehor.service.api import ApiError
 from ehor.service.device import Device
 from ehor.service.invite import Invite
-from ehor.service.notify import Alert
+from ehor.service.notify import Alert, NtfyNotifier
 from ehor.service.rpc import RpcError
 from security_key_emulator import SoftwareAuthenticator
 
@@ -507,9 +507,9 @@ def test_notify_turns_notifications_off_and_on(
     main(["--home", home, "init", "--handle", "gef", "--key", "software"])
     capsys.readouterr()
     assert main(["--home", home, "notify"]) == 0
-    assert capsys.readouterr().out == "notifications are on\n"
+    assert capsys.readouterr().out == "desktop notifications: on\nphone notifications: off\n"
     assert main(["--home", home, "notify", "off"]) == 0
-    assert capsys.readouterr().out.startswith("notifications are off\nrestart")
+    assert capsys.readouterr().out.startswith("desktop notifications: off\n")
     assert json.loads((tmp_path / "config.json").read_text())["notifications"] is False
     main(["--home", home, "notify", "on"])
     assert json.loads((tmp_path / "config.json").read_text())["notifications"] is True
@@ -540,3 +540,56 @@ def test_notify_test_shows_a_notification(
 def test_notify_needs_a_device(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["--home", str(tmp_path), "notify", "off"]) == 1
     assert "ehor init" in capsys.readouterr().err
+
+
+def _config(home: Path) -> dict[str, object]:
+    data: dict[str, object] = json.loads((home / "config.json").read_text())
+    return data
+
+
+def test_notify_phone_makes_a_private_topic(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_notifier(monkeypatch, _Shown())
+    home = str(tmp_path)
+    main(["--home", home, "init", "--handle", "gef", "--key", "software"])
+    capsys.readouterr()
+    assert main(["--home", home, "notify", "phone"]) == 0
+    url = _config(tmp_path)["phone"]
+    assert isinstance(url, str)
+    assert url.startswith("https://ntfy.sh/ehor-")
+    out = capsys.readouterr().out
+    assert f"phone notifications: sent to {url}" in out
+    assert "ntfy app" in out
+    main(["--home", home, "notify", "phone"])
+    assert _config(tmp_path)["phone"] == url
+    main(["--home", home, "notify", "phone", "off"])
+    assert _config(tmp_path)["phone"] is None
+
+
+def test_notify_phone_takes_a_self_hosted_server(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    home = str(tmp_path)
+    main(["--home", home, "init", "--handle", "gef", "--key", "software"])
+    assert main(["--home", home, "notify", "phone", "https://ntfy.example.com/team-x"]) == 0
+    assert _config(tmp_path)["phone"] == "https://ntfy.example.com/team-x"
+    assert main(["--home", home, "notify", "phone", "http://ntfy.example.com/team-x"]) == 1
+    assert "https" in capsys.readouterr().err
+    assert main(["--home", home, "notify", "on", "https://ntfy.example.com/y"]) == 1
+
+
+def test_notify_test_reaches_the_phone_too(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_notifier(monkeypatch, None)
+    sent: list[tuple[str, bytes]] = []
+    monkeypatch.setattr(
+        cli_module,
+        "NtfyNotifier",
+        lambda target: NtfyNotifier(target, lambda u, b: sent.append((u, b))),
+    )
+    home = str(tmp_path)
+    main(["--home", home, "init", "--handle", "gef", "--key", "software"])
+    main(["--home", home, "notify", "phone", "https://ntfy.example.com/team-x"])
+    assert main(["--home", home, "notify", "test"]) == 0
+    assert [url for url, _ in sent] == ["https://ntfy.example.com"]
+    assert json.loads(sent[0][1])["message"] == "notifications work"
