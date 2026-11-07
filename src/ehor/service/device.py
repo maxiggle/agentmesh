@@ -58,12 +58,7 @@ class Device:
         key = KeyHandle(config.key_backend.value, config.key_label)
         self._store = SqliteStore(home / _DB_FILE)
         self._book = RosterBook(config.genesis)
-        self._book.load(
-            [
-                *(arrival.entry for arrival in self._store.arrivals(kinds=[Kind.ROSTER])),
-                *(e for e in self._store.all_parked() if e.content.kind is Kind.ROSTER),
-            ]
-        )
+        self._book.load_stored(self._store)
         verifier = EntryVerifier(config.team)
         local_log = LocalLog(self._store, signer, key, config.team, verifier, authorizer=self._book)
         self._author = local_log.author

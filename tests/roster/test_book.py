@@ -11,6 +11,7 @@ from ehor.log.entry import Entry, EntryContent, Kind, Signature
 from ehor.log.envelope import Encryption, Envelope
 from ehor.log.roster import Member, RelayInfo, Roster, RosterDevice, Trust
 from ehor.roster.book import RosterBook
+from ehor.store.sqlite import SqliteStore
 from security_key_emulator import SoftwareAuthenticator
 
 
@@ -125,6 +126,16 @@ def test_out_of_order_rosters_wait(team: Team, genesis: tuple[Entry, Roster]) ->
     book.load([second, genesis[0]])
     assert book.current is not None
     assert book.current.version == 2
+
+
+def test_loads_stored_and_parked_rosters(team: Team, genesis: tuple[Entry, Roster]) -> None:
+    second, roster = _add(team, *genesis, "tobi")
+    book = RosterBook(genesis[0].id)
+    with SqliteStore(":memory:") as store:
+        store.insert(genesis[0])
+        store.park(second)
+        book.load_stored(store)
+    assert book.current == roster
 
 
 def test_version_must_follow(team: Team, genesis: tuple[Entry, Roster]) -> None:

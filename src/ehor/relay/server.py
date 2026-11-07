@@ -7,7 +7,7 @@ from typing import Self
 
 from ehor.identity import KeyHandle
 from ehor.identity.software import SoftwareSigner
-from ehor.log.entry import ENTRY_ID_SIZE, TEAM_ID_SIZE, Kind
+from ehor.log.entry import ENTRY_ID_SIZE, TEAM_ID_SIZE
 from ehor.log.verify import EntryVerifier
 from ehor.roster.book import RosterBook
 from ehor.store.ingest import Ingestor
@@ -59,12 +59,7 @@ class Relay:
         key = KeyHandle(SoftwareSigner.backend, _KEY_LABEL)
         self._store = SqliteStore(home / "relay.db")
         self._book = RosterBook(config.genesis)
-        self._book.load(
-            [
-                *(arrival.entry for arrival in self._store.arrivals(kinds=[Kind.ROSTER])),
-                *(e for e in self._store.all_parked() if e.content.kind is Kind.ROSTER),
-            ]
-        )
+        self._book.load_stored(self._store)
         ingestor = Ingestor(self._store, EntryVerifier(config.team), self._book)
         self._node = SyncNode(
             self._store,

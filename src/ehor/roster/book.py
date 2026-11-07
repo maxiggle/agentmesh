@@ -5,6 +5,7 @@ from ehor.log.entry import SIG_ALG_FIDO2, Entry, Kind
 from ehor.log.envelope import Encryption, Envelope, EnvelopeError
 from ehor.log.names import CONTROL_CHANNEL
 from ehor.log.roster import Member, Roster, RosterError, Trust
+from ehor.store.base import Store
 
 
 class RosterBook:
@@ -42,6 +43,15 @@ class RosterBook:
                 if self.authorize(entry).verdict is not Verdict.WAIT:
                     pending.remove(entry)
                     progress = self.accepted(entry) or progress
+
+    def load_stored(self, store: Store) -> None:
+        """Load the rosters in `store`, including ones parked behind a gap in their author's log."""
+        self.load(
+            [
+                *(arrival.entry for arrival in store.arrivals(kinds=[Kind.ROSTER])),
+                *(e for e in store.all_parked() if e.content.kind is Kind.ROSTER),
+            ]
+        )
 
     def member_for_key(self, key: bytes) -> Member | None:
         current = self.current
