@@ -17,6 +17,7 @@ from ehor.service import device as device_module
 from ehor.service.api import ApiError
 from ehor.service.device import Device
 from ehor.service.invite import Invite
+from ehor.service.notify import Alert
 from ehor.service.rpc import RpcError
 from security_key_emulator import SoftwareAuthenticator
 
@@ -484,3 +485,58 @@ def test_setup_prints_instructions_without_installing(
     assert main(["setup", "claude", "--instructions"]) == 0
     assert capsys.readouterr().out.startswith("## Team messages (ehor)")
     assert not (tmp_path / ".claude").exists()
+
+
+class _Shown:
+    def __init__(self) -> None:
+        self.alerts: list[Alert] = []
+
+    def notify(self, alert: Alert) -> None:
+        self.alerts.append(alert)
+
+
+def _set_notifier(monkeypatch: pytest.MonkeyPatch, notifier: _Shown | None) -> None:
+    monkeypatch.setattr(cli_module, "default_notifier", lambda: notifier)
+
+
+def test_notify_turns_notifications_off_and_on(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_notifier(monkeypatch, _Shown())
+    home = str(tmp_path)
+    main(["--home", home, "init", "--handle", "gef", "--key", "software"])
+    capsys.readouterr()
+    assert main(["--home", home, "notify"]) == 0
+    assert capsys.readouterr().out == "notifications are on\n"
+    assert main(["--home", home, "notify", "off"]) == 0
+    assert capsys.readouterr().out.startswith("notifications are off\nrestart")
+    assert json.loads((tmp_path / "config.json").read_text())["notifications"] is False
+    main(["--home", home, "notify", "on"])
+    assert json.loads((tmp_path / "config.json").read_text())["notifications"] is True
+
+
+def test_notify_says_when_the_system_cannot_show_them(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_notifier(monkeypatch, None)
+    main(["--home", str(tmp_path), "init", "--handle", "gef", "--key", "software"])
+    capsys.readouterr()
+    main(["--home", str(tmp_path), "notify"])
+    assert "install notify-send" in capsys.readouterr().out
+    assert main(["--home", str(tmp_path), "notify", "test"]) == 1
+    assert "install notify-send" in capsys.readouterr().err
+
+
+def test_notify_test_shows_a_notification(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    shown = _Shown()
+    _set_notifier(monkeypatch, shown)
+    main(["--home", str(tmp_path), "init", "--handle", "gef", "--key", "software"])
+    assert main(["--home", str(tmp_path), "notify", "test"]) == 0
+    assert [alert.title for alert in shown.alerts] == ["ehor: test"]
+
+
+def test_notify_needs_a_device(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["--home", str(tmp_path), "notify", "off"]) == 1
+    assert "ehor init" in capsys.readouterr().err

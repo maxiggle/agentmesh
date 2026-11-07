@@ -7,6 +7,7 @@ import os
 import signal
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from ehor.agents import (
@@ -32,7 +33,7 @@ from ehor.service.device import Device, security_key_signer
 from ehor.service.direct_sync import DirectSync
 from ehor.service.invite import Invite, InviteError
 from ehor.service.iroh_key import IrohKeyError
-from ehor.service.notify import default_notifier
+from ehor.service.notify import Alert, NotifyError, default_notifier
 from ehor.service.peer_sync import DEFAULT_PEER_INTERVAL, PeerSync
 from ehor.service.relay_policy import RelayGate, devices_to_reach
 from ehor.service.rpc import RpcClient, RpcError, default_endpoint
@@ -47,6 +48,7 @@ KEY_CHOICES = [AUTO_KEY, *(backend.value for backend in Backend)]
 _KEY_HELP = "where the signing key lives; auto uses a hardware key if this machine has one"
 _SECURITY_KEY_HELP = "label of the enrolled security key to sign with, if there are several"
 _FIDO2_EXTRA = "security keys need the fido2 extra: pip install 'ehor[fido2]'"
+_NO_NOTIFIER = "this system has no notification command; on Linux, install notify-send"
 _SKIP_PROMPT = f"Set {PASSPHRASE_ENV} to skip this prompt."
 _NEW_DEVICE_PROMPT = (
     "ehor encrypts this device's keys with a passphrase. You'll enter it each time you run"
@@ -133,6 +135,12 @@ def _parser() -> argparse.ArgumentParser:
     serve.add_argument("--no-p2p", action="store_true", help="do not connect to teammates directly")
     serve.add_argument("--lan-interval", type=float, default=DEFAULT_PEER_INTERVAL)
     serve.set_defaults(run=_serve)
+
+    notify = commands.add_parser("notify", help="show desktop notifications for new messages")
+    notify.add_argument(
+        "action", nargs="?", choices=["on", "off", "test"], help="omit to show the setting"
+    )
+    notify.set_defaults(run=_notify)
 
     commands.add_parser(
         "mcp", help="run the MCP server for Claude, Codex or another agent"
@@ -518,13 +526,44 @@ def _serve(args: argparse.Namespace) -> int:
 
 
 def _watcher(device: Device) -> AlertWatcher | None:
+    if not device.config.notifications:
+        return None
     notifier = default_notifier()
     if notifier is None:
-        logging.getLogger(__name__).info(
-            "notifications are off: no notification command found on this system"
-        )
+        logging.getLogger(__name__).info("notifications are off: %s", _NO_NOTIFIER)
         return None
     return AlertWatcher(device.alert_feed, notifier)
+
+
+def _notify(args: argparse.Namespace) -> int:
+    home = _home(args)
+    config = DeviceConfig.load(home)
+    if args.action == "test":
+        _show_test_notification()
+        return 0
+    if args.action is not None:
+        config = replace(config, notifications=args.action == "on")
+        config.save(home)
+    if not config.notifications:
+        state = "off"
+    elif default_notifier() is None:
+        state = f"on, but {_NO_NOTIFIER}"
+    else:
+        state = "on"
+    sys.stdout.write(f"notifications are {state}\n")
+    if args.action is not None:
+        sys.stdout.write("restart `ehor serve` to apply this\n")
+    return 0
+
+
+def _show_test_notification() -> None:
+    notifier = default_notifier()
+    if notifier is None:
+        raise CliError(_NO_NOTIFIER)
+    try:
+        notifier.notify(Alert("test", "notifications work"))
+    except NotifyError as exc:
+        raise CliError(str(exc)) from exc
 
 
 def _relay_sync(device: Device, interval: float, direct: DirectSync | None) -> PeerSync:
