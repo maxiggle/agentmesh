@@ -6,7 +6,7 @@ import logging
 import os
 import signal
 import sys
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import replace
 from pathlib import Path
 
@@ -322,10 +322,7 @@ def _invite(args: argparse.Namespace) -> int:
 
 
 def _join(args: argparse.Namespace) -> int:
-    try:
-        invite = Invite.decode(args.code)
-    except InviteError as exc:
-        raise CliError(str(exc)) from exc
+    invite = _decode_invite(args.code)
     home = _home(args)
     Device.check_setup(home, args.handle)
     _discard_unfinished_setup(home)
@@ -346,6 +343,13 @@ def _join(args: argparse.Namespace) -> int:
             f"  ehor roster add {args.handle} {device.author.hex()}{hardware}\n"
         )
     return 0
+
+
+def _decode_invite(code: str) -> Invite:
+    try:
+        return Invite.decode(code)
+    except InviteError as exc:
+        raise CliError(str(exc)) from exc
 
 
 def _key_backend(args: argparse.Namespace) -> Backend | None:
@@ -416,9 +420,10 @@ def _change_roster(args: argparse.Namespace, method: str, params: dict[str, obje
     keys = security_key_signer(home, _connect_security_key)
     enrolled = _enrolled_key(keys, args.security_key)
     if enrolled is None:
-        sys.stdout.write(_rpc(home, method, params) + "\n")
-        return 0
-    sys.stdout.write(_sign_with_security_key(home, keys, enrolled, method, params) + "\n")
+        result = _rpc(home, method, params)
+    else:
+        result = _sign_with_security_key(home, keys, enrolled, method, params)
+    sys.stdout.write(result + "\n")
     return 0
 
 
@@ -476,10 +481,7 @@ def _relay_home(args: argparse.Namespace) -> Path:
 
 
 def _relay_init(args: argparse.Namespace) -> int:
-    try:
-        invite = Invite.decode(args.invite)
-    except InviteError as exc:
-        raise CliError(str(exc)) from exc
+    invite = _decode_invite(args.invite)
     home = _relay_home(args)
     with Relay.create(
         home, invite.team, invite.genesis, _new_passphrase(_NEW_RELAY_PROMPT)
@@ -496,24 +498,13 @@ def _relay_serve(args: argparse.Namespace) -> int:
     parsed = parse_address(args.listen)
     if parsed is None:
         raise CliError(f"--listen must be host:port, got {args.listen!r}")
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    _log_to_stderr()
     home = _relay_home(args)
     with Relay.open(home, _existing_passphrase(_RELAY_PROMPT)) as relay:
         sys.stderr.write(f"ehor relay {relay.key.hex()} listening on {args.listen}\n")
-        asyncio.run(_run_relay(relay, *parsed))
+        host, port = parsed
+        asyncio.run(_run_until_signal(lambda stop: relay.serve(host, port, stop)))
     return 0
-
-
-async def _run_relay(relay: Relay, host: str, port: int) -> None:
-    stop = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        with contextlib.suppress(NotImplementedError):
-            loop.add_signal_handler(sig, stop.set)
-    try:
-        await relay.serve(host, port, stop)
-    except asyncio.CancelledError:
-        stop.set()
 
 
 def _call(args: argparse.Namespace, method: str, params: dict[str, object]) -> int:
@@ -526,7 +517,7 @@ def _rpc(home: Path, method: str, params: dict[str, object]) -> str:
 
 
 def _serve(args: argparse.Namespace) -> int:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    _log_to_stderr()
     home = _home(args)
     with Device.open(home, _existing_passphrase(_DEVICE_PROMPT)) as device:
         sys.stderr.write(f"ehor serving {device.config.handle} from {home}\n")
@@ -537,7 +528,7 @@ def _serve(args: argparse.Namespace) -> int:
         if direct is not None:
             peers.append(direct)
         daemon = Daemon(device, default_endpoint(home), args.interval, peers, _watcher(device))
-        asyncio.run(_run_daemon(daemon))
+        asyncio.run(_run_until_signal(daemon.run))
     return 0
 
 
@@ -640,14 +631,18 @@ def _lan_sync(device: Device, interval: float) -> PeerSync:
     return PeerSync(device.sync_node, discovery, interval=interval)
 
 
-async def _run_daemon(daemon: Daemon) -> None:
+def _log_to_stderr() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+
+async def _run_until_signal(run: Callable[[asyncio.Event], Awaitable[None]]) -> None:
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         with contextlib.suppress(NotImplementedError):
             loop.add_signal_handler(sig, stop.set)
     try:
-        await daemon.run(stop)
+        await run(stop)
     except asyncio.CancelledError:
         stop.set()
 
