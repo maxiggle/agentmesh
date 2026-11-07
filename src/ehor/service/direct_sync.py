@@ -1,10 +1,10 @@
 import asyncio
 import logging
 from collections.abc import Callable, Sequence
-from contextlib import suppress
 from dataclasses import dataclass
 from typing import Protocol
 
+from ehor.service.pacing import pause
 from ehor.sync.session import SyncError, SyncResult
 from ehor.sync.wire import SyncReader, SyncWriter
 
@@ -101,7 +101,7 @@ class DirectSync:
             while not stop.is_set():
                 self._announce(self._transport.endpoint_id)
                 await self.sync_all()
-                await self._sleep(stop)
+                await pause(stop, self._wake, self._interval)
         finally:
             self._running = False
             listener.cancel()
@@ -163,13 +163,3 @@ class DirectSync:
             _log.info("direct sync from a teammate refused: %s", exc)
         finally:
             writer.close()
-
-    async def _sleep(self, stop: asyncio.Event) -> None:
-        self._wake.clear()
-        waiters = [asyncio.ensure_future(stop.wait()), asyncio.ensure_future(self._wake.wait())]
-        with suppress(TimeoutError):
-            await asyncio.wait_for(
-                asyncio.wait(waiters, return_when=asyncio.FIRST_COMPLETED), self._interval
-            )
-        for waiter in waiters:
-            waiter.cancel()

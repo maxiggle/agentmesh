@@ -1,8 +1,8 @@
 import asyncio
 import logging
 from collections.abc import Callable
-from contextlib import suppress
 
+from ehor.service.pacing import pause
 from ehor.sync.session import SyncError, SyncNode, SyncResult
 from ehor.transport.lan import Discovery
 
@@ -54,7 +54,7 @@ class PeerSync:
         try:
             while not stop.is_set():
                 await self.sync_all()
-                await self._sleep(stop)
+                await pause(stop, self._wake, self._interval)
         finally:
             await self._discovery.close()
             if server is not None:
@@ -71,13 +71,3 @@ class PeerSync:
             except SyncError as exc:
                 _log.info("sync with %s failed: %s", peer.key_hint, exc)
         return results
-
-    async def _sleep(self, stop: asyncio.Event) -> None:
-        self._wake.clear()
-        waiters = [asyncio.ensure_future(stop.wait()), asyncio.ensure_future(self._wake.wait())]
-        with suppress(TimeoutError):
-            await asyncio.wait_for(
-                asyncio.wait(waiters, return_when=asyncio.FIRST_COMPLETED), self._interval
-            )
-        for waiter in waiters:
-            waiter.cancel()
