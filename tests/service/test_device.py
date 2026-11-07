@@ -11,11 +11,13 @@ from ehor.identity.backends import Backend
 from ehor.identity.software import SoftwareSigner
 from ehor.log.roster import Trust
 from ehor.service import device as device_module
+from ehor.service.alerts import AlertWatcher
 from ehor.service.api import ApiError
 from ehor.service.config import ConfigError, DeviceConfig, default_home
 from ehor.service.daemon import Daemon
 from ehor.service.device import Device
 from ehor.service.invite import Invite
+from ehor.service.notify import Alert
 from ehor.service.rpc import RpcClient, TcpEndpoint
 
 PASSPHRASE = b"test passphrase"
@@ -328,6 +330,52 @@ async def _daemons_talk(root: Path) -> tuple[str, str]:
     gef.close()
     tobi.close()
     return posted, digest
+
+
+class _Shown:
+    def __init__(self) -> None:
+        self.alerts: list[Alert] = []
+
+    def notify(self, alert: Alert) -> None:
+        self.alerts.append(alert)
+
+
+async def _daemon_notifies(root: Path) -> list[Alert]:
+    shared = root / "shared"
+    gef = Device.create_team(root / "gef", "gef", PASSPHRASE, exchange=shared)
+    tobi = Device.join(root / "tobi", gef.invite, "tobi", PASSPHRASE, exchange=shared)
+    _add(gef, tobi)
+    tobi.sync()
+    tobi.sync()
+    gef.sync()
+    _post(gef, "tobi", "before the daemon started")
+    tobi.sync()
+    shown = _Shown()
+    tobi_endpoint = TcpEndpoint(root / "tobi.json")
+    stop = asyncio.Event()
+    watcher = AlertWatcher(tobi.alert_feed, shown)
+    task = asyncio.create_task(Daemon(tobi, tobi_endpoint, 0.05, watcher=watcher).run(stop))
+    while not (root / "tobi.json").exists():
+        await asyncio.sleep(0.01)
+    await RpcClient(tobi_endpoint).call(
+        "post", {"to": ["gef"], "type": "fyi", "summary": "my own message"}
+    )
+    _post(gef, "tobi", "Sync queue done")
+    for _ in range(200):
+        if shown.alerts:
+            break
+        await asyncio.sleep(0.01)
+    await asyncio.sleep(0.2)
+    stop.set()
+    await task
+    gef.close()
+    tobi.close()
+    return shown.alerts
+
+
+def test_daemon_notifies_about_new_messages(short_dir: Path) -> None:
+    alerts = asyncio.run(_daemon_notifies(short_dir))
+    assert [(alert.sender, alert.summary) for alert in alerts] == [("gef", "Sync queue done")]
 
 
 def test_daemons_serve_tool_calls(short_dir: Path) -> None:

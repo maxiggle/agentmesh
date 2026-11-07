@@ -23,6 +23,7 @@ from ehor.log.roster import (
 )
 from ehor.log.verify import EntryVerifier
 from ehor.roster.book import RosterBook
+from ehor.service.alerts import MessengerFeed
 from ehor.service.api import Params, ToolApi
 from ehor.service.config import CONFIG_FILE, ConfigError, DeviceConfig
 from ehor.service.directory import RosterDirectory
@@ -75,7 +76,8 @@ class Device:
         self._iroh_secret = load_or_create_secret(home / _KEY_DIR / _IROH_KEY)
         self._endpoints = EndpointDirectory(self._store)
         directory = RosterDirectory(self._book, self._author, config.handle)
-        self._api = ToolApi(Messenger(self._store, local_log, directory, self._codec))
+        self._messenger = Messenger(self._store, local_log, directory, self._codec)
+        self._api = ToolApi(self._messenger)
         self._admin = AdminApi(RosterAdmin(self._book, local_log))
         ingestor = Ingestor(self._store, verifier, self._book)
         self._sync_node = SyncNode(
@@ -253,6 +255,10 @@ class Device:
     @property
     def roster(self) -> RosterBook:
         return self._book
+
+    @property
+    def alert_feed(self) -> MessengerFeed:
+        return MessengerFeed(self._messenger)
 
     @property
     def sync_node(self) -> SyncNode:
