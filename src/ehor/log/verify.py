@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from ehor.identity import es256
 from ehor.identity.assertion import Assertion, InvalidAssertionError, check_assertion
 from ehor.log.body import BodyError, MessageBody, StatusBody
@@ -17,7 +19,12 @@ from ehor.log.roster import Roster, RosterError
 
 MAX_ENTRY_SIZE = 16 * 1024
 MAX_REFS = 16
-_CONTROL_KINDS = frozenset({Kind.ROSTER, Kind.KEY_ANNOUNCE, Kind.ENDPOINT_ANNOUNCE})
+_CONTROL_BODIES: dict[Kind, tuple[Callable[[bytes], object], type[ValueError]]] = {
+    Kind.ROSTER: (Roster.decode, RosterError),
+    Kind.KEY_ANNOUNCE: (KeyAnnounce.decode, KeyAnnounceError),
+    Kind.ENDPOINT_ANNOUNCE: (EndpointAnnounce.decode, EndpointAnnounceError),
+}
+_CONTROL_KINDS = frozenset(_CONTROL_BODIES)
 
 
 class DroppedEntryError(Exception):
@@ -102,21 +109,13 @@ class EntryVerifier:
             raise RejectedEntryError("refs must be sorted and unique")
         if content.kind in (Kind.MESSAGE, Kind.STATUS):
             EntryVerifier._check_body(entry)
-        if content.kind is Kind.ROSTER:
+        control = _CONTROL_BODIES.get(content.kind)
+        if control is not None:
+            decode, error = control
             try:
-                Roster.decode(content.body)
-            except RosterError as exc:
-                raise RejectedEntryError(f"bad roster: {exc}") from exc
-        if content.kind is Kind.KEY_ANNOUNCE:
-            try:
-                KeyAnnounce.decode(content.body)
-            except KeyAnnounceError as exc:
-                raise RejectedEntryError(f"bad key_announce: {exc}") from exc
-        if content.kind is Kind.ENDPOINT_ANNOUNCE:
-            try:
-                EndpointAnnounce.decode(content.body)
-            except EndpointAnnounceError as exc:
-                raise RejectedEntryError(f"bad endpoint_announce: {exc}") from exc
+                decode(content.body)
+            except error as exc:
+                raise RejectedEntryError(f"bad {content.kind}: {exc}") from exc
 
     @staticmethod
     def _check_body(entry: Entry) -> None:
