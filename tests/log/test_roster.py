@@ -148,7 +148,6 @@ def test_relays_round_trip_and_lookup() -> None:
     assert Roster.decode(roster.encode()) == roster
     assert roster.relay_for_key(RELAY.key) == RELAY
     assert roster.relay_for_key(KEY_A) is None
-    assert RELAY.host_port == ("relay.example.com", 7447)
     assert roster.successor(PREVIOUS).relays == (RELAY,)
     assert roster.successor(PREVIOUS, relays=()).relays == ()
 

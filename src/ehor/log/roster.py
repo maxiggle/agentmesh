@@ -115,13 +115,6 @@ class RelayInfo:
         if parse_address(self.address) is None:
             raise RosterError(f"relay address must be host:port, got {self.address!r}")
 
-    @property
-    def host_port(self) -> tuple[str, int]:
-        parsed = parse_address(self.address)
-        if parsed is None:
-            raise RosterError(f"relay address must be host:port, got {self.address!r}")
-        return parsed
-
     def to_cbor(self) -> CborValue:
         return {"key": self.key, "address": self.address}
 
