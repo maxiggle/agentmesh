@@ -169,10 +169,6 @@ class Messenger:
     def me(self) -> Identity:
         return self._directory.me()
 
-    @property
-    def _me(self) -> Identity:
-        return self._directory.me()
-
     def display_name(self, author: bytes) -> str:
         if author == self.author:
             return "me"
@@ -209,7 +205,7 @@ class Messenger:
         if members is None:
             to: tuple[str, ...] = (original.entry.content.channel,)
         else:
-            to = tuple(member for member in members if member != self._me.handle) or members
+            to = tuple(member for member in members if member != self.me.handle) or members
         body = self._build_message(
             message_type=MessageType.FYI, to=to, summary=summary, links=links
         )
@@ -377,7 +373,7 @@ class Messenger:
             raise MessengerError(str(exc)) from exc
 
     def _channel_for(self, targets: tuple[str, ...]) -> str:
-        me = self._me
+        me = self.me
         addressed = [
             member
             for member in self._directory.members()
@@ -442,11 +438,11 @@ class Messenger:
         channel = message.entry.content.channel
         members = dm_members(channel)
         if members is not None:
-            return self._me.handle in members
-        return self._me.can_use(channel)
+            return self.me.handle in members
+        return self.me.can_use(channel)
 
     def _names_me(self, message: Message) -> bool:
-        return any(self._me.holds(target) for target in message.body.to)
+        return any(self.me.holds(target) for target in message.body.to)
 
     def _statuses(self, message_id: bytes) -> list[tuple[Entry, StatusBody]]:
         return [
