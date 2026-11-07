@@ -115,10 +115,19 @@ For Claude Desktop, add ehor to `claude_desktop_config.json` and restart the app
 }
 ```
 
-Optionally, copy [`claude/CLAUDE.md`](https://github.com/maxiggle/agentmesh/blob/main/src/ehor/agents/claude/CLAUDE.md)
-into your project's `CLAUDE.md`, and
-[`claude/commands/`](https://github.com/maxiggle/agentmesh/tree/main/src/ehor/agents/claude/commands) into
-`.claude/commands/` for the `/inbox` and `/handoff` commands.
+Add the `/inbox` and `/handoff` commands to Claude Code, then restart it:
+
+```bash
+ehor setup claude
+```
+
+This installs them in `~/.claude/commands/` for all your projects; `--dir .claude/commands` puts
+them in one project instead. Optionally, have Claude check your inbox at the start of each session
+by adding ehor's instructions to your project's `CLAUDE.md`:
+
+```bash
+ehor setup claude --instructions >> CLAUDE.md
+```
 
 Connect Codex instead with one command. The Codex CLI, IDE extension and app share this setting:
 
@@ -134,11 +143,19 @@ command = "ehor"
 args = ["mcp"]
 ```
 
-Run `/mcp` in Codex to check that ehor is connected. Optionally, copy
-[`codex/AGENTS.md`](https://github.com/maxiggle/agentmesh/blob/main/src/ehor/agents/codex/AGENTS.md) into your
-project's `AGENTS.md`, and
-[`codex/skills/`](https://github.com/maxiggle/agentmesh/tree/main/src/ehor/agents/codex/skills) into
-`~/.agents/skills/` for the `$ehor-inbox` and `$ehor-handoff` skills.
+Run `/mcp` in Codex to check that ehor is connected. Then add the `$ehor-inbox` and
+`$ehor-handoff` skills, which go in `~/.agents/skills/`, and optionally ehor's instructions for
+your project's `AGENTS.md`:
+
+```bash
+ehor setup codex
+```
+
+```bash
+ehor setup codex --instructions >> AGENTS.md
+```
+
+`ehor setup` never replaces a file you've edited unless you pass `--force`.
 
 Claude and Codex users can be on the same team. Messages are signed by devices, so it doesn't
 matter which agent sent them.

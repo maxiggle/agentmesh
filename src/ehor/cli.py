@@ -9,6 +9,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from ehor.agents import Agent, SetupError, default_target, install, instructions
 from ehor.identity import HardwareUnavailableError, IdentityError, KeyHandle
 from ehor.identity.backends import Backend
 from ehor.identity.security_key import Authenticator, SecurityKeySigner
@@ -65,7 +66,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         return int(args.run(args))
-    except (CliError, ConfigError, IdentityError, IrohKeyError, RelayError, RpcError) as exc:
+    except (
+        CliError,
+        ConfigError,
+        IdentityError,
+        IrohKeyError,
+        RelayError,
+        RpcError,
+        SetupError,
+    ) as exc:
         sys.stderr.write(f"error: {exc}\n")
         return 1
 
@@ -95,6 +104,19 @@ def _parser() -> argparse.ArgumentParser:
 
     _add_roster_commands(commands)
     _add_relay_commands(commands)
+
+    setup = commands.add_parser(
+        "setup", help="install ehor's slash commands for Claude or skills for Codex"
+    )
+    setup.add_argument("agent", choices=[agent.value for agent in Agent])
+    setup.add_argument("--dir", type=Path, help="install here instead of your user folder")
+    setup.add_argument("--force", action="store_true", help="replace files you have edited")
+    setup.add_argument(
+        "--instructions",
+        action="store_true",
+        help="print the snippet for a project's CLAUDE.md or AGENTS.md instead of installing",
+    )
+    setup.set_defaults(run=_setup)
 
     serve = commands.add_parser("serve", help="run the background service")
     serve.add_argument("--interval", type=float, default=DEFAULT_SYNC_INTERVAL)
@@ -211,6 +233,39 @@ def _init(args: argparse.Namespace) -> int:
 def _discard_unfinished_setup(home: Path) -> None:
     if Device.discard_unfinished_setup(home):
         sys.stderr.write("Removed files left by an earlier setup that didn't finish.\n")
+
+
+def _setup(args: argparse.Namespace) -> int:
+    agent = Agent(args.agent)
+    if args.instructions:
+        sys.stdout.write(instructions(agent))
+        return 0
+    target: Path = args.dir if args.dir is not None else default_target(agent, Path.home())
+    result = install(agent, target, force=args.force)
+    names = "/inbox and /handoff" if agent is Agent.CLAUDE else "$ehor-inbox and $ehor-handoff"
+    state = "installed" if result.written else "already up to date:"
+    sys.stdout.write(f"{state} {names} in {target}\n")
+    sys.stdout.write("".join(f"  wrote {path}\n" for path in result.written))
+    sys.stdout.write(_setup_next_steps(agent, args.home))
+    return 0
+
+
+def _setup_next_steps(agent: Agent, home: Path | None) -> str:
+    serve = "ehor mcp" if home is None else f"ehor --home {home} mcp"
+    if agent is Agent.CLAUDE:
+        scope = "--scope user " if home is None else ""
+        add = f"claude mcp add {scope}ehor -- {serve}"
+        app, snippet = "Claude Code", "CLAUDE.md"
+    else:
+        add = f"codex mcp add ehor -- {serve}"
+        app, snippet = "Codex", "AGENTS.md"
+    return (
+        "next:\n"
+        f"  connect ehor to {app}, if you haven't:  {add}\n"
+        f"  restart {app} to load them\n"
+        f"  optional, to check your inbox at the start of each session:\n"
+        f"    ehor setup {agent.value} --instructions >> {snippet}\n"
+    )
 
 
 def _invite(args: argparse.Namespace) -> int:
