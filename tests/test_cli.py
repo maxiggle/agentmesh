@@ -457,6 +457,18 @@ def test_setup_points_the_agent_at_a_chosen_home(
     assert f"codex mcp add ehor -- ehor --home {home} mcp" in capsys.readouterr().out
 
 
+def test_setup_installs_opencode_commands_and_says_how_to_connect(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["setup", "opencode", "--dir", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith(f"installed /claim, /done, /handoff, /inbox, /reply, /team in {tmp_path}")
+    assert "`opencode mcp add`" in out
+    assert "runs `ehor mcp`" in out
+    assert "ehor setup opencode --instructions >> AGENTS.md" in out
+    assert (tmp_path / "inbox.md").is_file()
+
+
 def test_setup_refuses_to_replace_an_edited_file(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

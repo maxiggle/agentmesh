@@ -31,6 +31,15 @@ def test_codex_skills_keep_their_folders(tmp_path: Path) -> None:
     assert (tmp_path / "ehor-handoff" / "agents" / "openai.yaml").is_file()
 
 
+def test_opencode_commands_use_only_frontmatter_opencode_reads(tmp_path: Path) -> None:
+    result = install(Agent.OPENCODE, tmp_path)
+    assert len(result.written) == len(command_names(Agent.OPENCODE))
+    for path in result.written:
+        frontmatter = path.read_text().split("---")[1]
+        keys = {line.split(":")[0] for line in frontmatter.strip().splitlines()}
+        assert keys == {"description"}, path
+
+
 def test_installing_twice_changes_nothing(tmp_path: Path) -> None:
     install(Agent.CLAUDE, tmp_path)
     result = install(Agent.CLAUDE, tmp_path)
@@ -59,6 +68,9 @@ def test_nothing_is_written_when_any_file_was_edited(tmp_path: Path) -> None:
 def test_default_targets_are_where_each_agent_looks(tmp_path: Path) -> None:
     assert default_target(Agent.CLAUDE, tmp_path) == tmp_path / ".claude" / "commands"
     assert default_target(Agent.CODEX, tmp_path) == tmp_path / ".agents" / "skills"
+    assert default_target(Agent.OPENCODE, tmp_path) == (
+        tmp_path / ".config" / "opencode" / "commands"
+    )
 
 
 @pytest.mark.parametrize("agent", list(Agent))
@@ -67,6 +79,7 @@ def test_instructions_label_messages_as_data(agent: Agent) -> None:
 
 
 def test_command_names_are_how_each_agent_invokes_them() -> None:
+    assert command_names(Agent.OPENCODE) == command_names(Agent.CLAUDE)
     assert command_names(Agent.CLAUDE) == (
         "/claim",
         "/done",
