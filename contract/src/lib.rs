@@ -168,11 +168,9 @@ impl Contract {
         require!(!amount.is_zero(), "ERR_ZERO_AMOUNT");
         self.account_mut(&owner).debit(amount);
         emit("withdraw", json!({"account": owner, "amount": amount}));
-        Promise::new(owner.clone()).transfer(amount).then(
-            Self::ext(env::current_account_id())
-                .with_static_gas(CALLBACK_GAS)
-                .on_withdraw(owner, amount),
-        )
+        Promise::new(owner.clone())
+            .transfer(amount)
+            .then(Self::callback().on_withdraw(owner, amount))
     }
 
     #[payable]
@@ -312,11 +310,9 @@ impl Contract {
         // The status changes before the transfer so a second release in the next block
         // cannot pay twice; the callback reverts it if the transfer fails.
         self.bounty_mut(bounty_id).status = Status::Releasing;
-        Promise::new(claimant).transfer(amount).then(
-            Self::ext(env::current_account_id())
-                .with_static_gas(CALLBACK_GAS)
-                .on_release(bounty_id),
-        )
+        Promise::new(claimant)
+            .transfer(amount)
+            .then(Self::callback().on_release(bounty_id))
     }
 
     pub fn cancel(&mut self, bounty_id: u64) {
@@ -416,6 +412,10 @@ impl Contract {
 }
 
 impl Contract {
+    fn callback() -> ContractExt {
+        Self::ext(env::current_account_id()).with_static_gas(CALLBACK_GAS)
+    }
+
     fn account_ref(&self, account_id: &AccountId) -> &Account {
         required(self.accounts.get(account_id), "ERR_NOT_REGISTERED")
     }
