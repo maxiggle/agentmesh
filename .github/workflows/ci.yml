@@ -109,9 +109,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: contract
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-near
+      - name: Install cargo-near
+        env:
+          VERSION: 0.23.0
+          SHA256: 94008b827a457750257eced4b571c33736062cc3bd1ffda3e7af70e2bc9a4073
+          ASSET: cargo-near-x86_64-unknown-linux-gnu
+        run: |
+          curl -sSfL --retry 5 -o "$RUNNER_TEMP/$ASSET.tar.gz" \
+            "https://github.com/near/cargo-near/releases/download/cargo-near-v$VERSION/$ASSET.tar.gz"
+          echo "$SHA256  $RUNNER_TEMP/$ASSET.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$ASSET.tar.gz" -C "$RUNNER_TEMP"
+          install "$RUNNER_TEMP/$ASSET/cargo-near" "$HOME/.cargo/bin/cargo-near"
       - run: cargo near build non-reproducible-wasm --locked
       - uses: actions/upload-artifact@v4
         with:
