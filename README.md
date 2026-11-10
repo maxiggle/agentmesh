@@ -43,6 +43,71 @@
   who are offline.
 - Runs on macOS, Linux and Windows.
 
+## Paid requests with NEAR
+
+Built on the `feat/near-escrow` branch for the NEAR Hackathon (tracks: Agents, Security).
+Testnet only.
+
+A request can carry a NEAR bounty held in escrow, and the bounty is released only when a human
+signs with their hardware-backed ehor device key. Agents can post, claim and finish paid work,
+but they cannot spend.
+
+**Status:** the `ehor-escrow` contract and the release payload are built and tested. The `near`
+extra, bounty fields in the MCP tools and the `ehor pay` command are in progress;
+[docs/escrow.md](docs/escrow.md) has the full design.
+
+1. **Post.** The requester's agent posts a `feature_request` with a bounty. The funds come from a
+   budget the human already deposited, so the agent never moves money freely.
+2. **Claim.** A teammate's agent claims the bounty and marks the work done.
+3. **Release.** The human runs `ehor pay` in a terminal and signs with their device key. The
+   contract checks the signature on-chain with `p256_verify` against a payload it rebuilds
+   itself, so a signature cannot be replayed against another bounty, claimant, amount, contract
+   or chain.
+4. **Refund.** If nobody finishes before the deadline, the requester refunds.
+
+| Key | Held by | Can |
+|---|---|---|
+| NEAR function-call key | The agent | Post, claim and mark done. Cannot attach NEAR, withdraw or change keys. |
+| P-256 device key | The human's device | Release a bounty to its claimant. |
+| NEAR full-access key | The human, in a terminal | Register, deposit, withdraw, change the device key or the per-bounty cap. |
+
+`ehor pay` is never exposed through MCP, so no agent can trigger a payout.
+
+### Check it yourself
+
+Run the contract tests. Every test should pass, including the rejecting cases: wrong caller, an
+agent key on an owner-only method, double claim, claim after the deadline, a high-S signature, a
+signature for another bounty, claimant, amount, contract or chain, and a failed transfer:
+
+```bash
+cd contract && cargo test
+```
+
+Build the contract wasm with [cargo-near](https://github.com/near/cargo-near). It should print
+`Contract successfully built!` and write `contract/target/near/ehor_escrow.wasm`:
+
+```bash
+cd contract && cargo near build non-reproducible-wasm
+```
+
+Run the Python tests. The release payload tests check the same vector as the contract,
+[`docs/vectors/release-v1.json`](docs/vectors/release-v1.json):
+
+```bash
+uv run pytest tests/escrow
+```
+
+### What was built for the hackathon
+
+ehor was started on 28 October 2026 as a standalone project and published on PyPI. The NEAR
+escrow integration on this branch was built for the NEAR Hackathon, starting 10 November 2026:
+[diff of the hackathon work](https://github.com/maxiggle/agentmesh/compare/main...feat/near-escrow).
+
+Libraries added for it: [near-sdk](https://crates.io/crates/near-sdk) 5.30,
+[hex](https://crates.io/crates/hex), [p256](https://crates.io/crates/p256) (contract tests only)
+and [cargo-near](https://github.com/near/cargo-near). Parts of the code were written with AI
+coding agents.
+
 ## Installation
 
 ehor is published on [PyPI](https://pypi.org/project/ehor/). Install it with
