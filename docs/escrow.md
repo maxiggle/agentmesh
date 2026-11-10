@@ -13,7 +13,7 @@ Non-goals: rewriting ehor in Rust; putting messages or the roster on chain; main
 ## Verified constraints
 
 1. NEAR account keys are Ed25519 or Secp256k1 only. A P-256 key cannot be a NEAR access key.
-2. near-sdk (Rust) 5.30.1 has `env::p256_verify(signature: &[u8; 64], prehash: &[u8; 32], public_key: &[u8; 33]) -> bool`. The signature is raw `r || s`, each 32 bytes zero-padded (not ASN.1 DER). The prehash is the 32-byte SHA-256 digest. The public key is 33-byte compressed SEC1. `env::p256_signature_is_low_s` also exists. The function is not behind the SDK's `unstable` flag. It has not yet been run on testnet: that is spike A.
+2. near-sdk (Rust) 5.30.1 has `env::p256_verify(signature: &[u8; 64], prehash: &[u8; 32], public_key: &[u8; 33]) -> bool`. The signature is raw `r || s`, each 32 bytes zero-padded (not ASN.1 DER). The prehash is the 32-byte SHA-256 digest. The public key is 33-byte compressed SEC1. `env::p256_signature_is_low_s` also exists. The function is not behind the SDK's `unstable` flag. Spike A ran it on testnet against `ehor-escrow.testnet`: a signature from ehor's software device key released a bounty to the claimant, and the contract rejected the same signature in high-S form (`ERR_HIGH_S`) and a signature over a different amount (`ERR_BAD_SIGNATURE`).
 3. Function-call access keys are limited to one receiver contract, an optional method list and an optional gas allowance. They cannot attach NEAR to a call, so an agent holding only a function-call key cannot fund anything directly.
 4. `env::chain_id()` returns "mainnet" or "testnet".
 5. NEAR transfers from a contract are asynchronous promises. The result is known only in a callback.
@@ -211,7 +211,7 @@ Deadline: Saturday 14 November 2026, 23:59 UTC (00:59 Sunday in Lagos).
 
 ### Spike fallbacks
 
-- If `p256_verify` is unavailable on testnet, release requires the sender's NEAR key instead and the P-256 approval is enforced locally in `ehor pay`. The README states this and the `security` track claim is reduced.
+- If `p256_verify` is unavailable on testnet, release requires the sender's NEAR key instead and the P-256 approval is enforced locally in `ehor pay`. The README states this and the `security` track claim is reduced. Not needed: spike A passed.
 - If py-near does not install or lacks a needed call, use the `near` CLI implementation. Not needed: spike B passed.
 
 ### Cut order if behind
