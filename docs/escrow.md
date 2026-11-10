@@ -17,7 +17,7 @@ Non-goals: rewriting ehor in Rust; putting messages or the roster on chain; main
 3. Function-call access keys are limited to one receiver contract, an optional method list and an optional gas allowance. They cannot attach NEAR to a call, so an agent holding only a function-call key cannot fund anything directly.
 4. `env::chain_id()` returns "mainnet" or "testnet".
 5. NEAR transfers from a contract are asynchronous promises. The result is known only in a callback.
-6. Python client: `py-near` (latest 1.2.22, March 2026, async, Python >= 3.9) is the high-level client. It depends on a Rust-built wheel. Wheels for Python 3.12 and 3.13 are unconfirmed. The fallback is shelling out to the `near` CLI.
+6. Python client: `py-near` 1.2.22 (async, Python >= 3.9). Its Rust-built dependency `py-near-primitives` ships abi3 wheels for macOS (arm64, x86_64), Linux (x86_64, aarch64) and Windows, and it installs on Python 3.11, 3.12 and 3.13 (spike B). It defaults to a mainnet RPC, and `function_call` returns a failed transaction instead of raising, so ehor's client always passes the RPC URL, refuses any RPC whose chain id is not `testnet`, and turns a `Failure` status into an error carrying the contract's `ERR_*` panic.
 7. NEAR's JavaScript contract SDK is archived. Rust is the supported path.
 
 ## Existing ehor properties that this design relies on
@@ -150,7 +150,7 @@ If any check fails, the bounty is shown as "unverified" and `/claim` refuses the
 ### Config and client
 
 - New extra `ehor[near]` and a `near` section in the ehor config (network, account id, contract id).
-- A new module with a small client interface (view call, function call, key management) and two implementations: py-near and a `near` CLI subprocess. The choice is made on Tuesday after spike B. Exact py-near method names and CLI flags: confirm against the library docs during the Tuesday spike.
+- `ehor.escrow.client` defines the `NearClient` interface: view call, function call (with attached deposit and gas), and adding a function-call access key. `ehor.escrow.pynear` implements it with py-near. Spike B showed py-near installs on every supported Python, so the `near` CLI implementation is not built.
 
 ### CLI and MCP
 
@@ -212,7 +212,7 @@ Deadline: Saturday 14 November 2026, 23:59 UTC (00:59 Sunday in Lagos).
 ### Spike fallbacks
 
 - If `p256_verify` is unavailable on testnet, release requires the sender's NEAR key instead and the P-256 approval is enforced locally in `ehor pay`. The README states this and the `security` track claim is reduced.
-- If py-near does not install or lacks a needed call, use the `near` CLI implementation.
+- If py-near does not install or lacks a needed call, use the `near` CLI implementation. Not needed: spike B passed.
 
 ### Cut order if behind
 
