@@ -33,6 +33,16 @@ pub struct Account {
     pub max_per_bounty: NearToken,
 }
 
+impl Account {
+    fn credit(&mut self, amount: NearToken) {
+        self.balance = self.balance.saturating_add(amount);
+    }
+
+    fn debit(&mut self, amount: NearToken) {
+        self.balance = required(self.balance.checked_sub(amount), "ERR_INSUFFICIENT_BALANCE");
+    }
+}
+
 #[near(serializers = [borsh, json])]
 #[derive(Clone, Debug)]
 pub struct Bounty {
@@ -138,8 +148,7 @@ impl Contract {
         let owner = env::predecessor_account_id();
         let deposit = env::attached_deposit();
         require!(!deposit.is_zero(), "ERR_DEPOSIT_REQUIRED");
-        let account = self.account_mut(&owner);
-        account.balance = account.balance.saturating_add(deposit);
+        self.account_mut(&owner).credit(deposit);
         emit("deposit", json!({"account": owner, "amount": deposit}));
     }
 
@@ -148,11 +157,7 @@ impl Contract {
         assert_one_yocto();
         let owner = env::predecessor_account_id();
         require!(!amount.is_zero(), "ERR_ZERO_AMOUNT");
-        let account = self.account_mut(&owner);
-        account.balance = required(
-            account.balance.checked_sub(amount),
-            "ERR_INSUFFICIENT_BALANCE",
-        );
+        self.account_mut(&owner).debit(amount);
         emit("withdraw", json!({"account": owner, "amount": amount}));
         Promise::new(owner.clone()).transfer(amount).then(
             Self::ext(env::current_account_id())
@@ -210,10 +215,7 @@ impl Contract {
 
         let account = self.account_mut(&sender);
         require!(amount <= account.max_per_bounty, "ERR_OVER_LIMIT");
-        account.balance = required(
-            account.balance.checked_sub(amount),
-            "ERR_INSUFFICIENT_BALANCE",
-        );
+        account.debit(amount);
 
         let id = self.next_bounty_id;
         self.next_bounty_id += 1;
@@ -319,7 +321,7 @@ impl Contract {
             bounty.status = Status::Cancelled;
             bounty.amount
         };
-        self.credit(&caller, amount);
+        self.account_mut(&caller).credit(amount);
         emit("cancel", json!({"bounty_id": bounty_id}));
     }
 
@@ -337,7 +339,7 @@ impl Contract {
             bounty.status = Status::Refunded;
             bounty.amount
         };
-        self.credit(&caller, amount);
+        self.account_mut(&caller).credit(amount);
         emit("refund", json!({"bounty_id": bounty_id}));
     }
 
@@ -371,7 +373,7 @@ impl Contract {
     ) -> bool {
         let paid = result.is_ok();
         if !paid {
-            self.credit(&account_id, amount);
+            self.account_mut(&account_id).credit(amount);
             emit(
                 "withdraw_failed",
                 json!({"account": account_id, "amount": amount}),
@@ -421,11 +423,6 @@ impl Contract {
 
     fn bounty_mut(&mut self, bounty_id: u64) -> &mut Bounty {
         required(self.bounties.get_mut(&bounty_id), "ERR_NO_BOUNTY")
-    }
-
-    fn credit(&mut self, account_id: &AccountId, amount: NearToken) {
-        let account = self.account_mut(account_id);
-        account.balance = account.balance.saturating_add(amount);
     }
 }
 
