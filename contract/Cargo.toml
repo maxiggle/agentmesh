@@ -1,0 +1,27 @@
+[package]
+name = "ehor-escrow"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Escrow for ehor paid requests: release needs a P-256 signature from the sender's device key"
+repository = "https://github.com/maxiggle/agentmesh"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+hex = "0.4"
+near-sdk = "5.30"
+
+[dev-dependencies]
+near-sdk = { version = "5.30", features = ["unit-testing"] }
+p256 = { version = "0.13", features = ["ecdsa"] }
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true
