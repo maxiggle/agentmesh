@@ -129,6 +129,10 @@ fn emit(event: &str, data: Value) {
     env::log_str(&format!("EVENT_JSON:{body}"));
 }
 
+fn emit_amount(event: &str, account: &AccountId, amount: NearToken) {
+    emit(event, json!({"account": account, "amount": amount}));
+}
+
 #[near]
 impl Contract {
     #[payable]
@@ -159,7 +163,7 @@ impl Contract {
         let owner = env::predecessor_account_id();
         let deposit = required_deposit();
         self.account_mut(&owner).credit(deposit);
-        emit("deposit", json!({"account": owner, "amount": deposit}));
+        emit_amount("deposit", &owner, deposit);
     }
 
     #[payable]
@@ -167,7 +171,7 @@ impl Contract {
         let owner = full_access_caller();
         require!(!amount.is_zero(), "ERR_ZERO_AMOUNT");
         self.account_mut(&owner).debit(amount);
-        emit("withdraw", json!({"account": owner, "amount": amount}));
+        emit_amount("withdraw", &owner, amount);
         Promise::new(owner.clone())
             .transfer(amount)
             .then(Self::callback().on_withdraw(owner, amount))
@@ -188,10 +192,7 @@ impl Contract {
     pub fn set_max_per_bounty(&mut self, amount: NearToken) {
         let owner = full_access_caller();
         self.account_mut(&owner).max_per_bounty = amount;
-        emit(
-            "set_max_per_bounty",
-            json!({"account": owner, "amount": amount}),
-        );
+        emit_amount("set_max_per_bounty", &owner, amount);
     }
 
     pub fn post_bounty(
@@ -363,10 +364,7 @@ impl Contract {
         let paid = result.is_ok();
         if !paid {
             self.account_mut(&account_id).credit(amount);
-            emit(
-                "withdraw_failed",
-                json!({"account": account_id, "amount": amount}),
-            );
+            emit_amount("withdraw_failed", &account_id, amount);
         }
         paid
     }
