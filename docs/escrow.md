@@ -100,6 +100,8 @@ ehor-escrow/v1|<chain_id>|<contract_account_id>|<bounty_id>|<claimant_account_id
 | `<bounty_id>` | Reuse for another bounty. A bounty is released once, so the signature is single-use |
 | `<claimant_account_id>` and `<amount_in_yoctonear>` | A signature that differs from what the human saw in the draft. Both are bound |
 
+The test vector in [`vectors/release-v1.json`](vectors/release-v1.json) fixes one set of inputs, the payload string and its SHA-256 digest. The contract tests and the Python tests both check it.
+
 ### Events
 
 The contract logs one NEP-297 style JSON event per state change, with standard name `ehor-escrow` and version `1.0.0`.

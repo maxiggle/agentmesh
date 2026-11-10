@@ -1,0 +1,9 @@
+{
+  "chain_id": "testnet",
+  "contract": "escrow.testnet",
+  "bounty_id": 7,
+  "claimant": "tobi.testnet",
+  "amount_yocto": "1000000000000000000000000",
+  "payload": "ehor-escrow/v1|testnet|escrow.testnet|7|tobi.testnet|1000000000000000000000000",
+  "sha256": "57366635aae684592b004f1c7468b5c795df118bf50f50f5d53c330c3b31bfdd"
+}

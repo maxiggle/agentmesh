@@ -1,4 +1,5 @@
 use near_sdk::json_types::U64;
+use near_sdk::serde_json::{self, Value};
 use near_sdk::test_utils::VMContextBuilder;
 use near_sdk::{env, testing_env, AccountId, NearToken, PromiseError};
 use p256::ecdsa::signature::hazmat::PrehashSigner;
@@ -10,6 +11,7 @@ const DEADLINE: u64 = 1_000;
 const NEAR: NearToken = NearToken::from_near(1);
 const YOCTO: NearToken = NearToken::from_yoctonear(1);
 const ZERO: NearToken = NearToken::from_yoctonear(0);
+const RELEASE_VECTOR: &str = include_str!("../../docs/vectors/release-v1.json");
 
 fn id(name: &str) -> AccountId {
     name.parse().unwrap()
@@ -116,9 +118,20 @@ fn balance(contract: &Contract) -> NearToken {
 
 #[test]
 fn payload_matches_shared_vector() {
+    let vector: Value = serde_json::from_str(RELEASE_VECTOR).unwrap();
+    let field = |name: &str| vector[name].as_str().unwrap().to_owned();
+    let amount = NearToken::from_yoctonear(field("amount_yocto").parse().unwrap());
+    let payload = release_payload(
+        &field("chain_id"),
+        &id(&field("contract")),
+        vector["bounty_id"].as_u64().unwrap(),
+        &id(&field("claimant")),
+        amount,
+    );
+    assert_eq!(payload, field("payload"));
     assert_eq!(
-        release_payload("testnet", &escrow(), 7, &tobi(), NEAR),
-        "ehor-escrow/v1|testnet|escrow.testnet|7|tobi.testnet|1000000000000000000000000"
+        hex::encode(env::sha256_array(payload.as_bytes())),
+        field("sha256")
     );
 }
 
