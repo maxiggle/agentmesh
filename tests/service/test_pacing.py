@@ -2,48 +2,60 @@ import asyncio
 
 from ehor.service.pacing import pause
 
+LONG = 60.0
+SETTLE = 0.05
+DEADLINE = 5.0
 
-async def _paused(*, stop: bool, wake: bool, interval: float) -> float:
-    stop_event, wake_event = asyncio.Event(), asyncio.Event()
-    loop = asyncio.get_running_loop()
-    if stop:
-        loop.call_later(0.01, stop_event.set)
-    if wake:
-        loop.call_later(0.01, wake_event.set)
-    started = loop.time()
-    await pause(stop_event, wake_event, interval)
-    return loop.time() - started
+
+async def _still_paused_after_settling(stop: asyncio.Event, wake: asyncio.Event) -> bool:
+    task = asyncio.create_task(pause(stop, wake, LONG))
+    await asyncio.sleep(SETTLE)
+    paused = not task.done()
+    stop.set()
+    await asyncio.wait_for(task, DEADLINE)
+    return paused
 
 
 def test_returns_after_the_interval() -> None:
-    assert asyncio.run(_paused(stop=False, wake=False, interval=0.05)) >= 0.05
+    asyncio.run(asyncio.wait_for(pause(asyncio.Event(), asyncio.Event(), 0.01), DEADLINE))
+
+
+def test_stays_paused_until_something_happens() -> None:
+    assert asyncio.run(_still_paused_after_settling(asyncio.Event(), asyncio.Event()))
 
 
 def test_stop_ends_the_pause_early() -> None:
-    assert asyncio.run(_paused(stop=True, wake=False, interval=60)) < 5
+    async def scenario() -> None:
+        stop = asyncio.Event()
+        asyncio.get_running_loop().call_later(0.01, stop.set)
+        await asyncio.wait_for(pause(stop, asyncio.Event(), LONG), DEADLINE)
+
+    asyncio.run(scenario())
 
 
 def test_wake_ends_the_pause_early() -> None:
-    assert asyncio.run(_paused(stop=False, wake=True, interval=60)) < 5
+    async def scenario() -> None:
+        wake = asyncio.Event()
+        asyncio.get_running_loop().call_later(0.01, wake.set)
+        await asyncio.wait_for(pause(asyncio.Event(), wake, LONG), DEADLINE)
+
+    asyncio.run(scenario())
 
 
 def test_a_wake_from_before_the_pause_is_ignored() -> None:
-    async def scenario() -> float:
-        stop, wake = asyncio.Event(), asyncio.Event()
+    async def scenario() -> bool:
+        wake = asyncio.Event()
         wake.set()
-        loop = asyncio.get_running_loop()
-        started = loop.time()
-        await pause(stop, wake, 0.05)
-        return loop.time() - started
+        return await _still_paused_after_settling(asyncio.Event(), wake)
 
-    assert asyncio.run(scenario()) >= 0.05
+    assert asyncio.run(scenario())
 
 
 def test_leaves_no_pending_tasks() -> None:
     async def scenario() -> set[asyncio.Task[object]]:
         stop, wake = asyncio.Event(), asyncio.Event()
         asyncio.get_running_loop().call_later(0.01, wake.set)
-        await pause(stop, wake, 60)
+        await pause(stop, wake, LONG)
         await asyncio.sleep(0)
         return {task for task in asyncio.all_tasks() if task is not asyncio.current_task()}
 
