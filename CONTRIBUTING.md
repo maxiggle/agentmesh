@@ -6,7 +6,9 @@ are in [CLAUDE.md](CLAUDE.md).
 
 ## Setting up
 
-You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
+You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). For the escrow contract you
+also need a Rust toolchain from [rustup](https://rustup.rs/) and
+[cargo-near](https://github.com/near/cargo-near) for wasm builds.
 
 ```bash
 git clone https://github.com/maxiggle/agentmesh
@@ -27,6 +29,14 @@ uv run mypy
 uv run pytest
 ```
 
+And, from `contract/`:
+
+```bash
+cargo fmt --check && cargo clippy --all-targets -- -D warnings
+cargo test
+cargo near build non-reproducible-wasm
+```
+
 CI runs them on macOS, Linux and Windows for every push and pull request. Do not disable or skip
 a check to make it pass.
 
@@ -38,11 +48,13 @@ multicast tests.
 
 - Python 3.11+, fully typed; `mypy --strict` must pass.
 - No `noqa` or `type: ignore` without a specific error code and a reason.
+- No `#[allow(...)]` in the contract without a reason.
 - Comment only the non-obvious *why*: protocol constraints, security decisions, workarounds.
 - Use `typing.Protocol` for pluggable boundaries, classes for components that own state, frozen
   dataclasses for values, and plain functions for stateless transformations.
 - Layering is one-way. Lower layers never import higher ones:
-  `identity` → `log`, `crypto` → `store`, `roster` → `sync`, `transport` → `service` → `mcp`, `cli`.
+  `identity` → `log`, `crypto` → `store`, `roster` → `sync`, `transport`, `escrow` → `service` →
+  `mcp`, `cli`.
 - Fail loudly with specific exception types; never swallow exceptions.
 
 ## Tests
@@ -50,7 +62,8 @@ multicast tests.
 - Every module has unit tests under `tests/`, mirroring `src/ehor/`.
 - A bug fix ships with a regression test in the same commit.
 - Security checks are tested from the rejecting side: tampered, reordered, forked and
-  unauthorized entries each need a failing-case test.
+  unauthorized entries, and high-S or replayed release signatures, each need a failing-case test.
+- Every contract `ERR_*` has a failing-case test.
 - Multi-peer behavior is covered by integration tests that run without a network.
 
 ## Protocol changes
@@ -58,6 +71,11 @@ multicast tests.
 [`docs/protocol.md`](docs/protocol.md) is the source of truth for the wire format. Change it in
 the same commit as the code that implements the change. Log entries are immutable, every incoming
 entry is verified before it is stored, and key material is never logged or printed.
+
+[`docs/escrow.md`](docs/escrow.md) is the source of truth for the escrow contract and the release
+payload, and changes the same way. The release payload test vector in `docs/vectors/` is shared by
+the Rust and Python tests. No message from a teammate's agent can cause a signature or a payment:
+a release is signed only by the human-run `ehor pay` command, which is never exposed through MCP.
 
 ## Commits
 
@@ -69,7 +87,7 @@ type(scope): imperative lowercase summary
 
 - Types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`, `revert`.
 - Scopes follow the package layout: `identity`, `log`, `store`, `crypto`, `roster`, `sync`,
-  `transport`, `service`, `mcp`, `cli`, `relay`.
+  `transport`, `escrow`, `service`, `mcp`, `cli`, `relay`, `contract`.
 - At most 72 characters, no trailing period. The body explains *why*, not *what*.
 - Never bundle unrelated changes; refactors, formatting, dependency bumps and features are
   separate commits.
