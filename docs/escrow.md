@@ -149,7 +149,7 @@ If any check fails, the bounty is shown as "unverified" and `/claim` refuses the
 
 ### Config and client
 
-- New extra `ehor[near]` and a `near` section in the ehor config (network, account id, contract id).
+- New extra `ehor[near]` and a `near` section in the ehor config: account id, contract id, network (`testnet`, the only accepted value) and an HTTPS RPC URL (default `https://test.rpc.fastnear.com`).
 - `ehor.escrow.client` defines the `NearClient` interface: view call, function call (with attached deposit and gas), and adding a function-call access key. `ehor.escrow.pynear` implements it with py-near. Spike B showed py-near installs on every supported Python, so the `near` CLI implementation is not built.
 
 ### CLI and MCP
