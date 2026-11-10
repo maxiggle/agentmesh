@@ -36,6 +36,9 @@ fido2 = [
 p2p = [
     "iroh>=1.2.0",
 ]
+near = [
+    "py-near>=1.2.22",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -50,6 +53,7 @@ dev = [
     "iroh>=1.2.0",
     "mypy>=2.4.0",
     "pre-commit>=4.7.0",
+    "py-near>=1.2.22",
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.17.3",
