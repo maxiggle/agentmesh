@@ -316,34 +316,20 @@ impl Contract {
     }
 
     pub fn cancel(&mut self, bounty_id: u64) {
-        let caller = env::predecessor_account_id();
-        let amount = {
-            let bounty = self.bounty_mut(bounty_id);
-            require!(bounty.sender == caller, "ERR_NOT_SENDER");
+        self.close(bounty_id, Status::Cancelled, "cancel", |bounty| {
             require!(bounty.status == Status::Open, "ERR_NOT_OPEN");
-            bounty.status = Status::Cancelled;
-            bounty.amount
-        };
-        self.account_mut(&caller).credit(amount);
-        emit("cancel", json!({"bounty_id": bounty_id}));
+        });
     }
 
     pub fn refund(&mut self, bounty_id: u64) {
-        let caller = env::predecessor_account_id();
         let now = env::block_timestamp();
-        let amount = {
-            let bounty = self.bounty_mut(bounty_id);
-            require!(bounty.sender == caller, "ERR_NOT_SENDER");
+        self.close(bounty_id, Status::Refunded, "refund", |bounty| {
             require!(
                 matches!(bounty.status, Status::Open | Status::Claimed),
                 "ERR_NOT_REFUNDABLE"
             );
             require!(now >= bounty.deadline.0, "ERR_DEADLINE_NOT_PASSED");
-            bounty.status = Status::Refunded;
-            bounty.amount
-        };
-        self.account_mut(&caller).credit(amount);
-        emit("refund", json!({"bounty_id": bounty_id}));
+        });
     }
 
     #[private]
@@ -412,6 +398,25 @@ impl Contract {
 }
 
 impl Contract {
+    fn close(
+        &mut self,
+        bounty_id: u64,
+        status: Status,
+        event: &str,
+        allowed: impl FnOnce(&Bounty),
+    ) {
+        let caller = env::predecessor_account_id();
+        let amount = {
+            let bounty = self.bounty_mut(bounty_id);
+            require!(bounty.sender == caller, "ERR_NOT_SENDER");
+            allowed(bounty);
+            bounty.status = status;
+            bounty.amount
+        };
+        self.account_mut(&caller).credit(amount);
+        emit(event, json!({"bounty_id": bounty_id}));
+    }
+
     fn callback() -> ContractExt {
         Self::ext(env::current_account_id()).with_static_gas(CALLBACK_GAS)
     }
