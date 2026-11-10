@@ -106,6 +106,19 @@ fn normalize_device_key(value: &str) -> String {
     hex::encode(key)
 }
 
+// A function-call key cannot attach NEAR, so an attached deposit or yoctoNEAR proves the
+// caller signed with a full-access key.
+fn required_deposit() -> NearToken {
+    let deposit = env::attached_deposit();
+    require!(!deposit.is_zero(), "ERR_DEPOSIT_REQUIRED");
+    deposit
+}
+
+fn full_access_caller() -> AccountId {
+    assert_one_yocto();
+    env::predecessor_account_id()
+}
+
 fn emit(event: &str, data: Value) {
     let body = json!({
         "standard": EVENT_STANDARD,
@@ -125,9 +138,7 @@ impl Contract {
             !self.accounts.contains_key(&owner),
             "ERR_ALREADY_REGISTERED"
         );
-        let deposit = env::attached_deposit();
-        // A function-call key cannot attach NEAR, so any deposit proves a full-access key.
-        require!(!deposit.is_zero(), "ERR_DEPOSIT_REQUIRED");
+        let deposit = required_deposit();
         let device_key = normalize_device_key(&p256_public_key);
         emit(
             "register",
@@ -146,16 +157,14 @@ impl Contract {
     #[payable]
     pub fn deposit(&mut self) {
         let owner = env::predecessor_account_id();
-        let deposit = env::attached_deposit();
-        require!(!deposit.is_zero(), "ERR_DEPOSIT_REQUIRED");
+        let deposit = required_deposit();
         self.account_mut(&owner).credit(deposit);
         emit("deposit", json!({"account": owner, "amount": deposit}));
     }
 
     #[payable]
     pub fn withdraw(&mut self, amount: NearToken) -> Promise {
-        assert_one_yocto();
-        let owner = env::predecessor_account_id();
+        let owner = full_access_caller();
         require!(!amount.is_zero(), "ERR_ZERO_AMOUNT");
         self.account_mut(&owner).debit(amount);
         emit("withdraw", json!({"account": owner, "amount": amount}));
@@ -168,8 +177,7 @@ impl Contract {
 
     #[payable]
     pub fn set_device_key(&mut self, p256_public_key: String) {
-        assert_one_yocto();
-        let owner = env::predecessor_account_id();
+        let owner = full_access_caller();
         let device_key = normalize_device_key(&p256_public_key);
         self.account_mut(&owner).device_key = device_key.clone();
         emit(
@@ -180,8 +188,7 @@ impl Contract {
 
     #[payable]
     pub fn set_max_per_bounty(&mut self, amount: NearToken) {
-        assert_one_yocto();
-        let owner = env::predecessor_account_id();
+        let owner = full_access_caller();
         self.account_mut(&owner).max_per_bounty = amount;
         emit(
             "set_max_per_bounty",
