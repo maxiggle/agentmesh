@@ -77,11 +77,17 @@ pub fn release_payload(
     )
 }
 
+fn required<T>(value: Option<T>, error: &str) -> T {
+    value.unwrap_or_else(|| env::panic_str(error))
+}
+
 fn decode_fixed<const N: usize>(value: &str, error: &str) -> [u8; N] {
-    hex::decode(value)
-        .ok()
-        .and_then(|bytes| <[u8; N]>::try_from(bytes).ok())
-        .unwrap_or_else(|| env::panic_str(error))
+    required(
+        hex::decode(value)
+            .ok()
+            .and_then(|bytes| <[u8; N]>::try_from(bytes).ok()),
+        error,
+    )
 }
 
 fn normalize_device_key(value: &str) -> String {
@@ -143,10 +149,10 @@ impl Contract {
         let owner = env::predecessor_account_id();
         require!(!amount.is_zero(), "ERR_ZERO_AMOUNT");
         let account = self.account_mut(&owner);
-        account.balance = account
-            .balance
-            .checked_sub(amount)
-            .unwrap_or_else(|| env::panic_str("ERR_INSUFFICIENT_BALANCE"));
+        account.balance = required(
+            account.balance.checked_sub(amount),
+            "ERR_INSUFFICIENT_BALANCE",
+        );
         emit("withdraw", json!({"account": owner, "amount": amount}));
         Promise::new(owner.clone()).transfer(amount).then(
             Self::ext(env::current_account_id())
@@ -204,10 +210,10 @@ impl Contract {
 
         let account = self.account_mut(&sender);
         require!(amount <= account.max_per_bounty, "ERR_OVER_LIMIT");
-        account.balance = account
-            .balance
-            .checked_sub(amount)
-            .unwrap_or_else(|| env::panic_str("ERR_INSUFFICIENT_BALANCE"));
+        account.balance = required(
+            account.balance.checked_sub(amount),
+            "ERR_INSUFFICIENT_BALANCE",
+        );
 
         let id = self.next_bounty_id;
         self.next_bounty_id += 1;
@@ -272,10 +278,7 @@ impl Contract {
         let (sender, claimant, amount) = {
             let bounty = self.bounty_ref(bounty_id);
             require!(bounty.status == Status::Done, "ERR_NOT_DONE");
-            let claimant = bounty
-                .claimant
-                .clone()
-                .unwrap_or_else(|| env::panic_str("ERR_NO_CLAIMANT"));
+            let claimant = required(bounty.claimant.clone(), "ERR_NO_CLAIMANT");
             (bounty.sender.clone(), claimant, bounty.amount)
         };
 
@@ -405,27 +408,19 @@ impl Contract {
 
 impl Contract {
     fn account_ref(&self, account_id: &AccountId) -> &Account {
-        self.accounts
-            .get(account_id)
-            .unwrap_or_else(|| env::panic_str("ERR_NOT_REGISTERED"))
+        required(self.accounts.get(account_id), "ERR_NOT_REGISTERED")
     }
 
     fn account_mut(&mut self, account_id: &AccountId) -> &mut Account {
-        self.accounts
-            .get_mut(account_id)
-            .unwrap_or_else(|| env::panic_str("ERR_NOT_REGISTERED"))
+        required(self.accounts.get_mut(account_id), "ERR_NOT_REGISTERED")
     }
 
     fn bounty_ref(&self, bounty_id: u64) -> &Bounty {
-        self.bounties
-            .get(&bounty_id)
-            .unwrap_or_else(|| env::panic_str("ERR_NO_BOUNTY"))
+        required(self.bounties.get(&bounty_id), "ERR_NO_BOUNTY")
     }
 
     fn bounty_mut(&mut self, bounty_id: u64) -> &mut Bounty {
-        self.bounties
-            .get_mut(&bounty_id)
-            .unwrap_or_else(|| env::panic_str("ERR_NO_BOUNTY"))
+        required(self.bounties.get_mut(&bounty_id), "ERR_NO_BOUNTY")
     }
 
     fn credit(&mut self, account_id: &AccountId, amount: NearToken) {
