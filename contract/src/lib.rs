@@ -133,6 +133,10 @@ fn emit_amount(event: &str, account: &AccountId, amount: NearToken) {
     emit(event, json!({"account": account, "amount": amount}));
 }
 
+fn emit_claimant(event: &str, bounty_id: u64, claimant: &AccountId) {
+    emit(event, json!({"bounty_id": bounty_id, "claimant": claimant}));
+}
+
 #[near]
 impl Contract {
     #[payable]
@@ -264,7 +268,7 @@ impl Contract {
         );
         bounty.claimant = Some(caller.clone());
         bounty.status = Status::Claimed;
-        emit("claim", json!({"bounty_id": bounty_id, "claimant": caller}));
+        emit_claimant("claim", bounty_id, &caller);
     }
 
     pub fn mark_done(&mut self, bounty_id: u64) {
@@ -276,10 +280,7 @@ impl Contract {
             "ERR_NOT_CLAIMANT"
         );
         bounty.status = Status::Done;
-        emit(
-            "mark_done",
-            json!({"bounty_id": bounty_id, "claimant": caller}),
-        );
+        emit_claimant("mark_done", bounty_id, &caller);
     }
 
     pub fn release(&mut self, bounty_id: u64, signature: String) -> Promise {
