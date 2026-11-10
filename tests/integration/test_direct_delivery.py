@@ -99,8 +99,12 @@ async def _scenario(root: Path) -> None:
 
             await _until(delivered, gef_sync, tobi_sync)
             assert '"straight to you"' in received[0]
-            assert gef_sync.last_round is not None
-            assert gef_sync.last_round.reached == {tobi.author}
+
+            def gef_reached_tobi() -> bool:
+                last = gef_sync.last_round
+                return last is not None and last.reached == {tobi.author}
+
+            await _until(gef_reached_tobi, gef_sync)
         finally:
             stop.set()
             await asyncio.gather(*running)
