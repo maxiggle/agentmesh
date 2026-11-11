@@ -4,6 +4,8 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+ALLOWED_METHODS = ("post_bounty", "claim", "mark_done", "release")
+DEFAULT_ALLOWANCE = 25 * 10**22
 _KEY_FILE_MODE = 0o600
 _ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 _RAW = (serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption())
@@ -97,3 +99,28 @@ class LimitedKeyFile:
 
     def load_or_create(self) -> LimitedKey:
         return self.load() if self.exists() else self.create()
+
+
+def check_access_key(permission: object, contract: str, max_allowance_yocto: int) -> None:
+    """Refuse a limited key that can do more than ehor asked the wallet for.
+
+    Some wallets add the key for every method on the contract; that is accepted, because the
+    contract's deposit checks, not the method list, keep money from moving. See docs/escrow.md.
+    """
+    if permission is None:
+        raise LimitedKeyError("the NEAR key is not on the account")
+    if not isinstance(permission, dict) or set(permission) != {"FunctionCall"}:
+        raise LimitedKeyError("the NEAR key has full access; ehor only accepts a limited key")
+    call = permission["FunctionCall"]
+    if not isinstance(call, dict):
+        raise LimitedKeyError("the NEAR key's permission is malformed")
+    if call.get("receiver_id") != contract:
+        raise LimitedKeyError(f"the NEAR key is for {call.get('receiver_id')!r}, not {contract}")
+    methods = call.get("method_names")
+    if not isinstance(methods, list) or (methods and sorted(methods) != sorted(ALLOWED_METHODS)):
+        raise LimitedKeyError(f"the NEAR key allows unexpected methods: {methods!r}")
+    allowance = call.get("allowance")
+    if not isinstance(allowance, str) or not allowance.isdigit():
+        raise LimitedKeyError("the NEAR key has no gas allowance limit")
+    if int(allowance) > max_allowance_yocto:
+        raise LimitedKeyError("the NEAR key's gas allowance is larger than ehor asked for")

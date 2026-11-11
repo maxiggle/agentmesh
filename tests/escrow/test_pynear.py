@@ -45,8 +45,24 @@ def panic(message: str) -> FakeResult:
 
 
 @dataclass
+class FakeProvider:
+    reply: object = None
+    raises: Exception | None = None
+    calls: list[tuple[str, str, str]] = field(default_factory=list)
+
+    async def get_access_key(
+        self, account_id: str, public_key: str, finality: str = "optimistic"
+    ) -> object:
+        self.calls.append((account_id, public_key, finality))
+        if self.raises is not None:
+            raise self.raises
+        return self.reply
+
+
+@dataclass
 class FakeAccount:
     chain_id: str = "testnet"
+    provider: FakeProvider = field(default_factory=FakeProvider)
     reply: FakeResult = field(default_factory=lambda: success(None))
     raises: Exception | None = None
     calls: list[tuple[object, ...]] = field(default_factory=list)
@@ -214,3 +230,38 @@ def test_connect_without_py_near_names_the_extra(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setitem(sys.modules, "py_near.account", None)
     with pytest.raises(NearUnavailableError, match=r"ehor\[near\]"):
         PyNearClient.connect("alice.testnet", PRIVATE_KEY)
+
+
+async def _access_key(account: FakeAccount) -> object:
+    async with client(account) as near:
+        return await near.access_key("alice.testnet", "ed25519:abc")
+
+
+def test_access_key_returns_the_permission_at_final() -> None:
+    permission = {"FunctionCall": {"receiver_id": CONTRACT}}
+    account = FakeAccount(provider=FakeProvider(reply={"nonce": 1, "permission": permission}))
+    assert asyncio.run(_access_key(account)) == permission
+    assert account.provider.calls == [("alice.testnet", "ed25519:abc", "final")]
+
+
+def test_missing_access_key_is_none() -> None:
+    reply = {"error": "access key ed25519:abc does not exist while viewing", "logs": []}
+    assert asyncio.run(_access_key(FakeAccount(provider=FakeProvider(reply=reply)))) is None
+
+
+def test_unknown_account_has_no_access_key() -> None:
+    reply = {"error": "account alice.testnet does not exist while viewing"}
+    assert asyncio.run(_access_key(FakeAccount(provider=FakeProvider(reply=reply)))) is None
+
+
+@pytest.mark.parametrize(
+    "provider",
+    [
+        FakeProvider(reply={"error": "Server error"}),
+        FakeProvider(reply="nope"),
+        FakeProvider(raises=FakeRpcError("down")),
+    ],
+)
+def test_access_key_errors_are_rpc_errors(provider: FakeProvider) -> None:
+    with pytest.raises(RpcError):
+        asyncio.run(_access_key(FakeAccount(provider=provider)))

@@ -76,6 +76,9 @@ class Chain:
         self.bounty["status"] = "Released"
         return None
 
+    async def access_key(self, account: str, public_key: str) -> object | None:
+        raise AssertionError("pay never looks up access keys")
+
     async def add_function_call_key(
         self, public_key: str, contract: str, methods: Sequence[str], allowance_yocto: int
     ) -> None:

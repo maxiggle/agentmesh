@@ -6,7 +6,14 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from ehor.escrow.limited_key import LimitedKey, LimitedKeyError, LimitedKeyFile, base58
+from ehor.escrow.limited_key import (
+    ALLOWED_METHODS,
+    LimitedKey,
+    LimitedKeyError,
+    LimitedKeyFile,
+    base58,
+    check_access_key,
+)
 
 ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
@@ -99,3 +106,51 @@ def test_missing_and_foreign_keys_are_refused(tmp_path: Path) -> None:
 def test_empty_passphrase_is_refused(tmp_path: Path) -> None:
     with pytest.raises(LimitedKeyError, match="empty"):
         LimitedKeyFile(tmp_path / "near.key", b"")
+
+
+CONTRACT = "ehor-escrow.testnet"
+ALLOWANCE = 25 * 10**22
+
+
+def _permission(**changes: object) -> dict[str, object]:
+    call: dict[str, object] = {
+        "receiver_id": CONTRACT,
+        "method_names": list(ALLOWED_METHODS),
+        "allowance": str(ALLOWANCE),
+    }
+    call.update(changes)
+    return {"FunctionCall": call}
+
+
+@pytest.mark.parametrize(
+    "permission",
+    [
+        _permission(),
+        _permission(method_names=list(reversed(ALLOWED_METHODS))),
+        _permission(method_names=[]),
+        _permission(allowance=str(ALLOWANCE - 10**21)),
+    ],
+)
+def test_expected_limited_keys_are_accepted(permission: object) -> None:
+    check_access_key(permission, CONTRACT, ALLOWANCE)
+
+
+@pytest.mark.parametrize(
+    ("permission", "message"),
+    [
+        (None, "not on the account"),
+        ("FullAccess", "full access"),
+        ({"FullAccess": {}}, "full access"),
+        ({"FunctionCall": "x"}, "malformed"),
+        (_permission(receiver_id="other.testnet"), "is for 'other.testnet'"),
+        (_permission(method_names=["withdraw"]), "unexpected methods"),
+        (_permission(method_names=[*ALLOWED_METHODS, "cancel"]), "unexpected methods"),
+        (_permission(method_names=["claim"]), "unexpected methods"),
+        (_permission(method_names=None), "unexpected methods"),
+        (_permission(allowance=None), "no gas allowance limit"),
+        (_permission(allowance=str(ALLOWANCE + 1)), "larger than ehor asked for"),
+    ],
+)
+def test_keys_that_can_do_more_are_refused(permission: object, message: str) -> None:
+    with pytest.raises(LimitedKeyError, match=message):
+        check_access_key(permission, CONTRACT, ALLOWANCE)

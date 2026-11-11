@@ -21,10 +21,20 @@ from ehor.escrow.client import (
 
 _PRIVATE_KEY = re.compile(r"ed25519:[1-9A-HJ-NP-Za-km-z]{43,88}")
 _PANIC_PREFIX = "Smart contract panicked: "
+_NO_KEY = "does not exist"
+
+
+class _Provider(Protocol):
+    async def get_access_key(
+        self, account_id: str, public_key: str, finality: str = ...
+    ) -> object: ...
 
 
 class _Account(Protocol):
     chain_id: str
+
+    @property
+    def provider(self) -> _Provider: ...
 
     async def startup(self) -> None: ...
 
@@ -181,6 +191,23 @@ class PyNearClient:
         except self._rpc_errors as exc:
             raise RpcError(f"call {method} failed: {exc}") from exc
         return _outcome(result)
+
+    async def access_key(self, account: str, public_key: str) -> object | None:
+        try:
+            result = await self._account.provider.get_access_key(
+                account, public_key, finality="final"
+            )
+        except self._rpc_errors as exc:
+            raise RpcError(f"view access key failed: {exc}") from exc
+        if not isinstance(result, dict):
+            raise RpcError("access key view returned no object")
+        error = result.get("error")
+        if error is not None:
+            if _NO_KEY in str(error):
+                return None
+            raise RpcError(f"view access key failed: {error}")
+        permission: object = result.get("permission")
+        return permission
 
     async def add_function_call_key(
         self, public_key: str, contract: str, methods: Sequence[str], allowance_yocto: int

@@ -54,6 +54,10 @@ class NearClient(Protocol):
         """
         ...
 
+    async def access_key(self, account: str, public_key: str) -> object | None:
+        """The key's `permission` as the RPC reports it, or None when the key is not there."""
+        ...
+
     async def add_function_call_key(
         self, public_key: str, contract: str, methods: Sequence[str], allowance_yocto: int
     ) -> None:
