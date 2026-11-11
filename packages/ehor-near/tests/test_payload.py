@@ -12,7 +12,7 @@ from ehor_near.payload import (
     release_payload,
 )
 
-VECTOR = Path(__file__).resolve().parents[3] / "docs" / "vectors" / "release-v1.json"
+VECTOR = Path(__file__).resolve().parents[1] / "docs" / "vectors" / "release-v1.json"
 
 
 @pytest.fixture

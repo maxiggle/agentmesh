@@ -10,7 +10,7 @@ from ehor.identity.software import SoftwareSigner
 from ehor_near.payload import PayloadError
 from ehor_near.release import ReleaseSignError, ReleaseTerms, sign_release
 
-VECTOR = Path(__file__).resolve().parents[3] / "docs" / "vectors" / "release-v1.json"
+VECTOR = Path(__file__).resolve().parents[1] / "docs" / "vectors" / "release-v1.json"
 TERMS = ReleaseTerms("testnet", "ehor-escrow.testnet", 7, "bob.testnet", 10**23)
 
 

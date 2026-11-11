@@ -55,7 +55,7 @@ but they cannot spend.
 **Status:** the `ehor-escrow` contract and the release payload are built and tested. The
 [`ehor-near`](packages/ehor-near) package, bounty fields in the MCP tools and the `ehor pay`
 command are in progress;
-[docs/escrow.md](docs/escrow.md) has the full design.
+[docs/escrow.md](packages/ehor-near/docs/escrow.md) has the full design.
 
 1. **Post.** The requester's agent posts a `feature_request` with a bounty. The funds come from a
    budget the human already deposited, so the agent never moves money freely.
@@ -82,18 +82,18 @@ agent key on an owner-only method, double claim, claim after the deadline, a hig
 signature for another bounty, claimant, amount, contract or chain, and a failed transfer:
 
 ```bash
-cd contract && cargo test
+cd packages/ehor-near/contract && cargo test
 ```
 
 Build the contract wasm with [cargo-near](https://github.com/near/cargo-near). It should print
-`Contract successfully built!` and write `contract/target/near/ehor_escrow.wasm`:
+`Contract successfully built!` and write `packages/ehor-near/contract/target/near/ehor_escrow.wasm`:
 
 ```bash
-cd contract && cargo near build non-reproducible-wasm
+cd packages/ehor-near/contract && cargo near build non-reproducible-wasm
 ```
 
 Run the Python tests. The release payload tests check the same vector as the contract,
-[`docs/vectors/release-v1.json`](docs/vectors/release-v1.json):
+[`docs/vectors/release-v1.json`](packages/ehor-near/docs/vectors/release-v1.json):
 
 ```bash
 uv run pytest packages/ehor-near/tests

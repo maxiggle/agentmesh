@@ -72,12 +72,12 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: contract
+        working-directory: packages/ehor-near/contract
     steps:
       - uses: actions/checkout@v5
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: contract
+          workspaces: packages/ehor-near/contract
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets -- -D warnings
 
@@ -90,12 +90,12 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     defaults:
       run:
-        working-directory: contract
+        working-directory: packages/ehor-near/contract
     steps:
       - uses: actions/checkout@v5
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: contract
+          workspaces: packages/ehor-near/contract
       - run: cargo test --locked
 
   contract-wasm:
@@ -103,12 +103,12 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: contract
+        working-directory: packages/ehor-near/contract
     steps:
       - uses: actions/checkout@v5
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: contract
+          workspaces: packages/ehor-near/contract
       - run: rustup target add wasm32-unknown-unknown
       - name: Install cargo-near
         env:
@@ -125,7 +125,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: contract-wasm
-          path: contract/target/near/ehor_escrow.wasm
+          path: packages/ehor-near/contract/target/near/ehor_escrow.wasm
 
   build:
     name: Build distributions

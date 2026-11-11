@@ -16,4 +16,4 @@ ehor pay 7        # review bounty 7 and pay it with Touch ID
 Core ehor never imports this package. It finds the commands through the `ehor.commands` entry
 point, and `ehor pay` is never exposed through MCP.
 
-[docs/escrow.md](../../docs/escrow.md) has the full design.
+[docs/escrow.md](docs/escrow.md) has the full design.

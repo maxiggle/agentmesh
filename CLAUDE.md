@@ -67,8 +67,8 @@ These rules apply to every contributor, human or agent. They are not optional.
 - Bounty details shown to a human come from a chain view call, never from message text.
 - Every on-chain action an agent starts shows a draft and waits for approval.
 - Testnet only. Nothing defaults to mainnet. Nothing logs or prints NEAR private keys or seed phrases.
-- `docs/escrow.md` is the source of truth for contract methods, statuses and the release payload. Change it in the same commit as the code that implements it.
-- The release payload has one shared test vector in `docs/vectors/`. The Rust and Python tests both check it; change all three together.
+- `packages/ehor-near/docs/escrow.md` is the source of truth for contract methods, statuses and the release payload. Change it in the same commit as the code that implements it.
+- The release payload has one shared test vector in `packages/ehor-near/docs/vectors/`. The Rust and Python tests both check it; change all three together.
 
 ## Contract
 
@@ -92,12 +92,12 @@ These rules apply to every contributor, human or agent. They are not optional.
 
 ## Tooling
 
-- Dependency and environment management uses `uv`. Commit `uv.lock` and `contract/Cargo.lock`.
+- Dependency and environment management uses `uv`. Commit `uv.lock` and `packages/ehor-near/contract/Cargo.lock`.
 - Common commands:
   - `uv sync` — install
   - `uv run ruff check . && uv run ruff format --check .` — lint
   - `uv run mypy` — type-check
   - `uv run pytest` — test
-  - `cargo fmt --check && cargo clippy --all-targets -- -D warnings` — lint the contract (from `contract/`)
-  - `cargo test` — test the contract (from `contract/`)
-  - `cargo near build non-reproducible-wasm` — build the contract wasm (from `contract/`)
+  - `cargo fmt --check && cargo clippy --all-targets -- -D warnings` — lint the contract (from `packages/ehor-near/contract/`)
+  - `cargo test` — test the contract (from `packages/ehor-near/contract/`)
+  - `cargo near build non-reproducible-wasm` — build the contract wasm (from `packages/ehor-near/contract/`)

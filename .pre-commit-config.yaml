@@ -35,13 +35,13 @@ repos:
         pass_filenames: false
       - id: cargo-fmt
         name: cargo fmt
-        entry: cargo fmt --manifest-path contract/Cargo.toml --check
+        entry: cargo fmt --manifest-path packages/ehor-near/contract/Cargo.toml --check
         language: system
         types: [rust]
         pass_filenames: false
       - id: cargo-clippy
         name: cargo clippy
-        entry: cargo clippy --manifest-path contract/Cargo.toml --all-targets -- -D warnings
+        entry: cargo clippy --manifest-path packages/ehor-near/contract/Cargo.toml --all-targets -- -D warnings
         language: system
         types: [rust]
         pass_filenames: false

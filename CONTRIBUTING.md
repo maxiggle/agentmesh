@@ -29,7 +29,7 @@ uv run mypy
 uv run pytest
 ```
 
-And, from `contract/`:
+And, from `packages/ehor-near/contract/`:
 
 ```bash
 cargo fmt --check && cargo clippy --all-targets -- -D warnings
@@ -74,10 +74,11 @@ multicast tests.
 the same commit as the code that implements the change. Log entries are immutable, every incoming
 entry is verified before it is stored, and key material is never logged or printed.
 
-[`docs/escrow.md`](docs/escrow.md) is the source of truth for the escrow contract and the release
-payload, and changes the same way. The release payload test vector in `docs/vectors/` is shared by
-the Rust and Python tests. No message from a teammate's agent can cause a signature or a payment:
-a release is signed only by the human-run `ehor pay` command, which is never exposed through MCP.
+[`packages/ehor-near/docs/escrow.md`](packages/ehor-near/docs/escrow.md) is the source of truth
+for the escrow contract and the release payload, and changes the same way. The release payload
+test vector in `packages/ehor-near/docs/vectors/` is shared by the Rust and Python tests. No
+message from a teammate's agent can cause a signature or a payment: a release is signed only by
+the human-run `ehor pay` command, which is never exposed through MCP.
 
 ## Commits
 
