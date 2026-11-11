@@ -1,9 +1,10 @@
+import argparse
 import getpass
 import io
 import json
 import sys
 import tempfile
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 
 import pytest
@@ -593,3 +594,49 @@ def test_notify_test_reaches_the_phone_too(tmp_path: Path, monkeypatch: pytest.M
     assert main(["--home", home, "notify", "test"]) == 0
     assert [url for url, _ in sent] == ["https://ntfy.example.com"]
     assert json.loads(sent[0][1])["message"] == "notifications work"
+
+
+class _PluginEntry:
+    def __init__(self, name: str, register: Callable[[cli_module.Commands], None]) -> None:
+        self.name = name
+        self._register = register
+
+    def load(self) -> Callable[[cli_module.Commands], None]:
+        return self._register
+
+
+def _hello_plugin(commands: cli_module.Commands) -> None:
+    def run(args: argparse.Namespace) -> int:
+        if args.fail:
+            raise cli_module.CliError("plugin failed")
+        sys.stdout.write(f"hello from {cli_module.device_home(args)}\n")
+        return 0
+
+    hello = commands.add_parser("hello", help="say hello")
+    hello.add_argument("--fail", action="store_true")
+    hello.set_defaults(run=run)
+
+
+@pytest.fixture
+def plugins(monkeypatch: pytest.MonkeyPatch) -> None:
+    def installed(*, group: str) -> list[_PluginEntry]:
+        assert group == cli_module.COMMANDS_GROUP
+        return [_PluginEntry("hello", _hello_plugin)]
+
+    monkeypatch.setattr(cli_module, "entry_points", installed)
+
+
+@pytest.mark.usefixtures("plugins")
+def test_installed_plugins_add_commands(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["--home", str(tmp_path), "hello"]) == 0
+    assert capsys.readouterr().out == f"hello from {tmp_path}\n"
+
+
+@pytest.mark.usefixtures("plugins")
+def test_a_plugin_command_reports_its_error(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["hello", "--fail"]) == 1
+    assert capsys.readouterr().err == "error: plugin failed\n"
+
+
+def test_device_passphrase_reads_the_environment() -> None:
+    assert cli_module.device_passphrase() == b"test passphrase"

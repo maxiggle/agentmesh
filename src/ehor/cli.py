@@ -9,7 +9,9 @@ import sys
 import webbrowser
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import replace
+from importlib.metadata import entry_points
 from pathlib import Path
+from typing import TypeAlias
 
 from ehor.agents import (
     Agent,
@@ -93,6 +95,9 @@ _PHONE_HELP = (
     "Install the ntfy app (https://ntfy.sh) and subscribe to that URL. Keep it private: anyone"
     " with it can read the sender and summary of your new messages, and so can its server."
 )
+# Each entry point in this group names a function that adds subcommands to the parser.
+# A plugin command reports a failure by raising CliError.
+COMMANDS_GROUP = "ehor.commands"
 RELEASE_KEY_LABEL = "release"
 LIMITED_KEY_FILE = "near-limited.key"
 DEFAULT_CONTRACT = "ehor-escrow.testnet"
@@ -118,6 +123,9 @@ _RELAY_PROMPT = (
     "Enter the passphrase you chose at `ehor relay init` to unlock this relay's key."
     f" {_SKIP_PROMPT}"
 )
+
+
+Commands: TypeAlias = "argparse._SubParsersAction[argparse.ArgumentParser]"
 
 
 class CliError(Exception):
@@ -215,10 +223,17 @@ def _parser() -> argparse.ArgumentParser:
     ).set_defaults(run=_mcp)
     for tool in ("digest", "inbox", "team"):
         commands.add_parser(tool, help=f"show {tool}").set_defaults(run=_tool, tool=tool)
+    _add_plugin_commands(commands)
     return parser
 
 
-def _add_roster_commands(commands: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+def _add_plugin_commands(commands: Commands) -> None:
+    for entry in sorted(entry_points(group=COMMANDS_GROUP), key=lambda entry: entry.name):
+        register: Callable[[Commands], None] = entry.load()
+        register(commands)
+
+
+def _add_roster_commands(commands: Commands) -> None:
     roster = commands.add_parser("roster", help="show or change the team roster")
     roster.set_defaults(run=_roster_show)
     roster_commands = roster.add_subparsers(metavar="action")
@@ -253,7 +268,7 @@ def _add_roster_commands(commands: "argparse._SubParsersAction[argparse.Argument
         command.add_argument("--security-key", metavar="LABEL", help=_SECURITY_KEY_HELP)
 
 
-def _add_near_commands(commands: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+def _add_near_commands(commands: Commands) -> None:
     near = commands.add_parser("near", help="pay for requests with NEAR testnet escrow")
     near_commands = near.add_subparsers(required=True, metavar="command")
     setup = near_commands.add_parser(
@@ -269,7 +284,7 @@ def _add_near_commands(commands: "argparse._SubParsersAction[argparse.ArgumentPa
     setup.set_defaults(run=_near_setup)
 
 
-def _add_relay_commands(commands: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+def _add_relay_commands(commands: Commands) -> None:
     relay = commands.add_parser("relay", help="set up or run a relay for a team")
     relay_commands = relay.add_subparsers(required=True, metavar="action")
     relay_init = relay_commands.add_parser("init", help="create a relay from an invite code")
@@ -280,9 +295,13 @@ def _add_relay_commands(commands: "argparse._SubParsersAction[argparse.ArgumentP
     relay_serve.set_defaults(run=_relay_serve)
 
 
-def _home(args: argparse.Namespace) -> Path:
+def device_home(args: argparse.Namespace) -> Path:
     home: Path | None = args.home
     return home if home is not None else default_home()
+
+
+def device_passphrase() -> bytes:
+    return _existing_passphrase(_DEVICE_PROMPT)
 
 
 def _new_passphrase(explanation: str) -> bytes:
@@ -310,7 +329,7 @@ def _existing_passphrase(explanation: str) -> bytes:
 
 
 def _init(args: argparse.Namespace) -> int:
-    home = _home(args)
+    home = device_home(args)
     Device.check_setup(home, args.handle, args.team_name)
     _discard_unfinished_setup(home)
     exchange = None if args.exchange is None else args.exchange.resolve()
@@ -373,7 +392,7 @@ def _setup_next_steps(agent: Agent, home: Path | None) -> str:
 
 
 def _invite(args: argparse.Namespace) -> int:
-    home = _home(args)
+    home = device_home(args)
     config = DeviceConfig.load(home)
     try:
         current = Invite.decode(asyncio.run(RpcClient(default_endpoint(home)).call("invite")))
@@ -391,7 +410,7 @@ def _invite(args: argparse.Namespace) -> int:
 
 def _join(args: argparse.Namespace) -> int:
     invite = _decode_invite(args.code)
-    home = _home(args)
+    home = device_home(args)
     Device.check_setup(home, args.handle)
     _discard_unfinished_setup(home)
     exchange = None if args.exchange is None else args.exchange.resolve()
@@ -460,7 +479,7 @@ def _roster_relay_remove(args: argparse.Namespace) -> int:
 
 
 def _roster_enroll_key(args: argparse.Namespace) -> int:
-    home = _home(args)
+    home = device_home(args)
     keys = security_key_signer(home, _connect_security_key)
     enrolled = _enrolled_key(keys, args.security_key)
     sys.stderr.write("touch the new security key to create its ehor credential\n")
@@ -484,7 +503,7 @@ def _roster_enroll_key(args: argparse.Namespace) -> int:
 
 def _change_roster(args: argparse.Namespace, method: str, params: dict[str, object]) -> int:
     """Roster changes go through an enrolled security key when this device has one."""
-    home = _home(args)
+    home = device_home(args)
     keys = security_key_signer(home, _connect_security_key)
     enrolled = _enrolled_key(keys, args.security_key)
     if enrolled is None:
@@ -576,7 +595,7 @@ def _relay_serve(args: argparse.Namespace) -> int:
 
 
 def _call(args: argparse.Namespace, method: str, params: dict[str, object]) -> int:
-    sys.stdout.write(_rpc(_home(args), method, params) + "\n")
+    sys.stdout.write(_rpc(device_home(args), method, params) + "\n")
     return 0
 
 
@@ -585,7 +604,7 @@ def _rpc(home: Path, method: str, params: dict[str, object]) -> str:
 
 
 def _pay(args: argparse.Namespace) -> int:
-    home = _home(args)
+    home = device_home(args)
     near = NearConfig.load(home)
     if near is None:
         raise CliError(_NO_NEAR)
@@ -674,7 +693,7 @@ def _connect_near(
 
 
 def _near_setup(args: argparse.Namespace) -> int:
-    home = _home(args)
+    home = device_home(args)
     DeviceConfig.load(home)
     contract: str = args.contract
     if not is_account_id(contract):
@@ -778,7 +797,7 @@ def _open_browser(url: str) -> None:
 
 def _serve(args: argparse.Namespace) -> int:
     _log_to_stderr()
-    home = _home(args)
+    home = device_home(args)
     with Device.open(home, _existing_passphrase(_DEVICE_PROMPT)) as device:
         sys.stderr.write(f"ehor serving {device.config.handle} from {home}\n")
         direct = None if args.no_p2p else _direct_sync(device)
@@ -806,7 +825,7 @@ def _notifiers(config: DeviceConfig) -> list[Notifier]:
 
 
 def _notify(args: argparse.Namespace) -> int:
-    home = _home(args)
+    home = device_home(args)
     config = DeviceConfig.load(home)
     if args.target is not None and args.action != "phone":
         raise CliError("only `ehor notify phone` takes a URL")
@@ -908,7 +927,7 @@ async def _run_until_signal(run: Callable[[asyncio.Event], Awaitable[None]]) -> 
 
 
 def _mcp(args: argparse.Namespace) -> int:
-    build_server(RpcClient(default_endpoint(_home(args)))).run("stdio")
+    build_server(RpcClient(default_endpoint(device_home(args)))).run("stdio")
     return 0
 
 
