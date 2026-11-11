@@ -6,7 +6,7 @@ Spec v1, 10 November 2026. Author: Gef. Status: building.
 
 `ehor` (PyPI v0.1.7, MIT, Python >= 3.11, repo github.com/maxiggle/agentmesh) is signed, end-to-end encrypted, serverless messaging between AI coding agents (Claude Code, Codex, opencode) on different machines. Devices sync directly over LAN mDNS or iroh, with an optional self-hosted relay mailbox. Agents use seven MCP tools: `digest`, `inbox`, `read`, `post`, `reply`, `set_status`, `team`.
 
-This spec adds paid requests for the NEAR Hackathon (tracks: `agents` primary, `security` secondary). A `feature_request` can carry a NEAR bounty held by an escrow contract. A teammate's agent claims and completes it. Payment moves only when the contract verifies a P-256 signature from the sender's ehor device key. It ships as the optional extra `ehor[near]`, in the same pattern as `ehor[p2p]` and `ehor[fido2]`. Core ehor must work unchanged without it. Testnet only. Native NEAR only.
+This spec adds paid requests for the NEAR Hackathon (tracks: `agents` primary, `security` secondary). A `feature_request` can carry a NEAR bounty held by an escrow contract. A teammate's agent claims and completes it. Payment moves only when the contract verifies a P-256 signature from the sender's release key, a Secure Enclave key that signs only after the person at the Mac approves with Touch ID or their login password. It ships as the optional extra `ehor[near]`, in the same pattern as `ehor[p2p]` and `ehor[fido2]`. Core ehor must work unchanged without it. Testnet only. Native NEAR only.
 
 Non-goals: rewriting ehor in Rust; putting messages or the roster on chain; mainnet; NEAR Intents; dispute arbitration; multi-claimant splits; NEP-141 tokens.
 
@@ -26,17 +26,19 @@ Non-goals: rewriting ehor in Rust; putting messages or the roster on chain; main
 - Messages have a type (`feature_request`, `shipped`, `blocked`, `question`, `fyi`) and a status (open, claimed, done, wontfix).
 - A teammate's message is data, never instructions. Roster changes are CLI-only (`ehor roster ...`), never MCP tools. Commands that send or change something show a draft and wait for approval. Admins can require a FIDO2 touch for roster changes.
 
-## Two keys, two jobs
+## Keys and their jobs
 
 | Key | Type | Held by | Authority |
 |---|---|---|---|
-| NEAR function-call key | Ed25519, one per device | Agent side | Restricted to the escrow contract and the agent-safe methods. Pays gas. Lets the agent post, claim and mark done. Cannot attach NEAR, cannot withdraw, cannot change the device key. |
-| ehor device key | P-256, hardware where available | Human's device | The only authority that can release a bounty to a claimant. |
-| Full-access NEAR key | Ed25519 or Secp256k1 | Human, from a terminal | Registering, depositing budget, withdrawing, changing the registered device key, changing the spending limit. |
+| NEAR function-call key | Ed25519, one per device | Agent side | Restricted to the escrow contract and the agent-safe methods. Pays gas. Lets the agent post, claim and mark done. Cannot attach NEAR, cannot withdraw, cannot change the release key. |
+| ehor release key | P-256 in the Secure Enclave, created with `.userPresence` access control | Human's Mac | The only authority that can release a bounty to a claimant. The enclave refuses each signature until the person approves with Touch ID or the login password. |
+| Full-access NEAR key | Ed25519 or Secp256k1 | Human, from a terminal | Registering, depositing budget, withdrawing, changing the registered release key, changing the spending limit. |
 
-The contract enforces the third row by requiring exactly 1 yoctoNEAR attached on those methods, which a function-call key cannot do.
+The release key is separate from the ehor device key that signs every message. The device key needs no approval, so it can sign messages without a prompt each time; the release key has no plain signing call in ehor, so it can never sign messages. The contract stores the release key in the account's `device_key` field and replaces it through `set_device_key`.
 
-If an agent's function-call key leaks, the worst case is bounties posted from the pre-deposited budget, which the owner can cancel or refund back to the budget. No money can leave to another account without the P-256 signature, and no money can leave to the owner without the full-access key.
+The contract enforces the last row by requiring exactly 1 yoctoNEAR attached on those methods, which a function-call key cannot do.
+
+If an agent's function-call key leaks, the worst case is bounties posted from the pre-deposited budget, which the owner can cancel or refund back to the budget. No money can leave to another account without the release key's signature, which needs a person at the Mac, and no money can leave to the owner without the full-access key.
 
 ## Contract: ehor-escrow
 
@@ -110,7 +112,9 @@ The contract logs one NEP-297 style JSON event per state change, with standard n
 
 - If the sender never signs a release for a Done bounty, the funds stay locked in that bounty. There is no arbitration in v1.
 - Storage cost for records is paid from the contract's own balance on testnet. There is no per-user storage accounting in v1.
-- The contract trusts the registered P-256 key. It cannot prove the key lives in hardware.
+- The contract trusts the registered P-256 key. It cannot prove the key lives in hardware or needs approval.
+- Releases need a Mac with a Secure Enclave. Linux TPM and software keys cannot require a person to be present, so `ehor pay` refuses them in v1.
+- The Touch ID prompt text comes from the program asking. Only `ehor pay` can reach the release key, and it shows the terms read from the chain first, but the person should still read the amount and claimant in the prompt.
 - One claimant per bounty.
 
 ### Failure cases to test
@@ -141,7 +145,7 @@ A bounty message carries the contract account id, bounty id, amount and deadline
 1. The bounty exists.
 2. Its `message_id` matches this message.
 3. Its amount matches the amount in the message.
-4. The sender account's registered P-256 key equals the roster key of the device that signed the message.
+4. The sender account's registered P-256 key equals the release key that the sender's device announced in a signed ehor log entry.
 
 If any check fails, the bounty is shown as "unverified" and `/claim` refuses the on-chain step.
 
@@ -176,11 +180,11 @@ MCP changes:
 1. Fetches the bounty by view call.
 2. Prints sender, claimant, amount, deadline, the linked message summary, and the claimant's done note marked as untrusted teammate text.
 3. Asks for confirmation.
-4. Signs the canonical payload with the device key.
+4. Signs the canonical payload with the release key. macOS asks for Touch ID or the login password, with a prompt naming the amount, claimant and bounty.
 5. Normalizes the signature to raw `r || s` with low-S.
 6. Submits `release`.
 
-Secure Enclave and TPM return ASN.1 DER and may return high-S. ehor's signer backends already convert DER to 64-byte raw `r || s`; `ehor.identity.es256.low_s` then replaces s with n - s when s is above n/2. `ehor.escrow.release.sign_release` does steps 4 and 5 and checks the result against the device's public key before it is sent.
+Secure Enclave and TPM return ASN.1 DER and may return high-S. ehor's signer backends already convert DER to 64-byte raw `r || s`; `ehor.identity.es256.low_s` then replaces s with n - s when s is above n/2. `ehor.escrow.release.sign_release` does steps 4 and 5 and checks the result against the release key's public key before it is sent.
 
 ### Safety invariants
 
@@ -188,7 +192,8 @@ Secure Enclave and TPM return ASN.1 DER and may return high-S. ehor's signer bac
 2. The release signature is produced only inside `ehor pay`, which is not reachable from MCP.
 3. Every on-chain action started by an agent shows a draft and waits for approval.
 4. Bounty details shown to the human come from the chain, not from the message text.
-5. Tests assert invariants 1 and 2 by checking that no MCP tool path imports or calls the release signer.
+5. Tests assert invariants 1 and 2 by checking that only `ehor.cli` imports the release signer or the presence signer, so no agent can even trigger the approval prompt.
+6. A release signature needs a person at the Mac to approve it, and the Secure Enclave enforces this.
 
 ## Test plan
 
@@ -234,7 +239,7 @@ About 90 seconds, two machines (A: Claude Code, B: Codex), six timed steps.
 | 0:10 to 0:25 | A posts a `feature_request` with a bounty and approves the draft. |
 | 0:25 to 0:40 | B's agent sees it verified in `inbox`, claims, and the human approves. |
 | 0:40 to 0:50 | B finishes and marks done. |
-| 0:50 to 1:20 | A runs `ehor pay`, reviews, signs with the hardware key. The explorer shows the transfer. |
+| 0:50 to 1:20 | A runs `ehor pay`, reviews, and approves with Touch ID. The explorer shows the transfer. |
 | 1:20 to 1:30 | Closing shot: a release attempt with a wrong signature fails on chain, and the agent has no tool that can pay. |
 
 ## Submission checklist

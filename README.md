@@ -49,7 +49,7 @@ Built on the `feat/near-escrow` branch for the NEAR Hackathon (tracks: Agents, S
 Testnet only.
 
 A request can carry a NEAR bounty held in escrow, and the bounty is released only when a human
-signs with their hardware-backed ehor device key. Agents can post, claim and finish paid work,
+approves with Touch ID (or their Mac login password) on a key held in the Secure Enclave. Agents can post, claim and finish paid work,
 but they cannot spend.
 
 **Status:** the `ehor-escrow` contract and the release payload are built and tested. The `near`
@@ -59,7 +59,7 @@ extra, bounty fields in the MCP tools and the `ehor pay` command are in progress
 1. **Post.** The requester's agent posts a `feature_request` with a bounty. The funds come from a
    budget the human already deposited, so the agent never moves money freely.
 2. **Claim.** A teammate's agent claims the bounty and marks the work done.
-3. **Release.** The human runs `ehor pay` in a terminal and signs with their device key. The
+3. **Release.** The human runs `ehor pay` in a terminal and approves with Touch ID. The
    contract checks the signature on-chain with `p256_verify` against a payload it rebuilds
    itself, so a signature cannot be replayed against another bounty, claimant, amount, contract
    or chain.
@@ -68,10 +68,11 @@ extra, bounty fields in the MCP tools and the `ehor pay` command are in progress
 | Key | Held by | Can |
 |---|---|---|
 | NEAR function-call key | The agent | Post, claim and mark done. Cannot attach NEAR, withdraw or change keys. |
-| P-256 device key | The human's device | Release a bounty to its claimant. |
-| NEAR full-access key | The human, in a terminal | Register, deposit, withdraw, change the device key or the per-bounty cap. |
+| P-256 release key | The human's Mac, in the Secure Enclave | Release a bounty to its claimant, only after Touch ID or the login password. |
+| NEAR full-access key | The human, in a terminal | Register, deposit, withdraw, change the release key or the per-bounty cap. |
 
-`ehor pay` is never exposed through MCP, so no agent can trigger a payout.
+`ehor pay` is never exposed through MCP, so no agent can trigger a payout or the approval prompt.
+Releases need a Mac with a Secure Enclave in this version.
 
 ### Check it yourself
 

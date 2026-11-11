@@ -1,4 +1,8 @@
-"""Only the human-run CLI may reach the release signer; see docs/escrow.md, safety invariants."""
+"""Only the human-run CLI may reach the release signer or the presence key behind it.
+
+See docs/escrow.md, safety invariants. An agent that could trigger a presence prompt could time
+it to trick the person into approving, so it must not reach the presence signer either.
+"""
 
 import ast
 import subprocess
@@ -11,7 +15,9 @@ SRC = Path(__file__).resolve().parents[2] / "src"
 PACKAGE = SRC / "ehor"
 SIGNER_MODULE = "ehor.escrow.release"
 SIGNER_NAMES = {"release", "sign_release"}
+PRESENCE_SIGNER = "SecureEnclavePresenceSigner"
 ALLOWED = {"ehor.cli", SIGNER_MODULE}
+PRESENCE_ALLOWED = {"ehor.cli", "ehor.identity.secure_enclave"}
 
 
 def _module_name(path: Path) -> str:
@@ -56,6 +62,45 @@ def test_scanner_catches_every_way_to_reach_the_signer(source: str) -> None:
 def test_scanner_ignores_other_escrow_modules() -> None:
     assert not reaches_signer("from ehor.escrow.payload import release_payload")
     assert not reaches_signer("from ehor.escrow import payload, client")
+
+
+def uses_presence_signer(source: str) -> list[str]:
+    found: list[str] = []
+    for node in ast.walk(ast.parse(source)):
+        names = (
+            [a.name for a in node.names] if isinstance(node, ast.Import | ast.ImportFrom) else []
+        )
+        if isinstance(node, ast.Name):
+            names = [node.id]
+        elif isinstance(node, ast.Attribute):
+            names = [node.attr]
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            names = [node.value]
+        found += [name for name in names if PRESENCE_SIGNER in name or "create-presence" in name]
+    return found
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from ehor.identity.secure_enclave import SecureEnclavePresenceSigner",
+        "from ehor.identity import secure_enclave\nsecure_enclave.SecureEnclavePresenceSigner",
+        "getattr(module, 'SecureEnclavePresenceSigner')",
+        "helper(['create-presence'])",
+    ],
+)
+def test_scanner_catches_every_way_to_reach_the_presence_signer(source: str) -> None:
+    assert uses_presence_signer(source)
+
+
+def test_only_the_cli_uses_the_presence_signer() -> None:
+    offenders = {
+        _module_name(path): hits
+        for path in sorted(PACKAGE.rglob("*.py"))
+        if _module_name(path) not in PRESENCE_ALLOWED
+        and (hits := uses_presence_signer(path.read_text(encoding="utf-8")))
+    }
+    assert offenders == {}
 
 
 def test_only_the_cli_imports_the_release_signer() -> None:
