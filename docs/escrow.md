@@ -180,7 +180,7 @@ MCP changes:
 5. Normalizes the signature to raw `r || s` with low-S.
 6. Submits `release`.
 
-Secure Enclave and TPM return ASN.1 DER and may return high-S. Normalization converts DER to 64-byte raw and replaces s with n - s when s is above n/2.
+Secure Enclave and TPM return ASN.1 DER and may return high-S. ehor's signer backends already convert DER to 64-byte raw `r || s`; `ehor.identity.es256.low_s` then replaces s with n - s when s is above n/2. `ehor.escrow.release.sign_release` does steps 4 and 5 and checks the result against the device's public key before it is sent.
 
 ### Safety invariants
 
