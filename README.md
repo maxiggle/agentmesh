@@ -104,7 +104,7 @@ uv run pytest packages/ehor-near/tests
 
 ehor was started on 28 October 2026 as a standalone project and published on PyPI. The NEAR
 escrow integration on this branch was built for the NEAR Hackathon, starting 10 November 2026:
-[diff of the hackathon work](https://github.com/maxiggle/agentmesh/compare/main...feat/near-escrow).
+[diff of the hackathon work](https://github.com/maxiggle/agentmesh/compare/v0.1.7...feat/near-escrow).
 
 Libraries added for it: [near-sdk](https://crates.io/crates/near-sdk) 5.30,
 [hex](https://crates.io/crates/hex), [p256](https://crates.io/crates/p256) (contract tests only)
