@@ -222,7 +222,7 @@ Secure Enclave and TPM return ASN.1 DER and may return high-S. ehor's signer bac
 2. The release signature is produced only inside `ehor pay`, which is not reachable from MCP.
 3. Every on-chain action started by an agent shows a draft and waits for approval.
 4. Bounty details shown to the human come from the chain, not from the message text.
-5. Tests assert invariants 1 and 2 by checking that only `ehor.cli` imports the release signer or the presence signer, so no agent can even trigger the approval prompt.
+5. Tests assert invariants 1 and 2 by checking that only `ehor.near_cli`, the module behind `ehor near` and `ehor pay`, imports the release signer or the presence signer, so no agent can even trigger the approval prompt.
 6. A release signature needs a person at the Mac to approve it, and the Secure Enclave enforces this.
 7. ehor never stores a full-access NEAR key. Registering, deposits, withdrawals and key or limit changes are approved in the owner's wallet.
 

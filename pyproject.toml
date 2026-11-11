@@ -29,6 +29,9 @@ Protocol = "https://github.com/maxiggle/agentmesh/blob/main/docs/protocol.md"
 [project.scripts]
 ehor = "ehor.cli:main"
 
+[project.entry-points."ehor.commands"]
+near = "ehor.near_cli:register"
+
 [project.optional-dependencies]
 fido2 = [
     "fido2>=2.2.1",

@@ -16,8 +16,8 @@ PACKAGE = SRC / "ehor"
 SIGNER_MODULE = "ehor.escrow.release"
 SIGNER_NAMES = {"release", "sign_release"}
 PRESENCE_SIGNER = "SecureEnclavePresenceSigner"
-ALLOWED = {"ehor.cli", SIGNER_MODULE}
-PRESENCE_ALLOWED = {"ehor.cli", "ehor.identity.secure_enclave"}
+ALLOWED = {"ehor.near_cli", SIGNER_MODULE}
+PRESENCE_ALLOWED = {"ehor.near_cli", "ehor.identity.secure_enclave"}
 
 
 def _module_name(path: Path) -> str:
@@ -93,7 +93,7 @@ def test_scanner_catches_every_way_to_reach_the_presence_signer(source: str) -> 
     assert uses_presence_signer(source)
 
 
-def test_only_the_cli_uses_the_presence_signer() -> None:
+def test_only_the_near_commands_use_the_presence_signer() -> None:
     offenders = {
         _module_name(path): hits
         for path in sorted(PACKAGE.rglob("*.py"))
@@ -103,7 +103,7 @@ def test_only_the_cli_uses_the_presence_signer() -> None:
     assert offenders == {}
 
 
-def test_only_the_cli_imports_the_release_signer() -> None:
+def test_only_the_near_commands_import_the_release_signer() -> None:
     offenders = {
         _module_name(path): hits
         for path in sorted(PACKAGE.rglob("*.py"))
@@ -113,9 +113,10 @@ def test_only_the_cli_imports_the_release_signer() -> None:
     assert offenders == {}
 
 
-def test_loading_the_mcp_server_and_daemon_does_not_load_the_signer() -> None:
+def test_loading_the_core_cli_mcp_server_and_daemon_does_not_load_the_signer() -> None:
     probe = (
-        f"import sys, ehor.mcp.server, ehor.service.daemon\nprint({SIGNER_MODULE!r} in sys.modules)"
+        "import sys, ehor.cli, ehor.mcp.server, ehor.service.daemon\n"
+        f"print({SIGNER_MODULE!r} in sys.modules)"
     )
     result = subprocess.run(  # noqa: S603 - fixed interpreter and code, no user input
         [sys.executable, "-c", probe], capture_output=True, text=True, check=True

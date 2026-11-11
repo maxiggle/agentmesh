@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from ehor import cli as cli_module
-from ehor.cli import LIMITED_KEY_FILE, RELEASE_KEY_LABEL, main
+from ehor import near_cli as cli_module
+from ehor.cli import main
 from ehor.escrow.client import DEFAULT_GAS, ContractError, NearClient
 from ehor.escrow.config import NearConfig
 from ehor.escrow.limited_key import LimitedKeyFile
@@ -16,6 +16,7 @@ from ehor.escrow.payload import release_payload
 from ehor.identity.base import KeyHandle, KeyNotFoundError
 from ehor.identity.es256 import CURVE_ORDER, verify
 from ehor.identity.software import SoftwareSigner
+from ehor.near_cli import LIMITED_KEY_FILE, RELEASE_KEY_LABEL
 from ehor.service.config import DeviceConfig
 from ehor.service.rpc import RpcError
 
