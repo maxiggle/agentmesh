@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>ehor · connect your NEAR wallet</title>
+<style>
+  :root { color-scheme: light dark; --fg: #1c1c1e; --muted: #5f6368; --bg: #ffffff; --card: #f4f5f7; --accent: #0b6bcb; --accent-fg: #ffffff; --error: #b3261e; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #ececf0; --muted: #a4a7ae; --bg: #121214; --card: #1d1e22; --accent: #4c9bf0; --accent-fg: #0b0c0e; --error: #f2b8b5; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, sans-serif; }
+  main { max-width: 560px; margin: 48px auto; padding: 0 16px; }
+  h1 { font-size: 24px; margin: 0 0 8px; }
+  p { margin: 0 0 16px; }
+  .muted { color: var(--muted); }
+  .card { background: var(--card); border-radius: 12px; padding: 16px; margin: 16px 0; }
+  .card p:last-child { margin-bottom: 0; }
+  code { font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 10px 18px; background: var(--accent); color: var(--accent-fg); cursor: pointer; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  #status.error { color: var(--error); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Connect your NEAR wallet</h1>
+  <p class="muted">ehor is asking your wallet for two approvals on <code id="network"></code>. Your wallet's own keys never leave the wallet.</p>
+  <div class="card">
+    <p><strong>1. Add a limited key</strong> that can only call <code id="contract"></code>, with a gas allowance of <code id="allowance"></code> NEAR. It cannot move NEAR.</p>
+    <button id="connect" disabled>Connect wallet</button>
+  </div>
+  <div class="card" id="approve" hidden>
+    <p><strong>2. Register this Mac's release key.</strong> <span id="summary"></span></p>
+    <button id="sign">Approve in wallet</button>
+  </div>
+  <p id="status" role="status" class="muted">Loading the wallet list…</p>
+</main>
+<script type="application/json" id="config">__CONFIG__</script>
+<script type="module">
+  const config = JSON.parse(document.getElementById("config").textContent);
+  const token = new URLSearchParams(location.search).get("t") || "";
+  const $ = (id) => document.getElementById(id);
+  $("network").textContent = config.network;
+  $("contract").textContent = config.contract;
+  $("allowance").textContent = config.allowanceNear;
+
+  const show = (text, isError = false) => {
+    $("status").textContent = text;
+    $("status").className = isError ? "error" : "muted";
+  };
+  const post = async (path, body) => {
+    const response = await fetch(`${path}?t=${encodeURIComponent(token)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error(await response.text());
+    return response.json();
+  };
+  const fail = async (error) => {
+    show(`Stopped: ${error}. Return to the terminal for what to do next; you can close this tab.`, true);
+    try { await post("/done", { error: String(error).slice(0, 300) }); } catch {}
+  };
+
+  let connector, wallet, accountId, request;
+  try {
+    const { NearConnector } = await import(`/near-connect.js?t=${encodeURIComponent(token)}`);
+    connector = new NearConnector({ network: config.network, features: config.features });
+    await connector.whenManifestLoaded;
+    $("connect").disabled = false;
+    show("Pick your wallet to begin.");
+  } catch (error) {
+    await fail(error);
+  }
+
+  $("connect").onclick = async () => {
+    $("connect").disabled = true;
+    show("Waiting for your wallet…");
+    try {
+      wallet = await connector.connect({
+        addFunctionCallKey: {
+          contractId: config.contract,
+          publicKey: config.publicKey,
+          allowMethods: { anyMethod: false, methodNames: config.methods },
+          gasAllowance: { kind: "limited", amount: config.allowance },
+        },
+      });
+      const accounts = await wallet.getAccounts({ network: config.network });
+      accountId = accounts[0] && accounts[0].accountId;
+      if (!accountId) throw new Error("the wallet returned no account");
+      const plan = await post("/connected", { accountId, walletId: wallet.manifest.id });
+      if (!plan.request) {
+        await post("/done", {});
+        show(`${plan.summary} Return to the terminal; you can close this tab.`);
+        return;
+      }
+      request = plan.request;
+      $("summary").textContent = plan.summary;
+      $("approve").hidden = false;
+      show(`Connected as ${accountId}.`);
+    } catch (error) {
+      await fail(error);
+    }
+  };
+
+  $("sign").onclick = async () => {
+    $("sign").disabled = true;
+    show("Waiting for your wallet…");
+    try {
+      const outcome = await wallet.signAndSendTransaction({
+        network: config.network,
+        signerId: accountId,
+        receiverId: request.receiverId,
+        actions: [{ type: "FunctionCall", params: {
+          methodName: request.method, args: request.args, gas: request.gas, deposit: request.deposit,
+        } }],
+      });
+      const hash = outcome && outcome.transaction && outcome.transaction.hash;
+      await post("/done", { transactionHash: hash || null });
+      show("Done. Return to the terminal; you can close this tab.");
+    } catch (error) {
+      await fail(error);
+    }
+  };
+</script>
+</body>
+</html>
