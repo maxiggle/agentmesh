@@ -1,19 +1,12 @@
 from dataclasses import dataclass
-from decimal import Decimal, localcontext
 
-from ehor.escrow.payload import release_payload
+from ehor.escrow.payload import format_near, release_payload
 from ehor.identity.base import KeyHandle, PresenceSigner
 from ehor.identity.es256 import low_s, verify
 
 
 class ReleaseSignError(Exception):
     pass
-
-
-def format_near(amount_yocto: int) -> str:
-    with localcontext(prec=80):
-        near = Decimal(amount_yocto).scaleb(-24).normalize()
-    return f"{near:f}"
 
 
 @dataclass(frozen=True, slots=True)

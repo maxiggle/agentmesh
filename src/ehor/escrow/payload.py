@@ -1,4 +1,5 @@
 import hashlib
+from decimal import Decimal, localcontext
 
 PAYLOAD_DOMAIN = "ehor-escrow/v1"
 SEPARATOR = "|"
@@ -6,6 +7,12 @@ SEPARATOR = "|"
 
 class PayloadError(ValueError):
     pass
+
+
+def format_near(amount_yocto: int) -> str:
+    with localcontext(prec=80):
+        near = Decimal(amount_yocto).scaleb(-24).normalize()
+    return f"{near:f}"
 
 
 def release_payload(

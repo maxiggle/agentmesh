@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from ehor.escrow.payload import PayloadError, release_digest, release_payload
+from ehor.escrow.payload import PayloadError, format_near, release_digest, release_payload
 
 VECTOR = Path(__file__).resolve().parents[2] / "docs" / "vectors" / "release-v1.json"
 
@@ -71,3 +71,17 @@ def test_bad_number_is_rejected(vector: dict[str, Any], field: str, value: objec
 def test_zero_amount_is_rejected(vector: dict[str, Any]) -> None:
     with pytest.raises(PayloadError, match="amount_yocto"):
         build(vector, amount_yocto=0)
+
+
+@pytest.mark.parametrize(
+    ("yocto", "text"),
+    [
+        (1, "0.000000000000000000000001"),
+        (10**24, "1"),
+        (25 * 10**23, "2.5"),
+        (10**30, "1000000"),
+        (123456789012345678901234567890123, "123456789.012345678901234567890123"),
+    ],
+)
+def test_format_near_is_exact(yocto: int, text: str) -> None:
+    assert format_near(yocto) == text

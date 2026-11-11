@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from ehor.escrow.payload import PayloadError
-from ehor.escrow.release import ReleaseSignError, ReleaseTerms, format_near, sign_release
+from ehor.escrow.release import ReleaseSignError, ReleaseTerms, sign_release
 from ehor.identity.base import KeyHandle
 from ehor.identity.es256 import CURVE_ORDER, verify
 from ehor.identity.software import SoftwareSigner
@@ -117,17 +117,3 @@ def test_the_person_is_asked_with_the_amount_claimant_and_bounty(
 ) -> None:
     sign_release(signer, handle, TERMS)
     assert signer.reasons == ["pay 0.1 NEAR to bob.testnet for ehor bounty 7"]
-
-
-@pytest.mark.parametrize(
-    ("yocto", "text"),
-    [
-        (1, "0.000000000000000000000001"),
-        (10**24, "1"),
-        (25 * 10**23, "2.5"),
-        (10**30, "1000000"),
-        (123456789012345678901234567890123, "123456789.012345678901234567890123"),
-    ],
-)
-def test_format_near_is_exact(yocto: int, text: str) -> None:
-    assert format_near(yocto) == text
