@@ -8,8 +8,9 @@ from pathlib import Path
 import pytest
 
 from ehor import cli as cli_module
-from ehor.cli import RELEASE_KEY_LABEL, main
+from ehor.cli import LIMITED_KEY_FILE, RELEASE_KEY_LABEL, main
 from ehor.escrow.client import DEFAULT_GAS, ContractError, NearClient
+from ehor.escrow.limited_key import LimitedKeyFile
 from ehor.escrow.payload import release_payload
 from ehor.identity.base import KeyHandle, KeyNotFoundError
 from ehor.identity.es256 import CURVE_ORDER, verify
@@ -21,6 +22,7 @@ CONTRACT = "ehor-escrow.testnet"
 ME = "alice.testnet"
 BOB = "bob.testnet"
 AMOUNT = 10**23
+PASSPHRASE = "test passphrase"  # noqa: S105 - test fixture value
 
 
 @dataclass
@@ -47,6 +49,7 @@ class Chain:
     bounty: dict[str, object]
     release_key: str
     releases: list[str] = field(default_factory=list)
+    secrets: list[str] = field(default_factory=list)
 
     async def view(self, contract: str, method: str, args: Mapping[str, object]) -> object:
         assert contract == CONTRACT
@@ -91,7 +94,13 @@ def home(tmp_path: Path) -> Path:
     path.mkdir()
     near = NearConfig(ME, CONTRACT)
     DeviceConfig(team=b"t" * 16, genesis=b"g" * 32, handle="gef", near=near).save(path)
+    LimitedKeyFile(path / "keys" / LIMITED_KEY_FILE, PASSPHRASE.encode()).create()
     return path
+
+
+@pytest.fixture(autouse=True)
+def passphrase(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("EHOR_PASSPHRASE", PASSPHRASE)
 
 
 @pytest.fixture
@@ -119,11 +128,10 @@ def chain(signer: TouchSigner, monkeypatch: pytest.MonkeyPatch) -> Chain:
 
     @asynccontextmanager
     async def connect(config: NearConfig, private_key: str) -> AsyncIterator[NearClient]:
-        assert private_key == "ed25519:secret"
+        fake.secrets.append(private_key)
         yield fake
 
     monkeypatch.setattr(cli_module, "_connect_near", connect)
-    monkeypatch.setattr(cli_module, "load_account_key", lambda account: "ed25519:secret")
     return fake
 
 
@@ -292,3 +300,34 @@ def test_releases_are_mac_only(
     monkeypatch.setattr(sys, "platform", "linux")
     assert _pay(home) == 1
     assert "need a Mac" in capsys.readouterr().err
+
+
+def test_pay_sends_the_release_with_the_limited_key(
+    home: Path, chain: Chain, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _answer(monkeypatch, "y\n")
+    assert _pay(home) == 0
+    limited = LimitedKeyFile(home / "keys" / LIMITED_KEY_FILE, PASSPHRASE.encode()).load()
+    assert chain.secrets == [limited.near_secret()]
+
+
+def test_pay_needs_the_limited_key(
+    home: Path, signer: TouchSigner, chain: Chain, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (home / "keys" / LIMITED_KEY_FILE).unlink()
+    assert _pay(home) == 1
+    assert "no NEAR key; run `ehor near setup` first" in capsys.readouterr().err
+    assert chain.secrets == []
+
+
+def test_pay_with_a_wrong_passphrase_is_refused(
+    home: Path,
+    signer: TouchSigner,
+    chain: Chain,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("EHOR_PASSPHRASE", "wrong")
+    assert _pay(home) == 1
+    assert "is the passphrase right" in capsys.readouterr().err
+    assert signer.reasons == []

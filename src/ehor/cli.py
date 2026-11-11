@@ -21,7 +21,6 @@ from ehor.agents import (
 )
 from ehor.crypto.keyfile import KeyFileError
 from ehor.escrow.client import TESTNET, NearClient, NearError, is_account_id
-from ehor.escrow.credentials import CredentialsError, load_account_key
 from ehor.escrow.limited_key import (
     ALLOWED_METHODS,
     DEFAULT_ALLOWANCE,
@@ -131,7 +130,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (
         CliError,
         ConfigError,
-        CredentialsError,
         IdentityError,
         IrohKeyError,
         LimitedKeyError,
@@ -595,7 +593,7 @@ def _pay(args: argparse.Namespace) -> int:
         release_key = signer.public_key(handle)
     except KeyNotFoundError as exc:
         raise CliError(_NO_RELEASE_KEY) from exc
-    client = _connect_near(near, load_account_key(near.account_id))
+    client = _connect_near(near, _limited_key(home).near_secret())
     return asyncio.run(
         _pay_bounty(
             home,
@@ -652,6 +650,13 @@ def _confirm(prompt: str) -> bool:
     sys.stdout.write(prompt)
     sys.stdout.flush()
     return sys.stdin.readline().strip().lower() in {"y", "yes"}
+
+
+def _limited_key(home: Path) -> LimitedKey:
+    path = key_dir(home) / LIMITED_KEY_FILE
+    if not path.exists():
+        raise CliError("this device has no NEAR key; run `ehor near setup` first")
+    return LimitedKeyFile(path, _existing_passphrase(_DEVICE_PROMPT)).load()
 
 
 def _release_signer(home: Path) -> PresenceSigner:
