@@ -172,12 +172,12 @@ NEAR Connect runs in a web page. Each wallet's code loads in a sandboxed iframe 
 - `connect({ addFunctionCallKey })` signs the person in and asks the wallet to add a function-call key. ehor supplies the public key, the contract, the allowed method names and the gas allowance. It returns the account id, so the person never types it.
 - `signAndSendTransaction({ receiverId, actions })` takes `FunctionCall` actions with method, arguments, gas and deposit. The wallet signs with its own full-access key and returns the outcome.
 
-`ehor near setup` does the following:
+`ehor near setup [--contract ehor-escrow.testnet] [--deposit 1] [--max-per-bounty 0.5]` does the following. Amounts are in NEAR; the deposit and limit apply only when the account is not registered yet.
 
-1. Creates the Touch ID release key (`keys/release.sep`) and the limited NEAR key on the Mac. Creating the release key needs no approval; only signing does.
-2. Serves a one-page app on `127.0.0.1` with a random port and a one-time token in its URL, and opens it in the default browser. The page uses a copy of NEAR Connect bundled with ehor at a pinned version, set to `testnet`, and lists only wallets whose manifest declares `testnet`, `signInWithFunctionCallKey` and `signAndSendTransaction`. At version 0.12.0 that is Meteor, Intear, Nightly, Ledger and NEAR CLI.
-3. The person picks a wallet and approves adding the limited key, restricted to the escrow contract and its `post_bounty`, `claim`, `mark_done` and `release` methods, with a gas allowance ehor sets.
-4. The page asks the wallet to sign `register` with the release key, the spending limit and the first deposit. For an account that is already registered, it signs `set_device_key` instead, with 1 yoctoNEAR.
+1. Creates the Touch ID release key (`keys/release.sep`) and the limited NEAR key (`keys/near-limited.key`, encrypted with the device passphrase) on the Mac, or reuses them when they exist. Creating the release key needs no approval; only signing does. A wrong passphrase stops setup before anything is created.
+2. Serves a one-page app on `127.0.0.1` with a random port and a one-time token in its URL, and opens it in the default browser. The server answers only requests that carry the token and name it as Host, and sends `Referrer-Policy: no-referrer` so the token never reaches a wallet's site. The page uses NEAR Connect 0.12.0 bundled with ehor (`src/ehor/escrow/web/near-connect.js`, checked against a SHA-256 in the tests), set to `testnet`, and lists only wallets whose manifest declares `testnet`, `signInWithFunctionCallKey` and `signAndSendTransaction`. At version 0.12.0 that is Meteor, Intear, Nightly, Ledger and NEAR CLI.
+3. The person picks a wallet and approves adding the limited key, restricted to the escrow contract and its `post_bounty`, `claim`, `mark_done` and `release` methods, with a gas allowance of 0.25 NEAR.
+4. ehor reads the account from the chain and tells the page what to sign, if anything. The page asks the wallet to sign `register` with the release key, the spending limit and the first deposit. For an account that is already registered with another key, it signs `set_device_key` instead, with 1 yoctoNEAR. If this Mac's release key is already registered, there is nothing to sign.
 5. The page posts the account id and transaction hashes back to the local server with the token. ehor then confirms both by view call: the limited key is a function-call key for the escrow contract whose method list is either exactly the four requested or empty, with an allowance no larger than requested; and the registered release key equals the local one. A full-access key, another receiver or any other method list is refused, and setup asks the person to remove the key in their wallet. Only when both checks pass does setup save the account and contract in the ehor config. The page's report is never trusted on its own.
 
 `ehor near deposit`, `ehor near withdraw` and changes to the release key or the spending limit each open the same page for one `signAndSendTransaction`. ehor prints what it is about to ask the wallet for before opening it, and the wallet shows the transaction before the person approves.
@@ -303,7 +303,6 @@ These need Gef's explicit go-ahead each time: pushing, making the repo public, s
 
 ## Open questions
 
-- Where is the limited key stored? `ehor serve` and `ehor pay` both need it. Assumption: in the device folder, encrypted with the device passphrase.
 - Should setup also offer to create a new testnet account through the faucet, as a dedicated account that holds only the escrow budget?
 - Should `allowed_claimants` default to the message's addressed handles or require an explicit choice?
 - Is one contract shared by all teams, or one per team? Assumption: one shared contract on testnet for v1.

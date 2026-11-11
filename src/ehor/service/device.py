@@ -344,6 +344,11 @@ def security_key_signer(home: Path, connect: Callable[[], Authenticator]) -> Sec
     return SecurityKeySigner(home / _KEY_DIR, connect)
 
 
+def check_passphrase(home: Path, passphrase: bytes) -> None:
+    """Raise KeyFileError unless `passphrase` unlocks this device's keys."""
+    EncryptionKeyFile(home / _KEY_DIR / _ENCRYPTION_KEY, passphrase).load()
+
+
 def key_dir(home: Path) -> Path:
     return home / _KEY_DIR
 
