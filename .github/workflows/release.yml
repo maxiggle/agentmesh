@@ -22,7 +22,14 @@ jobs:
           fi
       - run: uv sync --locked
       - run: uv run pytest
-      - run: uv build
+      - run: uv build --package ehor
+      - name: Check that only ehor is released
+        run: |
+          others="$(ls dist | grep -v '^ehor-[0-9]' || true)"
+          if [ -n "$others" ]; then
+            echo "Only ehor is published from this repo; found: $others" >&2
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: dist
