@@ -1,8 +1,11 @@
 import hashlib
+import re
 from decimal import Decimal, localcontext
 
 PAYLOAD_DOMAIN = "ehor-escrow/v1"
 SEPARATOR = "|"
+YOCTO_PER_NEAR = 10**24
+_NEAR_AMOUNT = re.compile(r"(\d{1,12})(?:\.(\d{1,24}))?")
 
 
 class PayloadError(ValueError):
@@ -13,6 +16,18 @@ def format_near(amount_yocto: int) -> str:
     with localcontext(prec=80):
         near = Decimal(amount_yocto).scaleb(-24).normalize()
     return f"{near:f}"
+
+
+def parse_near(text: str) -> int:
+    """Turn a positive NEAR amount such as `0.5` into yoctoNEAR, exactly."""
+    match = _NEAR_AMOUNT.fullmatch(text.strip())
+    if match is None:
+        raise PayloadError(f"not a NEAR amount: {text!r}")
+    whole, fraction = match.group(1), match.group(2) or ""
+    amount = int(whole) * YOCTO_PER_NEAR + int(fraction.ljust(24, "0"))
+    if amount == 0:
+        raise PayloadError("a NEAR amount must be more than 0")
+    return amount
 
 
 def release_payload(

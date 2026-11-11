@@ -4,7 +4,13 @@ from typing import Any
 
 import pytest
 
-from ehor.escrow.payload import PayloadError, format_near, release_digest, release_payload
+from ehor.escrow.payload import (
+    PayloadError,
+    format_near,
+    parse_near,
+    release_digest,
+    release_payload,
+)
 
 VECTOR = Path(__file__).resolve().parents[2] / "docs" / "vectors" / "release-v1.json"
 
@@ -85,3 +91,26 @@ def test_zero_amount_is_rejected(vector: dict[str, Any]) -> None:
 )
 def test_format_near_is_exact(yocto: int, text: str) -> None:
     assert format_near(yocto) == text
+
+
+@pytest.mark.parametrize(
+    ("text", "yocto"),
+    [
+        ("1", 10**24),
+        ("0.5", 5 * 10**23),
+        (" 2.25 ", 225 * 10**22),
+        ("0.000000000000000000000001", 1),
+        ("123456789.012345678901234567890123", 123456789012345678901234567890123),
+    ],
+)
+def test_parse_near_is_exact_and_inverts_format(text: str, yocto: int) -> None:
+    assert parse_near(text) == yocto
+    assert parse_near(format_near(yocto)) == yocto
+
+
+@pytest.mark.parametrize(
+    "text", ["", "0", "0.0", "-1", "1e3", ".5", "1.", "1,5", "0.0000000000000000000000001", "x"]
+)
+def test_parse_near_refuses_bad_amounts(text: str) -> None:
+    with pytest.raises(PayloadError):
+        parse_near(text)
