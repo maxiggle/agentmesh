@@ -1,4 +1,5 @@
 import stat
+import sys
 from pathlib import Path
 
 import pytest
@@ -61,13 +62,19 @@ def test_repr_shows_only_the_public_key() -> None:
     assert key.near_secret() not in repr(key)
 
 
-def test_file_round_trips_and_is_private(tmp_path: Path) -> None:
+def test_file_round_trips_encrypted(tmp_path: Path) -> None:
     path = tmp_path / "keys" / "near.key"
     created = LimitedKeyFile(path, b"pw").create()
-    assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert b"ENCRYPTED PRIVATE KEY" in path.read_bytes()
     assert created.near_secret().encode() not in path.read_bytes()
     assert LimitedKeyFile(path, b"pw").load().public_key == created.public_key
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions only")
+def test_file_is_owner_only(tmp_path: Path) -> None:
+    path = tmp_path / "near.key"
+    LimitedKeyFile(path, b"pw").create()
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
 def test_load_or_create_keeps_an_existing_key(tmp_path: Path) -> None:
