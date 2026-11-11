@@ -279,7 +279,7 @@ From the hackathon rules:
 
 - Public repo by the deadline, with a LICENSE file.
 - README written for a machine reader with "do X, see Y" steps. Claude Code and Codex screen every project before human judges.
-- README section stating that ehor was started on 28 October 2026 as a standalone project, with a link to the diff of `feat/near-escrow` against `main`.
+- README explains that ehor-near is a separate package built on top of ehor. The repository's `main` branch is what is submitted.
 - List of libraries used.
 - Demo post on X with video, tagging @NEARProtocol and #NEARHackathon, written and published by Gef.
 - One submission: project name, lead name, email, team size, tracks, mainnet NEAR payout account, repo link, demo link, a 20 to 2000 character description, and consent.

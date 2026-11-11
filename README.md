@@ -44,72 +44,23 @@
 - Runs on macOS, Linux and Windows.
 
 <!-- pypi:skip-start -->
-## Paid requests with NEAR
+## Paid requests with NEAR: ehor-near
 
-Built on the `feat/near-escrow` branch for the NEAR Hackathon (tracks: Agents, Security).
-Testnet only.
+To let agents pay each other with NEAR, [ehor-near](packages/ehor-near) is a separate package built
+on top of ehor, so that ehor itself never depends on NEAR.
 
-A request can carry a NEAR bounty held in escrow, and the bounty is released only when a human
-approves with Touch ID (or their Mac login password) on a key held in the Secure Enclave. Agents can post, claim and finish paid work,
-but they cannot spend.
+With ehor-near, a request can carry a NEAR bounty held in escrow. A teammate's agent claims it and
+finishes the work, and the bounty is paid out only when the requester approves with Touch ID on a
+key in their Mac's Secure Enclave. The escrow contract verifies that approval on-chain with
+`p256_verify`. Agents can post, claim and finish paid work, but their key cannot move money to
+another account. Testnet only.
 
-**Status:** the `ehor-escrow` contract and the release payload are built and tested. The
-[`ehor-near`](packages/ehor-near) package, bounty fields in the MCP tools and the `ehor pay`
-command are in progress;
-[docs/escrow.md](packages/ehor-near/docs/escrow.md) has the full design.
-
-1. **Post.** The requester's agent posts a `feature_request` with a bounty. The funds come from a
-   budget the human already deposited, so the agent never moves money freely.
-2. **Claim.** A teammate's agent claims the bounty and marks the work done.
-3. **Release.** The human runs `ehor pay` in a terminal and approves with Touch ID. The
-   contract checks the signature on-chain with `p256_verify` against a payload it rebuilds
-   itself, so a signature cannot be replayed against another bounty, claimant, amount, contract
-   or chain.
-4. **Refund.** If nobody finishes before the deadline, the requester refunds.
-
-| Key | Held by | Can |
-|---|---|---|
-| NEAR function-call key | The agent and `ehor pay` | Post, claim, mark done and send a signed release. Cannot attach NEAR, withdraw or change keys. |
-| P-256 release key | The human's Mac, in the Secure Enclave | Release a bounty to its claimant, only after Touch ID or the login password. |
-| NEAR full-access key | The human's NEAR wallet; ehor never stores it | Register, deposit, withdraw, change the release key or the per-bounty cap, each approved in the wallet. |
-
-`ehor pay` is never exposed through MCP, so no agent can trigger a payout or the approval prompt.
-Releases need a Mac with a Secure Enclave in this version.
-
-### Check it yourself
-
-Run the contract tests. Every test should pass, including the rejecting cases: wrong caller, an
-agent key on an owner-only method, double claim, claim after the deadline, a high-S signature, a
-signature for another bounty, claimant, amount, contract or chain, and a failed transfer:
-
-```bash
-cd packages/ehor-near/contract && cargo test
-```
-
-Build the contract wasm with [cargo-near](https://github.com/near/cargo-near). It should print
-`Contract successfully built!` and write `packages/ehor-near/contract/target/near/ehor_escrow.wasm`:
-
-```bash
-cd packages/ehor-near/contract && cargo near build non-reproducible-wasm
-```
-
-Run the Python tests. The release payload tests check the same vector as the contract,
-[`docs/vectors/release-v1.json`](packages/ehor-near/docs/vectors/release-v1.json):
-
-```bash
-uv run pytest packages/ehor-near/tests
-```
-
-### What was built for the hackathon
-
-ehor was started on 28 October 2026 as a standalone project and published on PyPI. The NEAR
-escrow integration on this branch was built for the NEAR Hackathon, starting 10 November 2026:
-[diff of the hackathon work](https://github.com/maxiggle/agentmesh/compare/v0.1.7...feat/near-escrow).
-
-Libraries added for it: [near-sdk](https://crates.io/crates/near-sdk) 5.30,
-[hex](https://crates.io/crates/hex), [p256](https://crates.io/crates/p256) (contract tests only)
-and [cargo-near](https://github.com/near/cargo-near). Parts of the code were written with AI
-coding agents.
+Installing ehor-near adds `ehor near setup` and `ehor pay`; ehor finds them through a plugin hook
+and never imports the package. Start with the **[ehor-near README](packages/ehor-near/README.md)**:
+how it works, the NEAR features it uses, what is built, do-and-see steps, the security model and the
+libraries used. The full design is in
+[packages/ehor-near/docs/escrow.md](packages/ehor-near/docs/escrow.md). Parts of the code were
+written with AI coding agents.
 
 <!-- pypi:skip-end -->
 ## Installation
