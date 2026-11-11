@@ -46,6 +46,20 @@ class Signer(Protocol):
         ...
 
 
+class PresenceSigner(Protocol):
+    """A key that signs only after a person at the machine approves, such as with Touch ID."""
+
+    def create_key(self, label: str) -> KeyHandle: ...
+
+    def public_key(self, handle: KeyHandle) -> bytes:
+        """Return the SEC1 compressed P-256 public key (33 bytes)."""
+        ...
+
+    def sign_with_presence(self, handle: KeyHandle, data: bytes, reason: str) -> bytes:
+        """Ask the person to approve `reason`, then sign `data` with ES256 as raw `r || s`."""
+        ...
+
+
 class AssertionSigner(Protocol):
     """A key that signs only through FIDO2 assertions, such as a USB security key."""
 

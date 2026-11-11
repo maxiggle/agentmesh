@@ -6,6 +6,7 @@ from ehor.identity.base import (
     KeyExistsError,
     KeyHandle,
     KeyNotFoundError,
+    PresenceSigner,
     Signer,
 )
 
@@ -17,5 +18,6 @@ __all__ = [
     "KeyExistsError",
     "KeyHandle",
     "KeyNotFoundError",
+    "PresenceSigner",
     "Signer",
 ]

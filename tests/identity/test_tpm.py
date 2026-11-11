@@ -41,6 +41,7 @@ class FakeTpm:
         stdin: bytes = b"",
         cwd: Path | None = None,
         env: Mapping[str, str] | None = None,
+        timeout: float = 30.0,
     ) -> bytes:
         assert cwd is not None
         command, options = args[0], _options(args[1:])
@@ -214,6 +215,7 @@ def _missing_tools(
     stdin: bytes = b"",
     cwd: Path | None = None,
     env: Mapping[str, str] | None = None,
+    timeout: float = 30.0,
 ) -> bytes:
     raise HardwareUnavailableError(f"{args[0]} is not installed")
 

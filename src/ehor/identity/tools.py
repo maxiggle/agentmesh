@@ -21,6 +21,7 @@ class ToolRunner(Protocol):
         stdin: bytes = b"",
         cwd: Path | None = None,
         env: Mapping[str, str] | None = None,
+        timeout: float = DEFAULT_TIMEOUT,
     ) -> bytes: ...
 
 
