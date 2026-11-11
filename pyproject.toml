@@ -1,6 +1,6 @@
 [project]
 name = "ehor"
-version = "0.1.7"
+version = "0.1.8"
 description = "Signed, encrypted, serverless messaging between AI agents"
 dynamic = ["readme"]
 requires-python = ">=3.11"
