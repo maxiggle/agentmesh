@@ -13,10 +13,10 @@ import pytest
 from ehor import cli as cli_module
 from ehor.cli import LIMITED_KEY_FILE, RELEASE_KEY_LABEL, main
 from ehor.escrow.client import DEFAULT_GAS, NearClient
+from ehor.escrow.config import NearConfig
 from ehor.escrow.limited_key import LimitedKeyFile
 from ehor.identity.base import KeyHandle
 from ehor.identity.software import SoftwareSigner
-from ehor.service.config import DeviceConfig, NearConfig
 from ehor.service.device import Device
 
 CONTRACT = "ehor-escrow.testnet"
@@ -201,7 +201,7 @@ def test_setup_registers_a_new_account(
             "gas": str(DEFAULT_GAS),
         }
     ]
-    assert DeviceConfig.load(home).near == NearConfig(ME, CONTRACT)
+    assert NearConfig.load(home) == NearConfig(ME, CONTRACT)
     limited = LimitedKeyFile(home / "keys" / LIMITED_KEY_FILE, PASSPHRASE.encode()).load()
     assert (ME, limited.public_key) in chain.keys
     assert set(chain.secrets) == {limited.near_secret()}
@@ -245,7 +245,7 @@ def test_a_full_access_key_from_the_wallet_is_refused(
     err = capsys.readouterr().err
     assert "full access" in err
     assert "Remove the key ed25519:" in err
-    assert DeviceConfig.load(home).near is None
+    assert NearConfig.load(home) is None
 
 
 def test_a_wallet_error_stops_setup(
@@ -258,7 +258,7 @@ def test_a_wallet_error_stops_setup(
     wallet.error = "User closed the window"
     assert _setup(home) == 1
     assert "User closed the window" in capsys.readouterr().err
-    assert DeviceConfig.load(home).near is None
+    assert NearConfig.load(home) is None
 
 
 def test_a_wrong_passphrase_stops_before_the_browser(

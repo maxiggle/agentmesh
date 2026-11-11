@@ -10,12 +10,13 @@ import pytest
 from ehor import cli as cli_module
 from ehor.cli import LIMITED_KEY_FILE, RELEASE_KEY_LABEL, main
 from ehor.escrow.client import DEFAULT_GAS, ContractError, NearClient
+from ehor.escrow.config import NearConfig
 from ehor.escrow.limited_key import LimitedKeyFile
 from ehor.escrow.payload import release_payload
 from ehor.identity.base import KeyHandle, KeyNotFoundError
 from ehor.identity.es256 import CURVE_ORDER, verify
 from ehor.identity.software import SoftwareSigner
-from ehor.service.config import DeviceConfig, NearConfig
+from ehor.service.config import DeviceConfig
 from ehor.service.rpc import RpcError
 
 CONTRACT = "ehor-escrow.testnet"
@@ -92,8 +93,8 @@ class Chain:
 def home(tmp_path: Path) -> Path:
     path = tmp_path / "gef"
     path.mkdir()
-    near = NearConfig(ME, CONTRACT)
-    DeviceConfig(team=b"t" * 16, genesis=b"g" * 32, handle="gef", near=near).save(path)
+    DeviceConfig(team=b"t" * 16, genesis=b"g" * 32, handle="gef").save(path)
+    NearConfig(ME, CONTRACT).save(path)
     LimitedKeyFile(path / "keys" / LIMITED_KEY_FILE, PASSPHRASE.encode()).create()
     return path
 

@@ -21,6 +21,7 @@ from ehor.agents import (
 )
 from ehor.crypto.keyfile import KeyFileError
 from ehor.escrow.client import TESTNET, NearClient, NearError, is_account_id
+from ehor.escrow.config import NearConfig, NearConfigError
 from ehor.escrow.limited_key import (
     ALLOWED_METHODS,
     DEFAULT_ALLOWANCE,
@@ -52,7 +53,7 @@ from ehor.log.roster import Roster, RosterError
 from ehor.mcp.server import build_server
 from ehor.relay.server import Relay, RelayError
 from ehor.service.alerts import AlertWatcher
-from ehor.service.config import ConfigError, DeviceConfig, NearConfig, default_home
+from ehor.service.config import ConfigError, DeviceConfig, default_home
 from ehor.service.daemon import DEFAULT_SYNC_INTERVAL, Daemon, Syncer
 from ehor.service.device import (
     Device,
@@ -133,6 +134,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         IdentityError,
         IrohKeyError,
         LimitedKeyError,
+        NearConfigError,
         NearError,
         PayError,
         RelayError,
@@ -584,7 +586,7 @@ def _rpc(home: Path, method: str, params: dict[str, object]) -> str:
 
 def _pay(args: argparse.Namespace) -> int:
     home = _home(args)
-    near = DeviceConfig.load(home).near
+    near = NearConfig.load(home)
     if near is None:
         raise CliError(_NO_NEAR)
     signer = _release_signer(home)
@@ -673,7 +675,7 @@ def _connect_near(
 
 def _near_setup(args: argparse.Namespace) -> int:
     home = _home(args)
-    config = DeviceConfig.load(home)
+    DeviceConfig.load(home)
     contract: str = args.contract
     if not is_account_id(contract):
         raise CliError(f"not a NEAR account id: {contract!r}")
@@ -712,7 +714,7 @@ def _near_setup(args: argparse.Namespace) -> int:
             max_per_bounty_yocto=max_per_bounty,
         )
     )
-    replace(config, near=NearConfig(account, contract)).save(home)
+    NearConfig(account, contract).save(home)
     sys.stdout.write(
         f"{account} is set up on {contract}. This Mac's release key approves payouts with Touch ID,"
         " and `ehor pay` sends them with the limited key.\n"
