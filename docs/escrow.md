@@ -177,12 +177,14 @@ MCP changes:
 
 `ehor pay <bounty>` does the following:
 
-1. Fetches the bounty by view call.
-2. Prints sender, claimant, amount, deadline, the linked message summary, and the claimant's done note marked as untrusted teammate text.
-3. Asks for confirmation.
+1. Fetches the bounty by view call and refuses it unless it is Done, has a claimant and was posted by this device's NEAR account. It also refuses when the release key registered for that account is not this device's release key, so the person is never asked to approve a signature the contract would reject.
+2. Prints sender, claimant, amount, deadline, and the linked message with its status history (including the claimant's done note) from the running ehor service, marked as untrusted teammate text. If the service is not running, it says the message is not shown and goes on.
+3. Asks for confirmation. Anything but `y` or `yes` stops without signing.
 4. Signs the canonical payload with the release key. macOS asks for Touch ID or the login password, with a prompt naming the amount, claimant and bounty.
 5. Normalizes the signature to raw `r || s` with low-S.
-6. Submits `release`.
+6. Submits `release` with 150 Tgas and checks the bounty reached Released.
+
+The release key is `keys/release.sep` in the ehor device folder. `release` is sent from the owner's NEAR account with the full-access key that NEAR CLI or cargo-near saved in `~/.near-credentials/testnet/<account>.json`; ehor reads that file only inside `ehor pay` and never prints it.
 
 Secure Enclave and TPM return ASN.1 DER and may return high-S. ehor's signer backends already convert DER to 64-byte raw `r || s`; `ehor.identity.es256.low_s` then replaces s with n - s when s is above n/2. `ehor.escrow.release.sign_release` does steps 4 and 5 and checks the result against the release key's public key before it is sent.
 

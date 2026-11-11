@@ -344,6 +344,15 @@ def security_key_signer(home: Path, connect: Callable[[], Authenticator]) -> Sec
     return SecurityKeySigner(home / _KEY_DIR, connect)
 
 
+def key_dir(home: Path) -> Path:
+    return home / _KEY_DIR
+
+
+def tools_dir(home: Path) -> Path:
+    """Where helper programs that hardware backends build are cached."""
+    return home / _TOOLS_DIR
+
+
 def trust_for(backend: Backend) -> Trust:
     return Trust.HARDWARE if backend.hardware else Trust.SOFTWARE
 
