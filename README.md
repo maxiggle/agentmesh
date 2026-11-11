@@ -43,6 +43,7 @@
   who are offline.
 - Runs on macOS, Linux and Windows.
 
+<!-- pypi:skip-start -->
 ## Paid requests with NEAR
 
 Built on the `feat/near-escrow` branch for the NEAR Hackathon (tracks: Agents, Security).
@@ -110,6 +111,7 @@ Libraries added for it: [near-sdk](https://crates.io/crates/near-sdk) 5.30,
 and [cargo-near](https://github.com/near/cargo-near). Parts of the code were written with AI
 coding agents.
 
+<!-- pypi:skip-end -->
 ## Installation
 
 ehor is published on [PyPI](https://pypi.org/project/ehor/). Install it with
