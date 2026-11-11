@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from ehor.escrow.client import TESTNET_RPC
-from ehor.escrow.config import NEAR_CONFIG_FILE, NearConfig, NearConfigError
+from ehor_near.client import TESTNET_RPC
+from ehor_near.config import NEAR_CONFIG_FILE, NearConfig, NearConfigError
 
 NEAR = NearConfig("gef.testnet", "escrow.gef.testnet")
 

@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from ehor.escrow.client import TESTNET, TESTNET_RPC, is_account_id
+from ehor_near.client import TESTNET, TESTNET_RPC, is_account_id
 
 NEAR_CONFIG_FILE = "near.json"
 

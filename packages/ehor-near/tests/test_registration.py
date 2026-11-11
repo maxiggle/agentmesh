@@ -4,14 +4,14 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from ehor.escrow.client import DEFAULT_GAS
-from ehor.escrow.limited_key import ALLOWED_METHODS, LimitedKeyError
-from ehor.escrow.registration import (
+from ehor_near.client import DEFAULT_GAS
+from ehor_near.limited_key import ALLOWED_METHODS, LimitedKeyError
+from ehor_near.registration import (
     RegistrationError,
     confirm_registration,
     registration_call,
 )
-from ehor.escrow.wallet_page import WalletCall
+from ehor_near.wallet_page import WalletCall
 
 CONTRACT = "ehor-escrow.testnet"
 ME = "geff.testnet"

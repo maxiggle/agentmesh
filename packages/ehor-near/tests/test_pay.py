@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from ehor.escrow.client import DEFAULT_GAS, ContractError
-from ehor.escrow.pay import (
+from ehor_near.client import DEFAULT_GAS, ContractError
+from ehor_near.pay import (
     RELEASE_GAS,
     Bounty,
     PayError,

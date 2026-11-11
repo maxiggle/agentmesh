@@ -11,8 +11,8 @@ from types import TracebackType
 from typing import Self
 from urllib.parse import parse_qs, urlparse
 
-from ehor.escrow.client import DEFAULT_GAS, is_account_id
-from ehor.escrow.payload import format_near
+from ehor_near.client import DEFAULT_GAS, is_account_id
+from ehor_near.payload import format_near
 
 NEAR_CONNECT_VERSION = "0.12.0"
 REQUIRED_FEATURES = {
@@ -108,10 +108,10 @@ class WalletPage:
             "allowanceNear": format_near(allowance_yocto),
             "features": REQUIRED_FEATURES,
         }
-        template = files("ehor.escrow").joinpath("web", "wallet.html").read_text(encoding="utf-8")
+        template = files("ehor_near").joinpath("web", "wallet.html").read_text(encoding="utf-8")
         embedded = json.dumps(config).replace("</", "<\\/")
         self._page = template.replace("__CONFIG__", embedded).encode("utf-8")
-        self._script = files("ehor.escrow").joinpath("web", "near-connect.js").read_bytes()
+        self._script = files("ehor_near").joinpath("web", "near-connect.js").read_bytes()
         self._server = ThreadingHTTPServer((_HOST, 0), self._handler())
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
 

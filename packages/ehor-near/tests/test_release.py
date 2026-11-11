@@ -4,13 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from ehor.escrow.payload import PayloadError
-from ehor.escrow.release import ReleaseSignError, ReleaseTerms, sign_release
 from ehor.identity.base import KeyHandle
 from ehor.identity.es256 import CURVE_ORDER, verify
 from ehor.identity.software import SoftwareSigner
+from ehor_near.payload import PayloadError
+from ehor_near.release import ReleaseSignError, ReleaseTerms, sign_release
 
-VECTOR = Path(__file__).resolve().parents[2] / "docs" / "vectors" / "release-v1.json"
+VECTOR = Path(__file__).resolve().parents[3] / "docs" / "vectors" / "release-v1.json"
 TERMS = ReleaseTerms("testnet", "ehor-escrow.testnet", 7, "bob.testnet", 10**23)
 
 

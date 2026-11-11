@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from ehor.escrow.limited_key import (
+from ehor_near.limited_key import (
     ALLOWED_METHODS,
     LimitedKey,
     LimitedKeyError,

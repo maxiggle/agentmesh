@@ -8,16 +8,22 @@ from pathlib import Path
 
 from ehor.cli import CliError, Commands, device_home, device_passphrase
 from ehor.crypto.keyfile import KeyFileError
-from ehor.escrow.client import TESTNET, NearClient, NearError, is_account_id
-from ehor.escrow.config import NearConfig, NearConfigError
-from ehor.escrow.limited_key import (
+from ehor.identity import KeyHandle, KeyNotFoundError
+from ehor.identity.base import PresenceSigner
+from ehor.identity.secure_enclave import SecureEnclavePresenceSigner, SwiftHelper
+from ehor.service.config import DeviceConfig
+from ehor.service.device import check_passphrase, key_dir, tools_dir
+from ehor.service.rpc import RpcClient, RpcError, default_endpoint
+from ehor_near.client import TESTNET, NearClient, NearError, is_account_id
+from ehor_near.config import NearConfig, NearConfigError
+from ehor_near.limited_key import (
     ALLOWED_METHODS,
     DEFAULT_ALLOWANCE,
     LimitedKey,
     LimitedKeyError,
     LimitedKeyFile,
 )
-from ehor.escrow.pay import (
+from ehor_near.pay import (
     Bounty,
     PayError,
     check_payable,
@@ -25,17 +31,11 @@ from ehor.escrow.pay import (
     registered_release_key,
     submit_release,
 )
-from ehor.escrow.payload import PayloadError, format_near, parse_near
-from ehor.escrow.pynear import PyNearClient
-from ehor.escrow.registration import RegistrationError, confirm_registration, registration_call
-from ehor.escrow.release import ReleaseSignError, ReleaseTerms, sign_release
-from ehor.escrow.wallet_page import WalletCall, WalletPage, WalletPageError
-from ehor.identity import KeyHandle, KeyNotFoundError
-from ehor.identity.base import PresenceSigner
-from ehor.identity.secure_enclave import SecureEnclavePresenceSigner, SwiftHelper
-from ehor.service.config import DeviceConfig
-from ehor.service.device import check_passphrase, key_dir, tools_dir
-from ehor.service.rpc import RpcClient, RpcError, default_endpoint
+from ehor_near.payload import PayloadError, format_near, parse_near
+from ehor_near.pynear import PyNearClient
+from ehor_near.registration import RegistrationError, confirm_registration, registration_call
+from ehor_near.release import ReleaseSignError, ReleaseTerms, sign_release
+from ehor_near.wallet_page import WalletCall, WalletPage, WalletPageError
 
 RELEASE_KEY_LABEL = "release"
 LIMITED_KEY_FILE = "near-limited.key"

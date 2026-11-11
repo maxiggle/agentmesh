@@ -6,9 +6,9 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: ^src/ehor/escrow/web/near-connect\.js$
+        exclude: ^packages/ehor-near/src/ehor_near/web/near-connect\.js$
       - id: end-of-file-fixer
-        exclude: ^src/ehor/escrow/web/near-connect\.js$
+        exclude: ^packages/ehor-near/src/ehor_near/web/near-connect\.js$
       - id: check-yaml
       - id: check-toml
       - id: check-json

@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 import pytest
 
-from ehor.escrow.wallet_page import (
+from ehor_near.wallet_page import (
     NEAR_CONNECT_VERSION,
     Planner,
     WalletCall,
@@ -128,7 +128,7 @@ def test_the_page_embeds_its_config_and_serves_the_pinned_bundle() -> None:
 
 
 def test_bundle_is_the_reviewed_version() -> None:
-    script = files("ehor.escrow").joinpath("web", "near-connect.js").read_bytes()
+    script = files("ehor_near").joinpath("web", "near-connect.js").read_bytes()
     assert script.startswith(f"/*! @hot-labs/near-connect {NEAR_CONNECT_VERSION} (MIT)".encode())
     assert hashlib.sha256(script).hexdigest() == NEAR_CONNECT_SHA256
 

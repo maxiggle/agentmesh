@@ -8,6 +8,12 @@ resolution-markers = [
     "(python_full_version < '3.14' and sys_platform != 'emscripten') or (python_full_version < '3.12' and sys_platform == 'emscripten')",
 ]
 
+[manifest]
+members = [
+    "ehor",
+    "ehor-near",
+]
+
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.7.1"
@@ -880,20 +886,17 @@ dependencies = [
 fido2 = [
     { name = "fido2" },
 ]
-near = [
-    { name = "py-near" },
-]
 p2p = [
     { name = "iroh" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "ehor-near" },
     { name = "fido2" },
     { name = "iroh" },
     { name = "mypy" },
     { name = "pre-commit" },
-    { name = "py-near" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -906,21 +909,35 @@ requires-dist = [
     { name = "fido2", marker = "extra == 'fido2'", specifier = ">=2.2.1" },
     { name = "iroh", marker = "extra == 'p2p'", specifier = ">=1.2.0" },
     { name = "mcp", specifier = ">=2.3.0" },
-    { name = "py-near", marker = "extra == 'near'", specifier = ">=1.2.22" },
     { name = "zeroconf", specifier = ">=0.151.5" },
 ]
-provides-extras = ["fido2", "p2p", "near"]
+provides-extras = ["fido2", "p2p"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "ehor-near", editable = "packages/ehor-near" },
     { name = "fido2", specifier = ">=2.2.1" },
     { name = "iroh", specifier = ">=1.2.0" },
     { name = "mypy", specifier = ">=2.4.0" },
     { name = "pre-commit", specifier = ">=4.7.0" },
-    { name = "py-near", specifier = ">=1.2.22" },
     { name = "pytest", specifier = ">=9.2.0" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "ruff", specifier = ">=0.17.3" },
+]
+
+[[package]]
+name = "ehor-near"
+version = "0.1.0"
+source = { editable = "packages/ehor-near" }
+dependencies = [
+    { name = "ehor" },
+    { name = "py-near" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "ehor", editable = "." },
+    { name = "py-near", specifier = ">=1.2.22" },
 ]
 
 [[package]]

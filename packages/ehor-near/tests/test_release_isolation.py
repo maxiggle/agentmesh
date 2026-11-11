@@ -11,18 +11,28 @@ from pathlib import Path
 
 import pytest
 
-SRC = Path(__file__).resolve().parents[2] / "src"
-PACKAGE = SRC / "ehor"
-SIGNER_MODULE = "ehor.escrow.release"
+import ehor
+import ehor_near
+
+PACKAGES = [Path(ehor.__file__).parent, Path(ehor_near.__file__).parent]
+SIGNER_MODULE = "ehor_near.release"
 SIGNER_NAMES = {"release", "sign_release"}
 PRESENCE_SIGNER = "SecureEnclavePresenceSigner"
-ALLOWED = {"ehor.near_cli", SIGNER_MODULE}
-PRESENCE_ALLOWED = {"ehor.near_cli", "ehor.identity.secure_enclave"}
+ALLOWED = {"ehor_near.cli", SIGNER_MODULE}
+PRESENCE_ALLOWED = {"ehor_near.cli", "ehor.identity.secure_enclave"}
 
 
-def _module_name(path: Path) -> str:
-    parts = path.relative_to(SRC).with_suffix("").parts
+def _module_name(package: Path, path: Path) -> str:
+    parts = path.relative_to(package.parent).with_suffix("").parts
     return ".".join(parts[:-1] if parts[-1] == "__init__" else parts)
+
+
+def _sources() -> dict[str, str]:
+    return {
+        _module_name(package, path): path.read_text(encoding="utf-8")
+        for package in PACKAGES
+        for path in sorted(package.rglob("*.py"))
+    }
 
 
 def reaches_signer(source: str) -> list[str]:
@@ -33,8 +43,8 @@ def reaches_signer(source: str) -> list[str]:
         elif isinstance(node, ast.ImportFrom) and node.module is not None:
             if node.module.startswith(SIGNER_MODULE):
                 found.append(node.module)
-            elif node.module == "ehor.escrow":
-                found += [f"ehor.escrow.{a.name}" for a in node.names if a.name in SIGNER_NAMES]
+            elif node.module == "ehor_near":
+                found += [f"ehor_near.{a.name}" for a in node.names if a.name in SIGNER_NAMES]
         elif (
             isinstance(node, ast.Constant)
             and isinstance(node.value, str)
@@ -47,12 +57,12 @@ def reaches_signer(source: str) -> list[str]:
 @pytest.mark.parametrize(
     "source",
     [
-        "import ehor.escrow.release",
-        "from ehor.escrow.release import sign_release",
-        "from ehor.escrow import release",
-        "from ehor.escrow import sign_release",
-        "import importlib\nimportlib.import_module('ehor.escrow.release')",
-        "def f() -> None:\n    from ehor.escrow.release import sign_release",
+        "import ehor_near.release",
+        "from ehor_near.release import sign_release",
+        "from ehor_near import release",
+        "from ehor_near import sign_release",
+        "import importlib\nimportlib.import_module('ehor_near.release')",
+        "def f() -> None:\n    from ehor_near.release import sign_release",
     ],
 )
 def test_scanner_catches_every_way_to_reach_the_signer(source: str) -> None:
@@ -60,8 +70,8 @@ def test_scanner_catches_every_way_to_reach_the_signer(source: str) -> None:
 
 
 def test_scanner_ignores_other_escrow_modules() -> None:
-    assert not reaches_signer("from ehor.escrow.payload import release_payload")
-    assert not reaches_signer("from ehor.escrow import payload, client")
+    assert not reaches_signer("from ehor_near.payload import release_payload")
+    assert not reaches_signer("from ehor_near import payload, client")
 
 
 def uses_presence_signer(source: str) -> list[str]:
@@ -95,20 +105,18 @@ def test_scanner_catches_every_way_to_reach_the_presence_signer(source: str) -> 
 
 def test_only_the_near_commands_use_the_presence_signer() -> None:
     offenders = {
-        _module_name(path): hits
-        for path in sorted(PACKAGE.rglob("*.py"))
-        if _module_name(path) not in PRESENCE_ALLOWED
-        and (hits := uses_presence_signer(path.read_text(encoding="utf-8")))
+        module: hits
+        for module, source in _sources().items()
+        if module not in PRESENCE_ALLOWED and (hits := uses_presence_signer(source))
     }
     assert offenders == {}
 
 
 def test_only_the_near_commands_import_the_release_signer() -> None:
     offenders = {
-        _module_name(path): hits
-        for path in sorted(PACKAGE.rglob("*.py"))
-        if _module_name(path) not in ALLOWED
-        and (hits := reaches_signer(path.read_text(encoding="utf-8")))
+        module: hits
+        for module, source in _sources().items()
+        if module not in ALLOWED and (hits := reaches_signer(source))
     }
     assert offenders == {}
 
@@ -122,3 +130,8 @@ def test_loading_the_core_cli_mcp_server_and_daemon_does_not_load_the_signer() -
         [sys.executable, "-c", probe], capture_output=True, text=True, check=True
     )
     assert result.stdout.strip() == "False"
+
+
+def test_the_scan_covers_both_packages() -> None:
+    modules = _sources()
+    assert {"ehor.mcp.server", "ehor_near.cli", SIGNER_MODULE} <= modules.keys()

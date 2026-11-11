@@ -1,6 +1,6 @@
 import pytest
 
-from ehor.escrow.client import is_account_id
+from ehor_near.client import is_account_id
 
 
 @pytest.mark.parametrize(

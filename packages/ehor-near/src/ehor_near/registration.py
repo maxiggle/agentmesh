@@ -1,9 +1,9 @@
 import asyncio
 
-from ehor.escrow.client import ONE_YOCTO, NearClient
-from ehor.escrow.limited_key import LimitedKeyError, check_access_key
-from ehor.escrow.payload import format_near
-from ehor.escrow.wallet_page import WalletCall
+from ehor_near.client import ONE_YOCTO, NearClient
+from ehor_near.limited_key import LimitedKeyError, check_access_key
+from ehor_near.payload import format_near
+from ehor_near.wallet_page import WalletCall
 
 CONFIRM_ATTEMPTS = 10
 CONFIRM_DELAY = 2.0

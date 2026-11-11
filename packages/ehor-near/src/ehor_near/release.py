@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
-from ehor.escrow.payload import format_near, release_payload
 from ehor.identity.base import KeyHandle, PresenceSigner
 from ehor.identity.es256 import low_s, verify
+from ehor_near.payload import format_near, release_payload
 
 
 class ReleaseSignError(Exception):

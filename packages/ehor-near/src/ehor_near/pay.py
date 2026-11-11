@@ -1,8 +1,8 @@
 import time
 from dataclasses import dataclass
 
-from ehor.escrow.client import TGAS, NearClient, is_account_id
-from ehor.escrow.payload import format_near
+from ehor_near.client import TGAS, NearClient, is_account_id
+from ehor_near.payload import format_near
 
 RELEASE_GAS = 150 * TGAS
 DONE = "Done"

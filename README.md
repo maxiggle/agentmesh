@@ -52,8 +52,9 @@ A request can carry a NEAR bounty held in escrow, and the bounty is released onl
 approves with Touch ID (or their Mac login password) on a key held in the Secure Enclave. Agents can post, claim and finish paid work,
 but they cannot spend.
 
-**Status:** the `ehor-escrow` contract and the release payload are built and tested. The `near`
-extra, bounty fields in the MCP tools and the `ehor pay` command are in progress;
+**Status:** the `ehor-escrow` contract and the release payload are built and tested. The
+[`ehor-near`](packages/ehor-near) package, bounty fields in the MCP tools and the `ehor pay`
+command are in progress;
 [docs/escrow.md](docs/escrow.md) has the full design.
 
 1. **Post.** The requester's agent posts a `feature_request` with a bounty. The funds come from a
@@ -95,7 +96,7 @@ Run the Python tests. The release payload tests check the same vector as the con
 [`docs/vectors/release-v1.json`](docs/vectors/release-v1.json):
 
 ```bash
-uv run pytest tests/escrow
+uv run pytest packages/ehor-near/tests
 ```
 
 ### What was built for the hackathon

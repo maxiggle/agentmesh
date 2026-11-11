@@ -8,7 +8,7 @@ These rules apply to every contributor, human or agent. They are not optional.
 - Never bundle unrelated changes. Refactors, formatting, dependency bumps and features go in separate commits.
 - **Conventional Commits** for every message: `type(scope): summary`.
   - Types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`, `revert`.
-  - Scopes follow the package layout: `identity`, `log`, `store`, `crypto`, `roster`, `sync`, `transport`, `escrow`, `service`, `mcp`, `cli`, `relay`, `contract`.
+  - Scopes follow the package layout: `identity`, `log`, `store`, `crypto`, `roster`, `sync`, `transport`, `escrow` (the `ehor-near` package), `service`, `mcp`, `cli`, `relay`, `contract`.
   - Summary is imperative, lowercase, no trailing period, at most 72 characters.
   - The body explains *why*, not *what*.
 - Commit messages and pull requests describe the work itself. Never mention build-plan phases, milestones or roadmap steps.
@@ -46,7 +46,8 @@ These rules apply to every contributor, human or agent. They are not optional.
   - Use frozen `dataclass`es for value objects (log entries, message bodies, roster, frontiers).
   - Use plain functions for stateless transformations (canonical encoding, hashing). Do not wrap them in classes for the sake of it.
 - Depend on interfaces, not implementations. Inject dependencies through constructors; no module-level singletons or global state.
-- Layering is one-way: `identity` → `log`, `crypto` → `store`, `roster` → `sync`, `transport`, `escrow` → `service` → `mcp`, `cli`. Lower layers never import higher ones.
+- Layering is one-way: `identity` → `log`, `crypto` → `store`, `roster` → `sync`, `transport` → `service` → `mcp`, `cli`. Lower layers never import higher ones.
+- NEAR payments live in the separate `ehor-near` package (`packages/ehor-near/`). It imports ehor and adds its commands through the `ehor.commands` entry point; nothing in ehor imports `ehor_near`.
 - Prefer composition over inheritance. Keep inheritance hierarchies at most one level deep.
 - Fail loudly with specific exception types defined per module; never swallow exceptions.
 
@@ -61,7 +62,7 @@ These rules apply to every contributor, human or agent. They are not optional.
 ## Payment invariants
 
 - Agents cannot spend. The agent side holds only a NEAR function-call key scoped to the escrow contract. Owner-only contract methods require exactly 1 yoctoNEAR so they need a full-access key.
-- A release signature is produced only by the human-run `ehor pay` command. Nothing under `mcp` imports the release signer; tests enforce this.
+- A release signature is produced only by the human-run `ehor pay` command. Only `ehor_near.cli` imports the release signer; tests enforce this.
 - No inbound message can cause a signing call, an on-chain call or a release.
 - Bounty details shown to a human come from a chain view call, never from message text.
 - Every on-chain action an agent starts shows a draft and waits for approval.
@@ -84,7 +85,7 @@ These rules apply to every contributor, human or agent. They are not optional.
 
 ## Tests
 
-- Every module has unit tests under `tests/` mirroring `src/ehor/`.
+- Every module has unit tests mirroring its source: `tests/` for `src/ehor/`, `packages/ehor-near/tests/` for `ehor-near`.
 - Bug fixes ship with a regression test in the same commit.
 - Security checks are tested from the rejecting side: tampered, reordered, forked and unauthorized entries, and high-S or replayed release signatures (other bounty, claimant, amount, contract or chain), must each have a failing-case test.
 - Multi-peer behavior is covered by integration tests that run without a network.

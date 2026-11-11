@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from types import ModuleType, TracebackType
 from typing import Protocol, Self
 
-from ehor.escrow.client import (
+from ehor_near.client import (
     DEFAULT_GAS,
     TESTNET,
     TESTNET_RPC,
@@ -63,7 +63,7 @@ def _import(name: str) -> ModuleType:
         return importlib.import_module(name)
     except ImportError as exc:
         raise NearUnavailableError(
-            "paid requests need the py-near package: pip install 'ehor[near]'"
+            "paid requests need the py-near package: pip install ehor-near"
         ) from exc
 
 

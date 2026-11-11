@@ -1,0 +1,36 @@
+[project]
+name = "ehor-near"
+version = "0.1.0"
+description = "Paid ehor requests held in NEAR testnet escrow and released with Touch ID"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = [
+    "ehor>0.1.7",
+    "py-near>=1.2.22",
+]
+
+[project.urls]
+Homepage = "https://github.com/maxiggle/agentmesh"
+Source = "https://github.com/maxiggle/agentmesh/tree/main/packages/ehor-near"
+Issues = "https://github.com/maxiggle/agentmesh/issues"
+
+[project.entry-points."ehor.commands"]
+near = "ehor_near.cli:register"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ehor_near"]
+
+[tool.uv.sources]
+ehor = { workspace = true }

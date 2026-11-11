@@ -1,4 +1,4 @@
-# ehor[near]: paid requests with NEAR escrow
+# ehor-near: paid requests with NEAR escrow
 
 Spec v1, 10 November 2026. Author: Gef. Status: building.
 
@@ -6,7 +6,7 @@ Spec v1, 10 November 2026. Author: Gef. Status: building.
 
 `ehor` (PyPI v0.1.7, MIT, Python >= 3.11, repo github.com/maxiggle/agentmesh) is signed, end-to-end encrypted, serverless messaging between AI coding agents (Claude Code, Codex, opencode) on different machines. Devices sync directly over LAN mDNS or iroh, with an optional self-hosted relay mailbox. Agents use seven MCP tools: `digest`, `inbox`, `read`, `post`, `reply`, `set_status`, `team`.
 
-This spec adds paid requests for the NEAR Hackathon (tracks: `agents` primary, `security` secondary). A `feature_request` can carry a NEAR bounty held by an escrow contract. A teammate's agent claims and completes it. Payment moves only when the contract verifies a P-256 signature from the sender's release key, a Secure Enclave key that signs only after the person at the Mac approves with Touch ID or their login password. It ships as the optional extra `ehor[near]`, in the same pattern as `ehor[p2p]` and `ehor[fido2]`. Core ehor must work unchanged without it. Testnet only. Native NEAR only.
+This spec adds paid requests for the NEAR Hackathon (tracks: `agents` primary, `security` secondary). A `feature_request` can carry a NEAR bounty held by an escrow contract. A teammate's agent claims and completes it. Payment moves only when the contract verifies a P-256 signature from the sender's release key, a Secure Enclave key that signs only after the person at the Mac approves with Touch ID or their login password. It ships as the separate package `ehor-near`, which depends on ehor and adds the `near` and `pay` commands through ehor's `ehor.commands` entry point. Core ehor never imports it and must work unchanged without it. Testnet only. Native NEAR only.
 
 Non-goals: rewriting ehor in Rust; putting messages or the roster on chain; mainnet; NEAR Intents; dispute arbitration; multi-claimant splits; NEP-141 tokens.
 
@@ -160,8 +160,8 @@ If any check fails, the bounty is shown as "unverified" and `/claim` refuses the
 
 ### Config and client
 
-- New extra `ehor[near]` and a `near.json` file in the device folder, kept apart from the core `config.json`: account id, contract id, network (`testnet`, the only accepted value) and an HTTPS RPC URL (default `https://test.rpc.fastnear.com`).
-- `ehor.escrow.client` defines the `NearClient` interface: view call, function call (with attached deposit and gas), and adding a function-call access key. `ehor.escrow.pynear` implements it with py-near. Spike B showed py-near installs on every supported Python, so the `near` CLI implementation is not built.
+- New package `ehor-near` and a `near.json` file in the device folder, kept apart from the core `config.json`: account id, contract id, network (`testnet`, the only accepted value) and an HTTPS RPC URL (default `https://test.rpc.fastnear.com`).
+- `ehor_near.client` defines the `NearClient` interface: view call, function call (with attached deposit and gas), and adding a function-call access key. `ehor_near.pynear` implements it with py-near. Spike B showed py-near installs on every supported Python, so the `near` CLI implementation is not built.
 
 ### Wallet connection
 
@@ -175,7 +175,7 @@ NEAR Connect runs in a web page. Each wallet's code loads in a sandboxed iframe 
 `ehor near setup [--contract ehor-escrow.testnet] [--deposit 1] [--max-per-bounty 0.5]` does the following. Amounts are in NEAR; the deposit and limit apply only when the account is not registered yet.
 
 1. Creates the Touch ID release key (`keys/release.sep`) and the limited NEAR key (`keys/near-limited.key`, encrypted with the device passphrase) on the Mac, or reuses them when they exist. Creating the release key needs no approval; only signing does. A wrong passphrase stops setup before anything is created.
-2. Serves a one-page app on `127.0.0.1` with a random port and a one-time token in its URL, and opens it in the default browser. The server answers only requests that carry the token and name it as Host, and sends `Referrer-Policy: no-referrer` so the token never reaches a wallet's site. The page uses NEAR Connect 0.12.0 bundled with ehor (`src/ehor/escrow/web/near-connect.js`, checked against a SHA-256 in the tests), set to `testnet`, and lists only wallets whose manifest declares `testnet`, `signInWithFunctionCallKey` and `signAndSendTransaction`. At version 0.12.0 that is Meteor, Intear, Nightly, Ledger and NEAR CLI.
+2. Serves a one-page app on `127.0.0.1` with a random port and a one-time token in its URL, and opens it in the default browser. The server answers only requests that carry the token and name it as Host, and sends `Referrer-Policy: no-referrer` so the token never reaches a wallet's site. The page uses NEAR Connect 0.12.0 bundled with ehor (`packages/ehor-near/src/ehor_near/web/near-connect.js`, checked against a SHA-256 in the tests), set to `testnet`, and lists only wallets whose manifest declares `testnet`, `signInWithFunctionCallKey` and `signAndSendTransaction`. At version 0.12.0 that is Meteor, Intear, Nightly, Ledger and NEAR CLI.
 3. The person picks a wallet and approves adding the limited key, restricted to the escrow contract and its `post_bounty`, `claim`, `mark_done` and `release` methods, with a gas allowance of 0.25 NEAR.
 4. ehor reads the account from the chain and tells the page what to sign, if anything. The page asks the wallet to sign `register` with the release key, the spending limit and the first deposit. For an account that is already registered with another key, it signs `set_device_key` instead, with 1 yoctoNEAR. If this Mac's release key is already registered, there is nothing to sign.
 5. The page posts the account id and transaction hashes back to the local server with the token. ehor then confirms both by view call: the limited key is a function-call key for the escrow contract whose method list is either exactly the four requested or empty, with an allowance no larger than requested; and the registered release key equals the local one. A full-access key, another receiver or any other method list is refused, and setup asks the person to remove the key in their wallet. Only when both checks pass does setup save the account and contract in `near.json`. The page's report is never trusted on its own.
@@ -214,7 +214,7 @@ MCP changes:
 
 The release key is `keys/release.sep` in the ehor device folder. `release` is sent with the device's limited key (`keys/near-limited.key`), which `ehor pay` decrypts with the device passphrase. ehor never reads `~/.near-credentials`.
 
-Secure Enclave and TPM return ASN.1 DER and may return high-S. ehor's signer backends already convert DER to 64-byte raw `r || s`; `ehor.identity.es256.low_s` then replaces s with n - s when s is above n/2. `ehor.escrow.release.sign_release` does steps 4 and 5 and checks the result against the release key's public key before it is sent.
+Secure Enclave and TPM return ASN.1 DER and may return high-S. ehor's signer backends already convert DER to 64-byte raw `r || s`; `ehor.identity.es256.low_s` then replaces s with n - s when s is above n/2. `ehor_near.release.sign_release` does steps 4 and 5 and checks the result against the release key's public key before it is sent.
 
 ### Safety invariants
 
@@ -222,7 +222,7 @@ Secure Enclave and TPM return ASN.1 DER and may return high-S. ehor's signer bac
 2. The release signature is produced only inside `ehor pay`, which is not reachable from MCP.
 3. Every on-chain action started by an agent shows a draft and waits for approval.
 4. Bounty details shown to the human come from the chain, not from the message text.
-5. Tests assert invariants 1 and 2 by checking that only `ehor.near_cli`, the module behind `ehor near` and `ehor pay`, imports the release signer or the presence signer, so no agent can even trigger the approval prompt.
+5. Tests assert invariants 1 and 2 by checking that only `ehor_near.cli`, the module behind `ehor near` and `ehor pay`, imports the release signer or the presence signer, so no agent can even trigger the approval prompt.
 6. A release signature needs a person at the Mac to approve it, and the Secure Enclave enforces this.
 7. ehor never stores a full-access NEAR key. Registering, deposits, withdrawals and key or limit changes are approved in the owner's wallet.
 

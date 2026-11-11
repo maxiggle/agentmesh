@@ -53,13 +53,15 @@ multicast tests.
 - Use `typing.Protocol` for pluggable boundaries, classes for components that own state, frozen
   dataclasses for values, and plain functions for stateless transformations.
 - Layering is one-way. Lower layers never import higher ones:
-  `identity` → `log`, `crypto` → `store`, `roster` → `sync`, `transport`, `escrow` → `service` →
-  `mcp`, `cli`.
+  `identity` → `log`, `crypto` → `store`, `roster` → `sync`, `transport` → `service` → `mcp`,
+  `cli`. The `ehor-near` package in `packages/ehor-near/` sits above all of them: it imports
+  ehor, and nothing in ehor imports it.
 - Fail loudly with specific exception types; never swallow exceptions.
 
 ## Tests
 
-- Every module has unit tests under `tests/`, mirroring `src/ehor/`.
+- Every module has unit tests mirroring its source: `tests/` for `src/ehor/`, and
+  `packages/ehor-near/tests/` for `ehor-near`.
 - A bug fix ships with a regression test in the same commit.
 - Security checks are tested from the rejecting side: tampered, reordered, forked and
   unauthorized entries, and high-S or replayed release signatures, each need a failing-case test.
@@ -87,7 +89,7 @@ type(scope): imperative lowercase summary
 
 - Types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`, `revert`.
 - Scopes follow the package layout: `identity`, `log`, `store`, `crypto`, `roster`, `sync`,
-  `transport`, `escrow`, `service`, `mcp`, `cli`, `relay`, `contract`.
+  `transport`, `escrow` (the `ehor-near` package), `service`, `mcp`, `cli`, `relay`, `contract`.
 - At most 72 characters, no trailing period. The body explains *why*, not *what*.
 - Never bundle unrelated changes; refactors, formatting, dependency bumps and features are
   separate commits.

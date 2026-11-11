@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from ehor.escrow.client import (
+from ehor_near.client import (
     DEFAULT_GAS,
     ContractError,
     NearError,
@@ -14,7 +14,7 @@ from ehor.escrow.client import (
     RpcError,
     WrongChainError,
 )
-from ehor.escrow.pynear import PyNearClient
+from ehor_near.pynear import PyNearClient
 
 CONTRACT = "escrow.ehor.testnet"
 PRIVATE_KEY = "ed25519:" + "3" * 88
@@ -226,9 +226,9 @@ def test_connect_rejects_invalid_account_id() -> None:
         PyNearClient.connect("Alice", PRIVATE_KEY)
 
 
-def test_connect_without_py_near_names_the_extra(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_connect_without_py_near_names_the_package(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "py_near.account", None)
-    with pytest.raises(NearUnavailableError, match=r"ehor\[near\]"):
+    with pytest.raises(NearUnavailableError, match="pip install ehor-near"):
         PyNearClient.connect("alice.testnet", PRIVATE_KEY)
 
 

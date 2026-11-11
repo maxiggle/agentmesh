@@ -1,2 +1,2 @@
 # Vendored bundle checked against a SHA-256 in the tests; keep its bytes on every OS.
-src/ehor/escrow/web/near-connect.js -text
+packages/ehor-near/src/ehor_near/web/near-connect.js -text

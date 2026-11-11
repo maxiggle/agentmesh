@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from ehor.escrow.payload import (
+from ehor_near.payload import (
     PayloadError,
     format_near,
     parse_near,
@@ -12,7 +12,7 @@ from ehor.escrow.payload import (
     release_payload,
 )
 
-VECTOR = Path(__file__).resolve().parents[2] / "docs" / "vectors" / "release-v1.json"
+VECTOR = Path(__file__).resolve().parents[3] / "docs" / "vectors" / "release-v1.json"
 
 
 @pytest.fixture

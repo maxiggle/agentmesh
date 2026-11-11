@@ -29,18 +29,12 @@ Protocol = "https://github.com/maxiggle/agentmesh/blob/main/docs/protocol.md"
 [project.scripts]
 ehor = "ehor.cli:main"
 
-[project.entry-points."ehor.commands"]
-near = "ehor.near_cli:register"
-
 [project.optional-dependencies]
 fido2 = [
     "fido2>=2.2.1",
 ]
 p2p = [
     "iroh>=1.2.0",
-]
-near = [
-    "py-near>=1.2.22",
 ]
 
 [build-system]
@@ -54,18 +48,24 @@ packages = ["src/ehor"]
 dev = [
     "fido2>=2.2.1",
     "iroh>=1.2.0",
+    "ehor-near",
     "mypy>=2.4.0",
     "pre-commit>=4.7.0",
-    "py-near>=1.2.22",
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.17.3",
 ]
 
+[tool.uv.workspace]
+members = ["packages/ehor-near"]
+
+[tool.uv.sources]
+ehor-near = { workspace = true }
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["src", "tests"]
+src = ["src", "tests", "packages/ehor-near/src", "packages/ehor-near/tests"]
 
 [tool.ruff.lint]
 select = [
@@ -76,22 +76,23 @@ ignore = ["PLR0913"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "ANN", "PLR2004", "PLR0917"]
+"packages/*/tests/**" = ["S101", "ANN", "PLR2004", "PLR0917"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 
 [tool.mypy]
 strict = true
-files = ["src", "tests", "scripts"]
+files = ["src", "tests", "scripts", "packages/ehor-near/src", "packages/ehor-near/tests"]
 mypy_path = "tests"
 python_version = "3.11"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "packages/ehor-near/tests"]
 pythonpath = ["tests"]
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 xfail_strict = true
 
 [tool.coverage.run]
-source = ["ehor"]
+source = ["ehor", "ehor_near"]
 branch = true
