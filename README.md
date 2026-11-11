@@ -67,9 +67,9 @@ extra, bounty fields in the MCP tools and the `ehor pay` command are in progress
 
 | Key | Held by | Can |
 |---|---|---|
-| NEAR function-call key | The agent | Post, claim and mark done. Cannot attach NEAR, withdraw or change keys. |
+| NEAR function-call key | The agent and `ehor pay` | Post, claim, mark done and send a signed release. Cannot attach NEAR, withdraw or change keys. |
 | P-256 release key | The human's Mac, in the Secure Enclave | Release a bounty to its claimant, only after Touch ID or the login password. |
-| NEAR full-access key | The human, in a terminal | Register, deposit, withdraw, change the release key or the per-bounty cap. |
+| NEAR full-access key | The human's NEAR wallet; ehor never stores it | Register, deposit, withdraw, change the release key or the per-bounty cap, each approved in the wallet. |
 
 `ehor pay` is never exposed through MCP, so no agent can trigger a payout or the approval prompt.
 Releases need a Mac with a Secure Enclave in this version.
