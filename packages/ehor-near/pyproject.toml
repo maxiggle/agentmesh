@@ -26,6 +26,9 @@ Issues = "https://github.com/maxiggle/agentmesh/issues"
 [project.entry-points."ehor.commands"]
 near = "ehor_near.cli:register"
 
+[project.entry-points."ehor.tools"]
+near = "ehor_near.tools:tools"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

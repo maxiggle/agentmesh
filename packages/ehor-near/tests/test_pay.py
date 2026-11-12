@@ -79,7 +79,14 @@ def _bounty(**changes: object) -> Bounty:
 def test_view_is_parsed() -> None:
     bounty = _bounty()
     assert bounty == Bounty(
-        2, "alice.testnet", 10**23, "abc123", "bob.testnet", "Done", 1794386614444784000
+        2,
+        "alice.testnet",
+        10**23,
+        "abc123",
+        "bob.testnet",
+        "Done",
+        1794386614444784000,
+        ("bob.testnet",),
     )
 
 
@@ -102,6 +109,8 @@ def test_description_shows_the_chain_terms() -> None:
         {"sender": "Not An Account"},
         {"claimant": 7},
         {"status": None},
+        {"allowed_claimants": "bob.testnet"},
+        {"allowed_claimants": ["Not An Account"]},
     ],
 )
 def test_malformed_views_are_refused(changes: dict[str, object]) -> None:

@@ -132,6 +132,19 @@ def test_loading_the_core_cli_mcp_server_and_daemon_does_not_load_the_signer() -
     assert result.stdout.strip() == "False"
 
 
+def test_loading_the_agents_bounty_tools_does_not_load_the_signer() -> None:
+    probe = (
+        "import sys, ehor.cli\n"
+        "plugins = ehor.cli._tool_plugins()\n"
+        "print(sorted(type(plugin).__name__ for plugin in plugins))\n"
+        f"print({SIGNER_MODULE!r} in sys.modules)"
+    )
+    result = subprocess.run(  # noqa: S603 - fixed interpreter and code, no user input
+        [sys.executable, "-c", probe], capture_output=True, text=True, check=True
+    )
+    assert result.stdout.splitlines() == ["['NearTools']", "False"]
+
+
 def test_the_scan_covers_both_packages() -> None:
     modules = _sources()
     assert {"ehor.mcp.server", "ehor_near.cli", SIGNER_MODULE} <= modules.keys()
