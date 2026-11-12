@@ -3,32 +3,35 @@ from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
 
+from ehor.log.account_announce import AccountAnnounce
 from ehor.mcp.server import Relay
 from ehor.service.api import Params
 from ehor.service.device import key_dir
 from ehor.service.messenger import MessengerError
 from ehor.service.plugins import PluginHost, ToolHandler
-from ehor_near.bounties import DEFAULT_HOURS, BountyDesk, BountyError, MessageBook
+from ehor_near.bounties import DEFAULT_HOURS, NEAR_SYSTEM, BountyDesk, BountyError
 from ehor_near.client import NearError
 from ehor_near.config import NearConfig, NearConfigError
 from ehor_near.limited_key import LIMITED_KEY_FILE, LimitedKeyFile
 from ehor_near.pay import PayError
 from ehor_near.payload import PayloadError
 from ehor_near.pynear import PyNearClient
-from ehor_near.teammates import TeammateError
 
 POST = "near.bounty_post"
 CLAIM = "near.bounty_claim"
 DONE = "near.bounty_done"
 LIST = "near.bounties"
 _NOT_SET_UP = "this device has no NEAR account; your user can run `ehor near setup`"
+_SET_UP_AGAIN = (
+    "this device has not announced its NEAR account; your user can run `ehor near setup` "
+    "again and restart `ehor serve`"
+)
 _ERRORS = (
     MessengerError,
     NearConfigError,
     NearError,
     PayError,
     PayloadError,
-    TeammateError,
 )
 
 Step = Callable[[Params], Awaitable[str]]
@@ -79,7 +82,7 @@ class NearTools:
             return await relay(LIST)
 
     def open(self, home: Path, passphrase: bytes, host: PluginHost) -> Mapping[str, ToolHandler]:
-        desk = _desk(home, passphrase, host.messenger)
+        desk = _desk(home, passphrase, host)
 
         async def post(params: Params) -> str:
             message_id = params.text("id")
@@ -117,23 +120,29 @@ class NearTools:
 tools = NearTools()
 
 
-def _desk(home: Path, passphrase: bytes, messenger: MessageBook) -> BountyDesk | None:
+def _desk(home: Path, passphrase: bytes, host: PluginHost) -> BountyDesk | str:
     config = NearConfig.load(home)
     key_file = LimitedKeyFile(key_dir(home) / LIMITED_KEY_FILE, passphrase)
     if config is None or not key_file.exists():
-        return None
+        return _NOT_SET_UP
+    if config.release_key is None:
+        return _SET_UP_AGAIN
+    host.announce_account(
+        AccountAnnounce(NEAR_SYSTEM, config.account_id, bytes.fromhex(config.release_key))
+    )
     secret = key_file.load().near_secret()
     return BountyDesk(
         home,
         config,
         lambda: PyNearClient.connect(config.account_id, secret, config.rpc_url),
-        messenger,
+        messages=host.messenger,
+        accounts=host,
     )
 
 
-def _ready(desk: BountyDesk | None) -> BountyDesk:
-    if desk is None:
-        raise BountyError(_NOT_SET_UP)
+def _ready(desk: BountyDesk | str) -> BountyDesk:
+    if isinstance(desk, str):
+        raise BountyError(desk)
     return desk
 
 

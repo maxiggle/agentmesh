@@ -70,3 +70,9 @@ def test_near_rejects_bad_values(kwargs: dict[str, str], error: str) -> None:
     fields = {"account_id": "gef.testnet", "contract_id": "escrow.gef.testnet", **kwargs}
     with pytest.raises(NearConfigError, match=error):
         NearConfig(**fields)
+
+
+@pytest.mark.parametrize("key", ["02" + "ab" * 31, "04" + "ab" * 32, "02" + "AB" * 32, "zz"])
+def test_a_malformed_release_key_is_refused(key: str) -> None:
+    with pytest.raises(NearConfigError, match="compressed P-256"):
+        NearConfig("gef.testnet", "ehor-escrow.testnet", release_key=key)

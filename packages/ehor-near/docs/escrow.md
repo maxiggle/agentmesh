@@ -145,17 +145,19 @@ The contract logs one NEP-297 style JSON event per state change, with standard n
 
 ## Identity binding between ehor and NEAR
 
-A person links each teammate's ehor handle to that teammate's NEAR account with `ehor near teammate <handle> <account>`, run in a terminal. The links live in `near-teammates.json` in the device folder, one account per handle. No MCP tool can change them, so neither an agent nor a teammate's message can change which account a bounty is offered to or accepted from.
+Each device with ehor-near set up announces its NEAR account in a signed ehor log entry, `account_announce` (protocol §4.6), with system `near-testnet`, the account id, and the compressed release key that `ehor near setup` registered for that account. `ehor serve` publishes it when it starts, from `near.json`, and again whenever it changes. Only the device's own key can sign it, and the roster vouches for that key, so neither an agent nor a teammate's message can change which account a bounty is offered to or accepted from. Message text is never used to find an account.
+
+Before using an announced account, the bounty tools check by view call that the contract holds, for that account, a release key that the announcing device announced with it. This catches an announcement that is stale, mistyped or names an account the device has not registered. It does not prove the device controls the account: a dishonest roster member could announce another person's account and its public release key. A bounty offered to that account can then only be claimed by that account, and the requester still sees the claimant's account, read from the chain, before `ehor pay` asks for Touch ID.
 
 The bounty is linked to its ehor message by the contract's `message_id` field, which holds the message's full 64-character entry ID. The bounty tools check, by view call, before each on-chain step:
 
-1. Posting: the message is the caller's own `feature_request`, and the claimant is the account linked to the handle it is addressed to, or to the handle the agent names.
-2. Claiming: the bounty's `message_id` equals this message's ID, its sender is the account linked to the message's author, it is Open, and this device's account is an allowed claimant.
+1. Posting: the message is the caller's own `feature_request`. The claimant is the account announced by the devices of the handle it is addressed to, or of the handle the agent names; if that member's devices announce different accounts, the tool refuses.
+2. Claiming: the bounty's `message_id` equals this message's ID, its sender is the account announced by the device that wrote the message, it is Open, and this device's account is an allowed claimant.
 3. Finishing: the same link and sender checks, and this device's account is the bounty's claimant while it is Claimed.
 
 If any check fails, the tool refuses and makes no on-chain call. A bounty number in a teammate's message is only a pointer: the tools read its terms from the chain and check them.
 
-Planned: each roster member also announces their NEAR account id in a signed ehor log entry, using the same mechanism as the iroh address announcement, and the claim check also compares the sender account's registered P-256 key with the release key that the sender's device announced.
+Every device of a team must run an ehor version that knows `account_announce` before any device announces, because older versions reject the entry and then stop accepting its author's later entries (protocol §4.6).
 
 ## ehor changes
 
@@ -179,7 +181,8 @@ NEAR Connect runs in a web page. Each wallet's code loads in a sandboxed iframe 
 2. Serves a one-page app on `127.0.0.1` with a random port and a one-time token in its URL, and opens it in the default browser. The server answers only requests that carry the token and name it as Host, and sends `Referrer-Policy: no-referrer` so the token never reaches a wallet's site. The page uses NEAR Connect 0.12.0 bundled with ehor (`packages/ehor-near/src/ehor_near/web/near-connect.js`, checked against a SHA-256 in the tests), set to `testnet`, and lists only wallets whose manifest declares `testnet`, `signInWithFunctionCallKey` and `signAndSendTransaction`. At version 0.12.0 that is Meteor, Intear, Nightly, Ledger and NEAR CLI.
 3. The person picks a wallet and approves adding the limited key, restricted to the escrow contract and its `post_bounty`, `claim`, `mark_done` and `release` methods, with a gas allowance of 0.25 NEAR.
 4. ehor reads the account from the chain and tells the page what to sign, if anything. The page asks the wallet to sign `register` with the release key, the spending limit and the first deposit. For an account that is already registered with another key, it signs `set_device_key` instead, with 1 yoctoNEAR. If this Mac's release key is already registered, there is nothing to sign.
-5. The page posts the account id and transaction hashes back to the local server with the token. ehor then confirms both by view call: the limited key is a function-call key for the escrow contract whose method list is either exactly the four requested or empty, with an allowance no larger than requested; and the registered release key equals the local one. A full-access key, another receiver or any other method list is refused, and setup asks the person to remove the key in their wallet. Only when both checks pass does setup save the account and contract in `near.json`. The page's report is never trusted on its own.
+5. The page posts the account id and transaction hashes back to the local server with the token. ehor then confirms both by view call: the limited key is a function-call key for the escrow contract whose method list is either exactly the four requested or empty, with an allowance no larger than requested; and the registered release key equals the local one. A full-access key, another receiver or any other method list is refused, and setup asks the person to remove the key in their wallet. Only when both checks pass does setup save the account, the contract and the release key in `near.json`. The page's report is never trusted on its own.
+6. Setup asks the person to restart `ehor serve`, which then announces the account to the team (see Identity binding).
 
 `ehor near deposit`, `ehor near withdraw` and changes to the release key or the spending limit each open the same page for one `signAndSendTransaction`. ehor prints what it is about to ask the wallet for before opening it, and the wallet shows the transaction before the person approves.
 
@@ -189,7 +192,7 @@ The wallet executors load from each wallet provider's URL when the page opens, n
 
 CLI commands are for the human, in a terminal:
 
-- `ehor near setup`, `ehor near teammate`, `ehor near deposit`, `ehor near withdraw`, `ehor near status`
+- `ehor near setup`, `ehor near deposit`, `ehor near withdraw`, `ehor near status`
 - `ehor pay <bounty>`
 - `ehor refund <bounty>`
 

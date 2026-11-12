@@ -8,12 +8,13 @@ from typing import Self
 
 import pytest
 
+from ehor.log.account_announce import AccountAnnounce
 from ehor.service.device import Device
 from ehor.service.messenger import MessengerError
-from ehor_near.bounties import POST_GAS, STEP_GAS, BountyDesk, BountyError
+from ehor_near.bounties import NEAR_SYSTEM, POST_GAS, STEP_GAS, BountyDesk, BountyError
 from ehor_near.client import DEFAULT_GAS, ContractError
 from ehor_near.config import NearConfig
-from ehor_near.teammates import TeammateAccounts
+from ehor_near.pay import PayError
 
 CONTRACT = "ehor-escrow.testnet"
 GEF = "gef.testnet"
@@ -22,6 +23,7 @@ EVE = "eve.testnet"
 NOW = 1_794_400_000
 NS = 10**9
 PASSPHRASE = b"test passphrase"
+KEYS = {GEF: b"\x02" + b"\x01" * 32, TOBI: b"\x03" + b"\x02" * 32, EVE: b"\x02" + b"\x03" * 32}
 
 
 @dataclass
@@ -30,6 +32,7 @@ class Chain:
 
     bounties: dict[int, dict[str, object]] = field(default_factory=dict)
     calls: list[tuple[str, str, dict[str, object], int]] = field(default_factory=list)
+    release_keys: dict[str, bytes] = field(default_factory=lambda: dict(KEYS))
 
     def client(self, account: str) -> "AccountClient":
         return AccountClient(self, account)
@@ -67,7 +70,11 @@ class AccountClient:
         return None
 
     async def view(self, contract: str, method: str, args: Mapping[str, object]) -> object:
-        assert (contract, method) == (CONTRACT, "get_bounty")
+        assert contract == CONTRACT
+        if method == "get_account":
+            key = self.chain.release_keys.get(str(args["account_id"]))
+            return None if key is None else {"device_key": key.hex()}
+        assert method == "get_bounty"
         return self.chain.bounties.get(int(str(args["bounty_id"])))
 
     async def call(
@@ -130,7 +137,8 @@ class Team:
             home,
             NearConfig(account, CONTRACT),
             lambda: self.chain.client(account),
-            device.messenger,
+            messages=device.messenger,
+            accounts=device,
             clock=lambda: float(NOW),
         )
 
@@ -138,6 +146,10 @@ class Team:
         for _ in range(3):
             self.gef.sync()
             self.tobi.sync()
+
+    def announce(self, device: Device, account: str, key: bytes | None = None) -> None:
+        device.announce_account(AccountAnnounce(NEAR_SYSTEM, account, key or KEYS[account]))
+        self.settle()
 
     def request(self, to: str = "tobi", kind: str = "feature_request") -> str:
         entry = self.gef.messenger.post([to], kind, "Add CSV export")
@@ -153,10 +165,10 @@ def team() -> Iterator[Team]:
         gef = Device.create_team(root / "gef", "gef", PASSPHRASE, exchange=shared)
         tobi = Device.join(root / "tobi", gef.invite, "tobi", PASSPHRASE, exchange=shared)
         gef.call("roster.add", {"handle": "tobi", "key": tobi.author.hex()})
-        TeammateAccounts().linked("tobi", TOBI).save(root / "gef")
-        TeammateAccounts().linked("gef", GEF).save(root / "tobi")
         built = Team(gef, tobi, root / "gef", root / "tobi", Chain())
         built.settle()
+        built.announce(gef, GEF)
+        built.announce(tobi, TOBI)
         yield built
         gef.close()
         tobi.close()
@@ -265,12 +277,38 @@ def test_a_bounty_goes_only_on_your_own_feature_request(team: Team) -> None:
     assert team.chain.calls == []
 
 
-def test_a_bounty_needs_a_linked_claimant(team: Team) -> None:
-    to_role = team.request(to="#general")
+def test_a_bounty_needs_one_person_to_pay(team: Team) -> None:
+    to_channel = team.request(to="#general")
     with pytest.raises(BountyError, match="not addressed to one person"):
-        asyncio.run(team.desk("gef").post(to_role[:8], "0.1"))
-    with pytest.raises(BountyError, match="ada has no linked NEAR account"):
-        asyncio.run(team.desk("gef").post(to_role[:8], "0.1", claimant="ada"))
+        asyncio.run(team.desk("gef").post(to_channel[:8], "0.1"))
+    with pytest.raises(BountyError, match="ada has not announced a NEAR account"):
+        asyncio.run(team.desk("gef").post(to_channel[:8], "0.1", claimant="ada"))
+    assert team.chain.calls == []
+
+
+def test_an_account_announced_with_another_release_key_is_refused(team: Team) -> None:
+    message_id = team.request()
+    team.announce(team.tobi, EVE, KEYS[TOBI])
+    with pytest.raises(BountyError, match=f"another release key for {EVE}"):
+        asyncio.run(team.desk("gef").post(message_id[:8], "0.1"))
+    assert team.chain.calls == []
+
+
+def test_an_account_not_registered_on_the_contract_is_refused(team: Team) -> None:
+    message_id = team.request()
+    del team.chain.release_keys[TOBI]
+    with pytest.raises(PayError, match=f"{TOBI} is not registered"):
+        asyncio.run(team.desk("gef").post(message_id[:8], "0.1"))
+    assert team.chain.calls == []
+
+
+def test_a_claim_follows_the_senders_latest_announcement(team: Team) -> None:
+    message_id = team.request()
+    bounty = team.chain.add(GEF, message_id, [TOBI], 10**23)
+    team.chain.release_keys[EVE] = KEYS[GEF]
+    team.announce(team.gef, EVE, KEYS[GEF])
+    with pytest.raises(BountyError, match=f"posted by {GEF}, not {EVE}"):
+        asyncio.run(team.desk("tobi").claim(message_id[:8], bounty))
     assert team.chain.calls == []
 
 

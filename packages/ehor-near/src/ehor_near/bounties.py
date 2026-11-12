@@ -8,15 +8,16 @@ from typing import Protocol
 from ehor.log.body import MessageType
 from ehor.log.entry import Entry
 from ehor.log.names import HANDLE
+from ehor.service.accounts import AnnouncedAccount
 from ehor.service.messenger import Message, MessageDetail
 from ehor.service.plugins import PluginError
 from ehor_near.client import TGAS, NearClient
 from ehor_near.config import NearConfig
-from ehor_near.pay import Bounty, fetch_bounty
+from ehor_near.pay import Bounty, fetch_bounty, registered_release_key
 from ehor_near.payload import format_near, parse_near
-from ehor_near.teammates import TeammateAccounts
 
 LEDGER_FILE = "near-bounties.json"
+NEAR_SYSTEM = "near-testnet"
 DEFAULT_HOURS = 24
 MAX_HOURS = 30 * 24
 POST_GAS = 50 * TGAS
@@ -48,6 +49,10 @@ class MessageBook(Protocol):
     def set_status(self, id_prefix: str, status: str, note: str | None = None) -> Entry: ...
 
 
+class AccountBook(Protocol):
+    def announced_accounts(self, system: str) -> tuple[AnnouncedAccount, ...]: ...
+
+
 ConnectNear = Callable[[], AbstractAsyncContextManager[NearClient]]
 
 
@@ -77,8 +82,9 @@ class BountyLedger:
 class BountyDesk:
     """Posts, claims and finishes bounties linked to ehor messages.
 
-    Every term a tool reports comes from a view call. The claimant's account and the sender's
-    account come from the links a person made with `ehor near teammate`, never from message text.
+    Every term a tool reports comes from a view call. A teammate's NEAR account comes from the
+    account_announce their own device signed, never from message text, and is used only while
+    the escrow contract holds the release key that device announced with it.
     """
 
     def __init__(
@@ -86,13 +92,15 @@ class BountyDesk:
         home: Path,
         config: NearConfig,
         connect: ConnectNear,
+        *,
         messages: MessageBook,
+        accounts: AccountBook,
         clock: Callable[[], float] = time.time,
     ) -> None:
-        self._home = home
         self._config = config
         self._connect = connect
         self._messages = messages
+        self._accounts = accounts
         self._clock = clock
         self._ledger = BountyLedger(home)
 
@@ -105,18 +113,18 @@ class BountyDesk:
         if message.body.type is not MessageType.FEATURE_REQUEST:
             raise BountyError("a bounty can only go on a feature_request")
         handle = claimant if claimant is not None else _addressed_handle(message)
-        account = self._linked(handle)
         amount_yocto = parse_near(amount)
         if not 1 <= hours <= MAX_HOURS:
             raise BountyError(f"hours must be between 1 and {MAX_HOURS}")
         deadline_ns = (int(self._clock()) + hours * 3600) * _NS_PER_SECOND
-        args = {
-            "amount": str(amount_yocto),
-            "message_id": message.entry.id.hex(),
-            "allowed_claimants": [account],
-            "deadline": str(deadline_ns),
-        }
         async with self._connect() as near:
+            account = await self._checked(near, handle, self._announced_by(handle=handle))
+            args = {
+                "amount": str(amount_yocto),
+                "message_id": message.entry.id.hex(),
+                "allowed_claimants": [account],
+                "deadline": str(deadline_ns),
+            }
             result = await near.call(self._contract, "post_bounty", args, gas=POST_GAS)
             if isinstance(result, bool) or not isinstance(result, int):
                 raise BountyError("the contract did not return a bounty id")
@@ -127,8 +135,9 @@ class BountyDesk:
         return f"posted bounty {bounty.id}: {terms} ({account}, read from the chain)"
 
     async def claim(self, message_id: str, bounty_id: int) -> str:
-        message, sender = self._teammate_request(message_id)
+        message, handle = self._teammate_request(message_id)
         async with self._connect() as near:
+            sender = await self._sender(near, message, handle)
             bounty = await self._linked_bounty(near, bounty_id, message, sender)
             if self._config.account_id not in bounty.allowed_claimants:
                 raise BountyError(f"bounty {bounty.id} is not offered to {self._config.account_id}")
@@ -141,8 +150,9 @@ class BountyDesk:
         return f"claimed bounty {bounty.id}: {amount} NEAR from {sender}, due {bounty.deadline}"
 
     async def finish(self, message_id: str, bounty_id: int, note: str | None = None) -> str:
-        message, sender = self._teammate_request(message_id)
+        message, handle = self._teammate_request(message_id)
         async with self._connect() as near:
+            sender = await self._sender(near, message, handle)
             bounty = await self._linked_bounty(near, bounty_id, message, sender)
             if bounty.claimant != self._config.account_id or bounty.status != CLAIMED:
                 raise BountyError(f"bounty {bounty.id} is not claimed by {self._config.account_id}")
@@ -166,15 +176,6 @@ class BountyDesk:
     def _contract(self) -> str:
         return self._config.contract_id
 
-    def _linked(self, handle: str) -> str:
-        account = TeammateAccounts.load(self._home).account_for(handle)
-        if account is None:
-            raise BountyError(
-                f"{handle} has no linked NEAR account; "
-                f"your user can link one with `ehor near teammate {handle} <account>`"
-            )
-        return account
-
     def _teammate_request(self, message_id: str) -> tuple[Message, str]:
         message = self._messages.read(message_id).message
         author = message.entry.content.author
@@ -182,7 +183,38 @@ class BountyDesk:
             raise BountyError(
                 "that request is yours; bounty_claim and bounty_done are for its claimant"
             )
-        return message, self._linked(self._messages.display_name(author))
+        return message, self._messages.display_name(author)
+
+    def _announced_by(self, *, handle: str, device: bytes | None = None) -> list[AnnouncedAccount]:
+        return [
+            announced
+            for announced in self._accounts.announced_accounts(NEAR_SYSTEM)
+            if announced.handle == handle and device in {None, announced.device}
+        ]
+
+    async def _sender(self, near: NearClient, message: Message, handle: str) -> str:
+        device = message.entry.content.author
+        return await self._checked(near, handle, self._announced_by(handle=handle, device=device))
+
+    async def _checked(
+        self, near: NearClient, handle: str, announced: list[AnnouncedAccount]
+    ) -> str:
+        accounts = sorted({item.account for item in announced})
+        if not accounts:
+            raise BountyError(
+                f"{handle} has not announced a NEAR account; they run `ehor near setup` "
+                "and restart `ehor serve`"
+            )
+        if len(accounts) > 1:
+            raise BountyError(f"{handle}'s devices announce different NEAR accounts: {accounts}")
+        account = accounts[0]
+        registered = await registered_release_key(near, self._contract, account)
+        if registered not in {item.key for item in announced}:
+            raise BountyError(
+                f"{self._contract} holds another release key for {account} than {handle}'s "
+                "device announced; they run `ehor near setup` again"
+            )
+        return account
 
     async def _linked_bounty(
         self, near: NearClient, bounty_id: int, message: Message, sender: str

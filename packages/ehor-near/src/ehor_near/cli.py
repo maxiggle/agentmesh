@@ -4,6 +4,7 @@ import contextlib
 import sys
 import webbrowser
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 from ehor.cli import CliError, Commands, device_home, device_passphrase
@@ -41,7 +42,6 @@ from ehor_near.registration import (
     registration_call,
 )
 from ehor_near.release import ReleaseSignError, ReleaseTerms, sign_release
-from ehor_near.teammates import TeammateAccounts, TeammateError
 from ehor_near.wallet_page import WalletCall, WalletPage, WalletPageError
 
 RELEASE_KEY_LABEL = "release"
@@ -50,7 +50,9 @@ SETUP_TIMEOUT = 900.0
 _NO_NEAR = "this device has no NEAR account; run `ehor near setup` first"
 _NO_RELEASE_KEY = "this device has no release key; run `ehor near setup` first"
 _MAC_ONLY = "releases need a Mac with a Secure Enclave in this version"
-_NO_LINKS = "no teammates linked; run `ehor near teammate <handle> <account>`"
+_RESTART = (
+    "Restart `ehor serve` so it announces this account to your team and loads the bounty tools."
+)
 _ERRORS = (
     LimitedKeyError,
     NearConfigError,
@@ -58,7 +60,6 @@ _ERRORS = (
     PayError,
     RegistrationError,
     ReleaseSignError,
-    TeammateError,
     WalletPageError,
 )
 
@@ -79,13 +80,6 @@ def register(commands: Commands) -> None:
         "--max-per-bounty", default="0.5", help="largest bounty in NEAR, if not registered"
     )
     setup.set_defaults(run=_reporting(_near_setup))
-
-    teammate = near_commands.add_parser(
-        "teammate", help="link a teammate's ehor handle to their NEAR account"
-    )
-    teammate.add_argument("handle", nargs="?", help="their ehor handle; omit to list links")
-    teammate.add_argument("account", nargs="?", help="their NEAR account, or off to unlink")
-    teammate.set_defaults(run=_reporting(_near_teammate))
 
     pay = commands.add_parser("pay", help="review a done bounty and pay it with Touch ID")
     pay.add_argument("bounty", type=int, help="bounty id on the escrow contract")
@@ -191,27 +185,6 @@ def _connect_near(
     return PyNearClient.connect(config.account_id, private_key, config.rpc_url)
 
 
-def _near_teammate(args: argparse.Namespace) -> int:
-    home = device_home(args)
-    DeviceConfig.load(home)
-    links = TeammateAccounts.load(home)
-    handle: str | None = args.handle
-    account: str | None = args.account
-    if handle is None:
-        lines = [f"{name}  {linked}" for name, linked in links.accounts.items()]
-        sys.stdout.write("\n".join(lines) + "\n" if lines else f"{_NO_LINKS}\n")
-    elif account is None:
-        linked = links.account_for(handle)
-        sys.stdout.write(f"{handle}  {linked or 'not linked'}\n")
-    elif account == "off":
-        links.unlinked(handle).save(home)
-        sys.stdout.write(f"unlinked {handle}\n")
-    else:
-        links.linked(handle, account).save(home)
-        sys.stdout.write(f"linked {handle} to {account}\n")
-    return 0
-
-
 def _near_setup(args: argparse.Namespace) -> int:
     home = device_home(args)
     DeviceConfig.load(home)
@@ -242,9 +215,11 @@ def _near_setup(args: argparse.Namespace) -> int:
         and current.contract_id == contract
         and asyncio.run(_is_set_up(current, limited, release_key))
     ):
+        replace(current, release_key=release_key.hex()).save(home)
         sys.stdout.write(
             f"{current.account_id} is already set up on {contract}: the chain has this "
             "Mac's release key and limited key, so there is nothing to approve.\n"
+            f"{_RESTART}\n"
         )
         return 0
     sys.stdout.write(
@@ -264,10 +239,11 @@ def _near_setup(args: argparse.Namespace) -> int:
             max_per_bounty_yocto=max_per_bounty,
         )
     )
-    NearConfig(account, contract).save(home)
+    NearConfig(account, contract, release_key=release_key.hex()).save(home)
     sys.stdout.write(
         f"{account} is set up on {contract}. This Mac's release key approves payouts with Touch ID,"
         " and `ehor pay` sends them with the limited key.\n"
+        f"{_RESTART}\n"
     )
     return 0
 

@@ -191,7 +191,8 @@ def test_setup_registers_a_new_account(
     out = capsys.readouterr().out
     assert "created this Mac's Touch ID release key" in out
     assert "deposit of 2 NEAR and a limit of 0.25 NEAR" in out
-    assert out.rstrip().endswith("sends them with the limited key.")
+    assert "sends them with the limited key." in out
+    assert out.rstrip().endswith("announces this account to your team and loads the bounty tools.")
     assert signer.created == [RELEASE_KEY_LABEL]
     assert wallet.requests == [
         {
@@ -202,7 +203,7 @@ def test_setup_registers_a_new_account(
             "gas": str(DEFAULT_GAS),
         }
     ]
-    assert NearConfig.load(home) == NearConfig(ME, CONTRACT)
+    assert NearConfig.load(home) == NearConfig(ME, CONTRACT, release_key=_release_hex(signer))
     limited = LimitedKeyFile(home / "keys" / LIMITED_KEY_FILE, PASSPHRASE.encode()).load()
     assert (ME, limited.public_key) in chain.keys
     assert set(chain.secrets) == {limited.near_secret()}
@@ -235,6 +236,7 @@ def test_setup_run_again_skips_the_wallet_when_both_keys_are_on_chain(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     _set_up_once(home, wallet)
+    NearConfig(ME, CONTRACT).save(home)
     first = LimitedKeyFile(home / "keys" / LIMITED_KEY_FILE, PASSPHRASE.encode()).load()
     assert _setup(home) == 0
     again = LimitedKeyFile(home / "keys" / LIMITED_KEY_FILE, PASSPHRASE.encode()).load()
@@ -244,7 +246,8 @@ def test_setup_run_again_skips_the_wallet_when_both_keys_are_on_chain(
     assert len(wallet.requests) == 1
     out = capsys.readouterr().out
     assert out.count("Your browser will open") == 1
-    assert out.rstrip().endswith("so there is nothing to approve.")
+    assert "so there is nothing to approve." in out
+    assert NearConfig.load(home) == NearConfig(ME, CONTRACT, release_key=_release_hex(signer))
 
 
 def test_setup_run_again_opens_the_wallet_when_the_release_key_changed(
@@ -337,32 +340,3 @@ def test_setup_is_mac_only(
     monkeypatch.setattr("sys.platform", "linux")
     assert _setup(home) == 1
     assert "need a Mac" in capsys.readouterr().err
-
-
-def _teammate(home: Path, *args: str) -> int:
-    return main(["--home", str(home), "near", "teammate", *args])
-
-
-def test_teammate_links_lists_and_unlinks(home: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    assert _teammate(home) == 0
-    assert "no teammates linked" in capsys.readouterr().out
-    assert _teammate(home, "tobi", "tobi.testnet") == 0
-    assert _teammate(home, "ada", "ada.testnet") == 0
-    assert _teammate(home) == 0
-    assert _teammate(home, "tobi") == 0
-    assert _teammate(home, "tobi", "off") == 0
-    assert _teammate(home, "tobi") == 0
-    assert capsys.readouterr().out.splitlines() == [
-        "linked tobi to tobi.testnet",
-        "linked ada to ada.testnet",
-        "ada  ada.testnet",
-        "tobi  tobi.testnet",
-        "tobi  tobi.testnet",
-        "unlinked tobi",
-        "tobi  not linked",
-    ]
-
-
-def test_teammate_refuses_a_bad_account(home: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    assert _teammate(home, "tobi", "Not An Account") == 1
-    assert "not a NEAR account id" in capsys.readouterr().err
