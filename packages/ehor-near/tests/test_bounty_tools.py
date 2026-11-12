@@ -6,14 +6,16 @@ from pathlib import Path
 import pytest
 
 from ehor.mcp.server import build_server
+from ehor.service.accounts import AnnouncedAccount
 from ehor.service.api import ApiError
 from ehor.service.device import Device, key_dir
-from ehor_near.bounties import BountyError
+from ehor_near.bounties import NEAR_SYSTEM, BountyError
 from ehor_near.config import NearConfig
 from ehor_near.limited_key import LIMITED_KEY_FILE, LimitedKeyFile
 from ehor_near.tools import CLAIM, DONE, LIST, POST, NearTools
 
 PASSPHRASE = b"test passphrase"
+RELEASE_KEY = b"\x02" + b"\x07" * 32
 
 
 class FakeClient:
@@ -79,8 +81,29 @@ def test_without_setup_every_tool_says_how_to_set_up(home: Path) -> None:
             _run(handlers[LIST]({}))
 
 
-def test_handlers_check_their_params(home: Path) -> None:
+def test_a_setup_from_before_announcements_asks_to_run_setup_again(home: Path) -> None:
     NearConfig("gef.testnet", "ehor-escrow.testnet").save(home)
+    LimitedKeyFile(key_dir(home) / LIMITED_KEY_FILE, PASSPHRASE).create()
+    with Device.open(home, PASSPHRASE) as device:
+        handlers = NearTools().open(home, PASSPHRASE, device)
+        assert device.announced_accounts(NEAR_SYSTEM) == ()
+        with pytest.raises(BountyError, match="`ehor near setup` again"):
+            _run(handlers[LIST]({}))
+
+
+def test_opening_announces_this_devices_account(home: Path) -> None:
+    NearConfig("gef.testnet", "ehor-escrow.testnet", release_key=RELEASE_KEY.hex()).save(home)
+    LimitedKeyFile(key_dir(home) / LIMITED_KEY_FILE, PASSPHRASE).create()
+    with Device.open(home, PASSPHRASE) as device:
+        NearTools().open(home, PASSPHRASE, device)
+        NearTools().open(home, PASSPHRASE, device)
+        assert device.announced_accounts(NEAR_SYSTEM) == (
+            AnnouncedAccount("gef", device.author, "gef.testnet", RELEASE_KEY),
+        )
+
+
+def test_handlers_check_their_params(home: Path) -> None:
+    NearConfig("gef.testnet", "ehor-escrow.testnet", release_key=RELEASE_KEY.hex()).save(home)
     LimitedKeyFile(key_dir(home) / LIMITED_KEY_FILE, PASSPHRASE).create()
     with Device.open(home, PASSPHRASE) as device:
         handlers = NearTools().open(home, PASSPHRASE, device)

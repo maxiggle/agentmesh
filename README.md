@@ -118,7 +118,7 @@ sequenceDiagram
    the owner's budget into the bounty, inside the contract.
 3. **Claim and finish.** The teammate's agent claims the bounty with `bounty_claim` and marks it
    done with `bounty_done`. Each tool first checks on chain that the bounty belongs to this
-   message and was posted by the account the teammate linked to the requester.
+   message and was posted by the NEAR account the requester's device announced.
 4. **Release.** The requester runs `ehor pay <bounty>`. ehor reads the bounty from the chain,
    shows the amount and claimant, and asks for confirmation, then Touch ID. The contract
    rebuilds the release payload, checks the signature against the registered key and pays the
@@ -145,7 +145,7 @@ newer, Claude Code, Codex or opencode, and a NEAR testnet account in a wallet th
 Connect on testnet (Meteor, Intear, Nightly, Ledger or NEAR CLI).
 
 1. **Install, on both Macs.** The bounty tools need ehor from this repository until the next ehor
-   release:
+   release, and every device on the team needs this version:
 
    ```bash
    python3 -m venv .venv && source .venv/bin/activate
@@ -157,16 +157,15 @@ Connect on testnet (Meteor, Intear, Nightly, Ledger or NEAR CLI).
    `claude mcp add --scope user ehor -- ehor mcp` on each Mac.
 3. **Connect each wallet** with `ehor near setup` on both Macs, approve the key and the 1 NEAR
    budget in the wallet, and restart `ehor serve`. You should see
-   `<your-account> is set up on ehor-escrow.testnet`.
-4. **Link each other's NEAR accounts.** ada runs `ehor near teammate tobi tobi.testnet`, and tobi
-   runs `ehor near teammate ada ada.testnet`. Only a person can set these links.
-5. **Post, from ada's agent:** "Ask tobi to add CSV export, with a 0.1 NEAR bounty due in 24
+   `<your-account> is set up on ehor-escrow.testnet`. On restart, each device announces its NEAR
+   account to the team in a signed ehor entry, so nobody types a teammate's account.
+4. **Post, from ada's agent:** "Ask tobi to add CSV export, with a 0.1 NEAR bounty due in 24
    hours." Once ada approves, you should see
    `posted bounty <id>: 0.1 NEAR for tobi by <deadline> (tobi.testnet, read from the chain)`.
-6. **Claim and finish, from tobi's agent.** His inbox shows the request and its bounty. Asked to
+5. **Claim and finish, from tobi's agent.** His inbox shows the request and its bounty. Asked to
    claim it and later to mark it done, the agent checks the bounty on chain each time and ends
    with `bounty <id> is done; ada can pay it with ehor pay <id>`.
-7. **Pay, in ada's own terminal:**
+6. **Pay, in ada's own terminal:**
 
    ```bash
    ehor pay <id>
@@ -240,10 +239,9 @@ You should see `27 passed`:
 | `ehor pay`: review a bounty from the chain and release it with Touch ID | Built, used for a real testnet payout |
 | Tests that only `ehor pay` can reach the release key | Built, run in CI |
 | Bounty tools for agents: `bounty_post`, `bounty_claim`, `bounty_done`, `bounties` | Built, tested against a contract fake; not yet run end to end on testnet |
-| `ehor near teammate`: a person links each teammate's handle to their NEAR account | Built and tested |
 | `ehor near deposit`, `withdraw`, `status` and `ehor refund` | Not yet; use your wallet or NEAR CLI |
-| Checking a bounty's message, sender and claimant against those links before each step | Built and tested |
-| Signed announcements of each member's NEAR account in the ehor log | Not yet |
+| Signed announcements of each device's NEAR account in the ehor log, checked against the contract | Built and tested |
+| Checking a bounty's message, sender and claimant against those announcements before each step | Built and tested |
 
 The deployed contract's code hash, `64KpnRMyQofCNQbwzEhXtmMAjEZkFLg3EPT5i4JYH7zz`, matches a
 build of [packages/ehor-near/contract](packages/ehor-near/contract) with cargo-near 0.23.0.
