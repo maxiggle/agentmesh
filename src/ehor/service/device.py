@@ -252,6 +252,10 @@ class Device:
         return self._book
 
     @property
+    def messenger(self) -> Messenger:
+        return self._messenger
+
+    @property
     def alert_feed(self) -> MessengerFeed:
         return MessengerFeed(self._messenger)
 

@@ -16,7 +16,7 @@ _MAX_SOCKET_PATH = 107 if sys.platform.startswith("linux") else 103
 _log = logging.getLogger(__name__)
 
 Handler = Callable[[asyncio.StreamReader, asyncio.StreamWriter], Awaitable[None]]
-Dispatch = Callable[[str, Mapping[str, object]], str]
+Dispatch = Callable[[str, Mapping[str, object]], Awaitable[str]]
 
 
 class RpcError(Exception):
@@ -124,14 +124,14 @@ class RpcServer:
     async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         try:
             while line := await reader.readline():
-                writer.write(json.dumps(self._respond(line)).encode() + b"\n")
+                writer.write(json.dumps(await self._respond(line)).encode() + b"\n")
                 await writer.drain()
         except (ConnectionError, asyncio.LimitOverrunError, ValueError):
             pass
         finally:
             writer.close()
 
-    def _respond(self, line: bytes) -> dict[str, object]:
+    async def _respond(self, line: bytes) -> dict[str, object]:
         try:
             request = json.loads(line)
         except ValueError:
@@ -142,7 +142,7 @@ class RpcServer:
         if not isinstance(params, dict):
             return {"ok": False, "error": "params must be an object"}
         try:
-            return {"ok": True, "text": self._dispatch(request["method"], params)}
+            return {"ok": True, "text": await self._dispatch(request["method"], params)}
         except self._expected as exc:
             return {"ok": False, "error": str(exc)}
         except Exception as exc:
