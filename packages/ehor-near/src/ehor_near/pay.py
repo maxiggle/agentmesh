@@ -25,6 +25,7 @@ class Bounty:
     claimant: str | None
     status: str
     deadline_ns: int
+    allowed_claimants: tuple[str, ...] = ()
 
     @classmethod
     def from_view(cls, data: object) -> "Bounty":
@@ -39,6 +40,7 @@ class Bounty:
                 claimant=None if data["claimant"] is None else _account(data["claimant"]),
                 status=_text(data["status"]),
                 deadline_ns=_int(data["deadline"]),
+                allowed_claimants=_accounts(data.get("allowed_claimants", [])),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise PayError("the contract returned a malformed bounty") from exc
@@ -46,10 +48,12 @@ class Bounty:
             raise PayError("the contract returned a malformed bounty")
         return bounty
 
+    @property
+    def deadline(self) -> str:
+        return time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(self.deadline_ns // _NS_PER_SECOND))
+
     def describe(self) -> str:
-        deadline = time.strftime(
-            "%Y-%m-%d %H:%M UTC", time.gmtime(self.deadline_ns // _NS_PER_SECOND)
-        )
+        deadline = self.deadline
         return "\n".join(
             [
                 f"bounty    {self.id} (read from the chain)",
@@ -77,6 +81,12 @@ def _text(value: object) -> str:
     if not isinstance(value, str):
         raise TypeError("expected a string")
     return value
+
+
+def _accounts(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        raise TypeError("expected a list of accounts")
+    return tuple(_account(item) for item in value)
 
 
 def _account(value: object) -> str:

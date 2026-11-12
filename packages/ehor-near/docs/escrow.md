@@ -147,16 +147,15 @@ The contract logs one NEP-297 style JSON event per state change, with standard n
 
 A person links each teammate's ehor handle to that teammate's NEAR account with `ehor near teammate <handle> <account>`, run in a terminal. The links live in `near-teammates.json` in the device folder, one account per handle. No MCP tool can change them, so neither an agent nor a teammate's message can change which account a bounty is offered to or accepted from.
 
-Planned: each roster member also announces their NEAR account id in a signed ehor log entry, using the same mechanism as the iroh address announcement.
+The bounty is linked to its ehor message by the contract's `message_id` field, which holds the message's full 64-character entry ID. The bounty tools check, by view call, before each on-chain step:
 
-A bounty message carries the contract account id, bounty id, amount and deadline. On receipt, ehor makes a view call and checks:
+1. Posting: the message is the caller's own `feature_request`, and the claimant is the account linked to the handle it is addressed to, or to the handle the agent names.
+2. Claiming: the bounty's `message_id` equals this message's ID, its sender is the account linked to the message's author, it is Open, and this device's account is an allowed claimant.
+3. Finishing: the same link and sender checks, and this device's account is the bounty's claimant while it is Claimed.
 
-1. The bounty exists.
-2. Its `message_id` matches this message.
-3. Its amount matches the amount in the message.
-4. The sender account's registered P-256 key equals the release key that the sender's device announced in a signed ehor log entry.
+If any check fails, the tool refuses and makes no on-chain call. A bounty number in a teammate's message is only a pointer: the tools read its terms from the chain and check them.
 
-If any check fails, the bounty is shown as "unverified" and `/claim` refuses the on-chain step.
+Planned: each roster member also announces their NEAR account id in a signed ehor log entry, using the same mechanism as the iroh address announcement, and the claim check also compares the sender account's registered P-256 key with the release key that the sender's device announced.
 
 ## ehor changes
 
@@ -196,12 +195,16 @@ CLI commands are for the human, in a terminal:
 
 MCP changes:
 
-- `post` gains optional bounty fields: amount, deadline, and allowed claimants (default: the addressed handles).
-- `set_status` to claimed or done also performs the on-chain `claim` or `mark_done` when the message has a verified bounty.
-- `read`, `inbox` and `digest` show bounty state from a view call.
-- No new MCP tool. No MCP tool can sign a release.
+ehor-near adds four MCP tools through ehor's `ehor.tools` entry point. Their calls run inside `ehor serve`, which decrypts the limited key once at start with the device passphrase. Core ehor's tools are unchanged and know nothing about NEAR.
 
-`/claim` and `/done` keep their draft-and-approve flow. The draft now states the on-chain action and the amount.
+| Tool | Does |
+|---|---|
+| `bounty_post(id, near, hours = 24, claimant?)` | Calls `post_bounty` with the message ID, the claimant's linked account and a deadline, then replies to the message with the terms read back from the chain. |
+| `bounty_claim(id, bounty)` | Runs the claim checks above, calls `claim` and marks the message claimed. |
+| `bounty_done(id, bounty, note?)` | Runs the finish checks above, calls `mark_done` and marks the message done. |
+| `bounties()` | Lists the bounties this device posted or claimed, each read from the chain, and names `ehor pay <bounty>` for a Done bounty it posted. The IDs are kept in `near-bounties.json` in the device folder. |
+
+No MCP tool can sign or send a release, and tests check that loading the tools never loads the release signer. Each bounty tool's description tells the agent to show the person the terms and call it only after they approve, and agent clients such as Claude Code ask before running an MCP tool unless the person has allowed it. The money does not depend on that approval: the limited key cannot move NEAR out of the contract.
 
 ### Pay flow
 
