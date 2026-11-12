@@ -42,6 +42,7 @@
 - Runs on macOS, Linux and Windows.
 
 <!-- pypi:skip-start -->
+
 ## Paid requests with NEAR: ehor-near
 
 To let agents pay each other with NEAR, [ehor-near](packages/ehor-near) is a separate package built
@@ -61,6 +62,7 @@ libraries used. The full design is in
 written with AI coding agents.
 
 <!-- pypi:skip-end -->
+
 ## Installation
 
 ehor is published on [PyPI](https://pypi.org/project/ehor/). Install it with
@@ -192,14 +194,14 @@ ehor setup opencode --instructions >> AGENTS.md
 commands, with the same names in Claude Code and opencode; in Codex, each is a skill named
 `$ehor-<name>`, such as `$ehor-inbox`:
 
-| Command    | Does |
-|------------|------|
-| `/inbox`   | Summarizes new messages, grouped by what needs you |
+| Command    | Does                                                |
+| ---------- | --------------------------------------------------- |
+| `/inbox`   | Summarizes new messages, grouped by what needs you  |
 | `/team`    | Shows who is on the team and who is working on what |
-| `/handoff` | Drafts a message about this session's work |
-| `/reply`   | Drafts a reply to a message |
-| `/claim`   | Marks a request as taken on, so the sender sees it |
-| `/done`    | Marks a request as finished |
+| `/handoff` | Drafts a message about this session's work          |
+| `/reply`   | Drafts a reply to a message                         |
+| `/claim`   | Marks a request as taken on, so the sender sees it  |
+| `/done`    | Marks a request as finished                         |
 
 Commands that send or change something show you a draft and wait for your approval.
 
@@ -213,15 +215,15 @@ matter which agent sent them.
 Your agent works with your team through seven MCP tools. Results are short plain text, and every
 message from a teammate is labelled as data from another person, never as instructions.
 
-| Tool         | Does |
-|--------------|------|
-| `digest`     | One line of counts |
-| `inbox`      | Unread messages for you, one line each |
-| `read`       | One message in full |
+| Tool         | Does                                               |
+| ------------ | -------------------------------------------------- |
+| `digest`     | One line of counts                                 |
+| `inbox`      | Unread messages for you, one line each             |
+| `read`       | One message in full                                |
 | `post`       | Send a message to handles, `@roles` or `#channels` |
-| `reply`      | Reply to a message |
-| `set_status` | Mark a message open, claimed, done or wontfix |
-| `team`       | You, your teammates, and who is working on what |
+| `reply`      | Reply to a message                                 |
+| `set_status` | Mark a message open, claimed, done or wontfix      |
+| `team`       | You, your teammates, and who is working on what    |
 
 <p align="center">
   <img alt="The inbox and read tool results that tobi's Claude sees: a question and a feature request from ada, with acceptance criteria and a link." src="https://raw.githubusercontent.com/maxiggle/agentmesh/main/docs/assets/screenshot-claude.svg" width="760">
@@ -245,11 +247,11 @@ the summary. The detail stays out of it, so it does not show on a locked screen.
 notifies once, your own messages never do, and a burst after time offline shows the first few
 and a count of the rest. Notifications never mark messages as read, so your agent still sees them.
 
-| System  | Shown with |
-|---------|------------|
+| System  | Shown with                                                           |
+| ------- | -------------------------------------------------------------------- |
 | macOS   | `osascript` (allow Script Editor in System Settings → Notifications) |
-| Linux   | `notify-send`, from `libnotify-bin` or `libnotify` |
-| Windows | A PowerShell toast |
+| Linux   | `notify-send`, from `libnotify-bin` or `libnotify`                   |
+| Windows | A PowerShell toast                                                   |
 
 ```bash
 ehor notify test   # show one now to check the system lets it through
@@ -321,11 +323,11 @@ key too when that is a software key.
 Each device signs everything it writes with its own P-256 key. `init` and `join` put that key in
 hardware when the machine has some:
 
-| `--key`          | Where the key lives | Needs |
-|------------------|---------------------|-------|
-| `secure-enclave` | The Mac's Secure Enclave | Apple silicon or a T2 chip, and the Xcode command line tools to build a small helper once |
-| `tpm`            | The machine's TPM 2.0 chip | Linux, `tpm2-tools`, and read/write access to `/dev/tpmrm0` (usually the `tss` group) |
-| `software`       | A passphrase-encrypted file | Nothing |
+| `--key`          | Where the key lives         | Needs                                                                                     |
+| ---------------- | --------------------------- | ----------------------------------------------------------------------------------------- |
+| `secure-enclave` | The Mac's Secure Enclave    | Apple silicon or a T2 chip, and the Xcode command line tools to build a small helper once |
+| `tpm`            | The machine's TPM 2.0 chip  | Linux, `tpm2-tools`, and read/write access to `/dev/tpmrm0` (usually the `tss` group)     |
+| `software`       | A passphrase-encrypted file | Nothing                                                                                   |
 
 `auto`, the default, uses hardware when it works and falls back to `software`. A hardware key
 never leaves the chip, so a copied `~/.ehor` folder cannot sign as you. It does not ask for Touch
@@ -389,7 +391,7 @@ size, and who syncs with whom. Never the content.
 
 #### Why is it called ehor?
 
-*Ehor* means "message" in Benue.
+_Ehor_ means "message" in Benue.
 
 ## Acknowledgements
 
