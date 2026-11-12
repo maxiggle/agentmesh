@@ -115,3 +115,14 @@ def test_handlers_check_their_params(home: Path) -> None:
             _run(handlers[CLAIM]({"id": "a1b2", "bounty": 0}))
         with pytest.raises(BountyError, match="no message"):
             _run(handlers[POST]({"id": "ffffffff", "near": "0.1"}))
+
+
+@pytest.mark.parametrize("broken", ["near.json", "keys/near-limited.key"])
+def test_a_broken_setup_leaves_ehor_serve_running(home: Path, broken: str) -> None:
+    NearConfig("gef.testnet", "ehor-escrow.testnet", release_key=RELEASE_KEY.hex()).save(home)
+    LimitedKeyFile(key_dir(home) / LIMITED_KEY_FILE, PASSPHRASE).create()
+    (home / broken).write_text("not what ehor wrote")
+    with Device.open(home, PASSPHRASE) as device:
+        handlers = NearTools().open(home, PASSPHRASE, device)
+        with pytest.raises(BountyError, match="NEAR setup on this device is broken"):
+            _run(handlers[LIST]({}))

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
 
+from ehor.crypto.keyfile import KeyFileError
 from ehor.log.account_announce import AccountAnnounce
 from ehor.mcp.server import Relay
 from ehor.service.api import Params
@@ -12,7 +13,7 @@ from ehor.service.plugins import PluginHost, ToolHandler
 from ehor_near.bounties import DEFAULT_HOURS, NEAR_SYSTEM, BountyDesk, BountyError
 from ehor_near.client import NearError
 from ehor_near.config import NearConfig, NearConfigError
-from ehor_near.limited_key import LIMITED_KEY_FILE, LimitedKeyFile
+from ehor_near.limited_key import LIMITED_KEY_FILE, LimitedKeyError, LimitedKeyFile
 from ehor_near.pay import PayError
 from ehor_near.payload import PayloadError
 from ehor_near.pynear import PyNearClient
@@ -21,7 +22,8 @@ POST = "near.bounty_post"
 CLAIM = "near.bounty_claim"
 DONE = "near.bounty_done"
 LIST = "near.bounties"
-_NOT_SET_UP = "this device has no NEAR account; your user can run `ehor near setup`"
+_RUN_SETUP = "your user can run `ehor near setup`"
+_NOT_SET_UP = f"this device has no NEAR account; {_RUN_SETUP}"
 _SET_UP_AGAIN = (
     "this device has not announced its NEAR account; your user can run `ehor near setup` "
     "again and restart `ehor serve`"
@@ -33,6 +35,8 @@ _ERRORS = (
     PayError,
     PayloadError,
 )
+
+_SETUP_ERRORS = (KeyFileError, LimitedKeyError, NearConfigError)
 
 Step = Callable[[Params], Awaitable[str]]
 
@@ -82,7 +86,10 @@ class NearTools:
             return await relay(LIST)
 
     def open(self, home: Path, passphrase: bytes, host: PluginHost) -> Mapping[str, ToolHandler]:
-        desk = _desk(home, passphrase, host)
+        try:
+            desk = _desk(home, passphrase, host)
+        except _SETUP_ERRORS as exc:
+            desk = f"the NEAR setup on this device is broken: {exc}; {_RUN_SETUP}"
 
         async def post(params: Params) -> str:
             message_id = params.text("id")
