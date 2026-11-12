@@ -473,7 +473,6 @@ def test_devices_announce_accounts_to_teammates(tmp_path: Path) -> None:
     near = AccountAnnounce("near-testnet", "gef.testnet", b"\x02" * 33)
     with Device.create_team(tmp_path / "gef", "gef", PASSPHRASE, exchange=shared) as gef:
         tobi = Device.join(tmp_path / "tobi", gef.invite, "tobi", PASSPHRASE, exchange=shared)
-        assert not tobi.announce_account(near)
         assert gef.announce_account(near)
         assert not gef.announce_account(near)
         _add(gef, tobi)
@@ -484,6 +483,22 @@ def test_devices_announce_accounts_to_teammates(tmp_path: Path) -> None:
             AnnouncedAccount("gef", gef.author, "gef.testnet", b"\x02" * 33),
         )
         assert tobi.announced_accounts("github") == ()
+        tobi.close()
+
+
+def test_an_account_is_announced_once_the_device_joins_the_roster(tmp_path: Path) -> None:
+    shared = tmp_path / "shared"
+    near = AccountAnnounce("near-testnet", "tobi.testnet", b"\x03" * 33)
+    with Device.create_team(tmp_path / "gef", "gef", PASSPHRASE, exchange=shared) as gef:
+        tobi = Device.join(tmp_path / "tobi", gef.invite, "tobi", PASSPHRASE, exchange=shared)
+        assert not tobi.announce_account(near)
+        _add(gef, tobi)
+        for _ in range(3):
+            gef.sync()
+            tobi.sync()
+        assert gef.announced_accounts("near-testnet") == (
+            AnnouncedAccount("tobi", tobi.author, "tobi.testnet", b"\x03" * 33),
+        )
         tobi.close()
 
 
