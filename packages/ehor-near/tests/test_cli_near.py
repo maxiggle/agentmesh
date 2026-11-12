@@ -220,18 +220,51 @@ def test_setup_replaces_another_release_key(
     assert chain.accounts[ME]["device_key"] == _release_hex(signer)
 
 
-def test_setup_run_again_reuses_both_keys_and_signs_nothing(
-    home: Path, signer: TouchSigner, chain: Chain, wallet: Wallet
-) -> None:
+def _set_up_once(home: Path, wallet: Wallet) -> None:
     assert _setup(home) == 0
-    first = LimitedKeyFile(home / "keys" / LIMITED_KEY_FILE, PASSPHRASE.encode()).load()
     assert wallet.thread is not None
     wallet.thread.join(10)
+    wallet.thread = None
+
+
+def test_setup_run_again_skips_the_wallet_when_both_keys_are_on_chain(
+    home: Path,
+    signer: TouchSigner,
+    chain: Chain,
+    wallet: Wallet,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _set_up_once(home, wallet)
+    first = LimitedKeyFile(home / "keys" / LIMITED_KEY_FILE, PASSPHRASE.encode()).load()
     assert _setup(home) == 0
     again = LimitedKeyFile(home / "keys" / LIMITED_KEY_FILE, PASSPHRASE.encode()).load()
     assert again.public_key == first.public_key
     assert signer.created == [RELEASE_KEY_LABEL]
-    assert wallet.requests[-1] is None
+    assert wallet.thread is None
+    assert len(wallet.requests) == 1
+    out = capsys.readouterr().out
+    assert out.count("Your browser will open") == 1
+    assert out.rstrip().endswith("so there is nothing to approve.")
+
+
+def test_setup_run_again_opens_the_wallet_when_the_release_key_changed(
+    home: Path, signer: TouchSigner, chain: Chain, wallet: Wallet
+) -> None:
+    _set_up_once(home, wallet)
+    chain.accounts[ME] = {"device_key": "02" + "11" * 32}
+    assert _setup(home) == 0
+    request = wallet.requests[-1]
+    assert isinstance(request, dict)
+    assert request["method"] == "set_device_key"
+
+
+def test_setup_for_another_contract_opens_the_wallet(
+    home: Path, signer: TouchSigner, chain: Chain, wallet: Wallet
+) -> None:
+    NearConfig(ME, "other-escrow.testnet").save(home)
+    assert _setup(home) == 0
+    assert wallet.thread is not None
+    assert len(wallet.requests) == 1
 
 
 def test_a_full_access_key_from_the_wallet_is_refused(

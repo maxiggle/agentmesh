@@ -9,6 +9,7 @@ from ehor_near.limited_key import ALLOWED_METHODS, LimitedKeyError
 from ehor_near.registration import (
     RegistrationError,
     confirm_registration,
+    is_set_up,
     registration_call,
 )
 from ehor_near.wallet_page import WalletCall
@@ -157,3 +158,38 @@ def test_a_missing_release_key_is_reported() -> None:
     )
     with pytest.raises(RegistrationError, match="does not have this Mac's release key"):
         _confirm(chain)
+
+
+def _set_up(chain: Chain) -> bool:
+    return asyncio.run(
+        is_set_up(
+            chain,
+            CONTRACT,
+            ME,
+            limited_public_key=LIMITED,
+            release_key=KEY,
+            max_allowance_yocto=ALLOWANCE,
+        )
+    )
+
+
+def test_set_up_when_both_keys_are_on_chain() -> None:
+    assert _set_up(_ready())
+    assert _set_up(_ready(method_names=[]))
+
+
+def test_not_set_up_without_the_limited_key() -> None:
+    assert not _set_up(Chain(accounts={ME: {"device_key": KEY.hex()}}))
+
+
+@pytest.mark.parametrize("account", [None, {"device_key": "02" + "11" * 32}])
+def test_not_set_up_without_this_release_key(account: object) -> None:
+    chain = _ready()
+    chain.accounts[ME] = account
+    assert not _set_up(chain)
+
+
+def test_set_up_check_refuses_a_wider_limited_key() -> None:
+    chain = Chain(accounts={ME: {"device_key": KEY.hex()}}, keys={(ME, LIMITED): "FullAccess"})
+    with pytest.raises(LimitedKeyError, match="full access"):
+        _set_up(chain)

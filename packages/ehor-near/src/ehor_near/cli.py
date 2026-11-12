@@ -33,7 +33,12 @@ from ehor_near.pay import (
 )
 from ehor_near.payload import PayloadError, format_near, parse_near
 from ehor_near.pynear import PyNearClient
-from ehor_near.registration import RegistrationError, confirm_registration, registration_call
+from ehor_near.registration import (
+    RegistrationError,
+    confirm_registration,
+    is_set_up,
+    registration_call,
+)
 from ehor_near.release import ReleaseSignError, ReleaseTerms, sign_release
 from ehor_near.wallet_page import WalletCall, WalletPage, WalletPageError
 
@@ -200,6 +205,17 @@ def _near_setup(args: argparse.Namespace) -> int:
     except KeyFileError as exc:
         raise CliError("that passphrase does not unlock this device") from exc
     limited = LimitedKeyFile(key_dir(home) / LIMITED_KEY_FILE, passphrase).load_or_create()
+    current = NearConfig.load(home)
+    if (
+        current is not None
+        and current.contract_id == contract
+        and asyncio.run(_is_set_up(current, limited, release_key))
+    ):
+        sys.stdout.write(
+            f"{current.account_id} is already set up on {contract}: the chain has this "
+            "Mac's release key and limited key, so there is nothing to approve.\n"
+        )
+        return 0
     sys.stdout.write(
         f"Your browser will open a page where your NEAR wallet asks for up to two approvals:\n"
         f"  1. add a limited key for {contract}, with a gas allowance of "
@@ -223,6 +239,18 @@ def _near_setup(args: argparse.Namespace) -> int:
         " and `ehor pay` sends them with the limited key.\n"
     )
     return 0
+
+
+async def _is_set_up(config: NearConfig, limited: LimitedKey, release_key: bytes) -> bool:
+    async with _connect_near(config, limited.near_secret()) as near:
+        return await is_set_up(
+            near,
+            config.contract_id,
+            config.account_id,
+            limited_public_key=limited.public_key,
+            release_key=release_key,
+            max_allowance_yocto=DEFAULT_ALLOWANCE,
+        )
 
 
 async def _connect_wallet(

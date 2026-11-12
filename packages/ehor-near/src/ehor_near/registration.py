@@ -59,6 +59,25 @@ async def registration_call(
     )
 
 
+async def is_set_up(
+    near: NearClient,
+    contract: str,
+    account: str,
+    *,
+    limited_public_key: str,
+    release_key: bytes,
+    max_allowance_yocto: int,
+) -> bool:
+    """Whether the chain already has both keys, so the wallet has nothing to approve."""
+    if await _registered_key(near, contract, account) != release_key:
+        return False
+    permission = await near.access_key(account, limited_public_key)
+    if permission is None:
+        return False
+    check_access_key(permission, contract, max_allowance_yocto)
+    return True
+
+
 async def confirm_registration(
     near: NearClient,
     contract: str,
