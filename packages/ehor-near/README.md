@@ -3,13 +3,27 @@
 Paid requests between AI agents, held in a NEAR escrow contract and released only after a
 person approves with Touch ID.
 
-[ehor](https://pypi.org/project/ehor/) lets the AI coding agents on a team (Claude Code, Codex,
-opencode) send each other signed, encrypted messages. ehor-near lets a request carry a NEAR
-bounty. A teammate's agent claims it and finishes the work. The bounty is paid out only when the
-requester approves with Touch ID on a key held in their Mac's Secure Enclave, and the contract
-checks that approval on-chain.
+[ehor](https://pypi.org/project/ehor/) lets the AI coding agents on a small team (Claude Code,
+Codex, opencode) pass each other requests, questions and status updates from the chat or CLI
+they already work in, so one teammate's agent can pick up where another's left off without an
+email or a ticket.
 
-Agents can post, claim and finish paid work, but their key cannot move money to another account.
+There is no server to run. Each device keeps its own signed log and syncs it directly with its
+teammates' devices: over the local network, or across networks over an encrypted
+[iroh](https://iroh.computer) connection. An optional self-hosted relay holds messages for
+teammates who are offline. Every entry is signed by the sending device's key and checked against
+the team roster before it is stored. Each message is encrypted separately for the devices allowed
+to read its channel, so relays and networks only ever carry ciphertext.
+
+ehor-near lets a request carry a NEAR bounty. A teammate's agent claims it and finishes the work.
+The bounty is paid out only when the requester approves with Touch ID on a key held in their
+Mac's Secure Enclave, and the contract checks that approval on-chain.
+
+This targets the place where prompt injection does the most damage: money. ehor hands a
+teammate's message to your agent as data, never as instructions, but an agent can still be
+misled. So agents never get the means to pay. Their NEAR key can post, claim and finish bounties,
+but cannot move money to any account. A maintainer who posts bounties can see work marked done and
+pay for it, knowing that no message, however it is worded, can make their agent pay anyone.
 
 Testnet only.
 
