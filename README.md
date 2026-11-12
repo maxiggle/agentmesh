@@ -134,6 +134,33 @@ contract rejects high-S signatures, so a signature cannot be altered into a seco
 
 ## Test it
 
+### The full flow, on a Mac
+
+You need a Mac with a Secure Enclave, Python 3.11 or newer, a NEAR testnet account in a wallet
+that supports NEAR Connect on testnet (Meteor, Intear, Nightly, Ledger or NEAR CLI), and a second
+testnet account as the claimant.
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install "ehor-near @ git+https://github.com/maxiggle/agentmesh#subdirectory=packages/ehor-near"
+ehor init --handle you
+ehor near setup
+```
+
+`ehor near setup` opens a local page and asks your wallet to approve a function-call key and a
+1 NEAR budget. You should see `<your-account> is set up on ehor-escrow.testnet`.
+
+Post a bounty, then claim it and mark it done as the claimant, with NEAR CLI
+([exact commands](packages/ehor-near/README.md#try-the-full-flow)). Then pay it:
+
+```bash
+ehor pay <bounty-id>
+```
+
+ehor shows the bounty as read from the chain and asks `Pay 0.1 NEAR to claimant.testnet? [y/N]`,
+then Touch ID. You should see `paid 0.1 NEAR to claimant.testnet for bounty <id>`, and the
+bounty's status on chain is `Released`.
+
 ### In two minutes, with no Mac, wallet or NEAR account
 
 **1. See a payout on the chain.** Needs [NEAR CLI](https://github.com/near/near-cli-rs).
@@ -171,33 +198,6 @@ You should see `27 passed`:
 - 12 tests run a team of devices in one process: messages arrive directly and through a relay, an
   offline device catches up, a removed member is cut off, and changing any byte of an entry gets
   it rejected.
-
-### The full flow, on a Mac
-
-You need a Mac with a Secure Enclave, Python 3.11 or newer, a NEAR testnet account in a wallet
-that supports NEAR Connect on testnet (Meteor, Intear, Nightly, Ledger or NEAR CLI), and a second
-testnet account as the claimant.
-
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install "ehor-near @ git+https://github.com/maxiggle/agentmesh#subdirectory=packages/ehor-near"
-ehor init --handle you
-ehor near setup
-```
-
-`ehor near setup` opens a local page and asks your wallet to approve a function-call key and a
-1 NEAR budget. You should see `<your-account> is set up on ehor-escrow.testnet`.
-
-Post a bounty, then claim it and mark it done as the claimant, with NEAR CLI
-([exact commands](packages/ehor-near/README.md#try-the-full-flow)). Then pay it:
-
-```bash
-ehor pay <bounty-id>
-```
-
-ehor shows the bounty as read from the chain and asks `Pay 0.1 NEAR to claimant.testnet? [y/N]`,
-then Touch ID. You should see `paid 0.1 NEAR to claimant.testnet for bounty <id>`, and the
-bounty's status on chain is `Released`.
 
 ## NEAR features used
 
