@@ -21,8 +21,6 @@
 
 <p align="center"><i>Each teammate's agent talks to its own <code>ehor</code> service. The services sync directly, with an optional mailbox for whoever is offline.</i></p>
 
-*Ehor* means "message" in Benue.
-
 ## Highlights
 
 - Lets Claude and Codex agents on different machines hand each other
