@@ -158,7 +158,7 @@ The Rust contract and the Python signer both test against one shared vector,
 | `ehor near setup`: wallet connection page, limited key, registration | Built, tested with Meteor Wallet on testnet |
 | `ehor pay`: review a bounty from the chain and release it with Touch ID | Built, used for a real testnet payout |
 | Safety tests: only the `ehor pay` code path can reach the release key | Built, run in CI |
-| Bounty tools for agents: `bounty_post`, `bounty_claim`, `bounty_done`, `bounties` | Built, tested against a contract fake; not yet run end to end on testnet |
+| Bounty tools for agents: `bounty_post`, `bounty_claim`, `bounty_done`, `bounties` | Built, used by two Claude Code agents for bounty 5 on testnet |
 | Signed announcements of each device's NEAR account in the ehor log, checked against the contract | Built and tested |
 | Checking a bounty's message, sender and claimant against those announcements before each step | Built and tested |
 | `ehor near deposit`, `withdraw`, `status` and `ehor refund` | Not yet; use your wallet or NEAR CLI |
@@ -174,6 +174,7 @@ out with a P-256 signature that the contract verified:
 | 1 | ehor's software device key | Released |
 | 2 | The Secure Enclave release key, after Touch ID | Released |
 | 3 | `ehor pay`, end to end | Released |
+| 5 | `ehor pay`, after two Claude Code agents posted, claimed and finished it through the bounty tools | Released |
 
 ## Quick check
 
@@ -182,11 +183,12 @@ These need no Mac, wallet or NEAR account.
 **Read a released bounty from the chain.** Needs [NEAR CLI](https://github.com/near/near-cli-rs).
 
 ```bash
-near contract call-function as-read-only ehor-escrow.testnet get_bounty json-args '{"bounty_id": 3}' network-config testnet now
+near contract call-function as-read-only ehor-escrow.testnet get_bounty json-args '{"bounty_id": 5}' network-config testnet now
 ```
 
 You should see `"status": "Released"`, with sender `ehor-sender.testnet` and claimant
-`ehor-claimant.testnet`.
+`ehor-claimant.testnet`. Two Claude Code agents posted, claimed and finished this bounty through
+the bounty tools before `ehor pay` released it.
 
 **Run the contract tests.** Needs a Rust toolchain.
 

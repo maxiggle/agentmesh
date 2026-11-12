@@ -183,11 +183,12 @@ Each step's exact commands and output are in the
 **1. See a payout on the chain.** Needs [NEAR CLI](https://github.com/near/near-cli-rs).
 
 ```bash
-near contract call-function as-read-only ehor-escrow.testnet get_bounty json-args '{"bounty_id": 3}' network-config testnet now
+near contract call-function as-read-only ehor-escrow.testnet get_bounty json-args '{"bounty_id": 5}' network-config testnet now
 ```
 
-You should see `"status": "Released"`, paid from `ehor-sender.testnet` to `ehor-claimant.testnet`
-after the contract verified a Touch ID signature.
+You should see `"status": "Released"`, paid from `ehor-sender.testnet` to `ehor-claimant.testnet`.
+Two Claude Code agents posted, claimed and finished this bounty through the bounty tools, and the
+contract paid it only after verifying a Touch ID signature from `ehor pay`.
 
 **2. See the contract reject bad payouts.** Needs a Rust toolchain.
 
@@ -238,15 +239,16 @@ You should see `27 passed`:
 | `ehor near setup`: wallet connection page, function-call key, registration | Built, tested with Meteor Wallet on testnet |
 | `ehor pay`: review a bounty from the chain and release it with Touch ID | Built, used for a real testnet payout |
 | Tests that only `ehor pay` can reach the release key | Built, run in CI |
-| Bounty tools for agents: `bounty_post`, `bounty_claim`, `bounty_done`, `bounties` | Built, tested against a contract fake; not yet run end to end on testnet |
+| Bounty tools for agents: `bounty_post`, `bounty_claim`, `bounty_done`, `bounties` | Built, used by two Claude Code agents for bounty 5 on testnet |
 | `ehor near deposit`, `withdraw`, `status` and `ehor refund` | Not yet; use your wallet or NEAR CLI |
 | Signed announcements of each device's NEAR account in the ehor log, checked against the contract | Built and tested |
 | Checking a bounty's message, sender and claimant against those announcements before each step | Built and tested |
 
 The deployed contract's code hash, `64KpnRMyQofCNQbwzEhXtmMAjEZkFLg3EPT5i4JYH7zz`, matches a
 build of [packages/ehor-near/contract](packages/ehor-near/contract) with cargo-near 0.23.0.
-Bounties 1, 2 and 3 on it were each released with a P-256 signature the contract verified: the
-second after Touch ID, the third through `ehor pay` end to end.
+Bounties 1, 2, 3 and 5 on it were each released with a P-256 signature the contract verified:
+the second after Touch ID, the third through `ehor pay` end to end, and the fifth after two Claude
+Code agents posted, claimed and finished it through the bounty tools.
 
 ## Security model
 
