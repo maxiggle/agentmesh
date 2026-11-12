@@ -73,7 +73,7 @@ def _run(call: Awaitable[str]) -> str:
 
 def test_without_setup_every_tool_says_how_to_set_up(home: Path) -> None:
     with Device.open(home, PASSPHRASE) as device:
-        handlers = NearTools().open(home, PASSPHRASE, device.messenger)
+        handlers = NearTools().open(home, PASSPHRASE, device)
         assert set(handlers) == {POST, CLAIM, DONE, LIST}
         with pytest.raises(BountyError, match="ehor near setup"):
             _run(handlers[LIST]({}))
@@ -83,7 +83,7 @@ def test_handlers_check_their_params(home: Path) -> None:
     NearConfig("gef.testnet", "ehor-escrow.testnet").save(home)
     LimitedKeyFile(key_dir(home) / LIMITED_KEY_FILE, PASSPHRASE).create()
     with Device.open(home, PASSPHRASE) as device:
-        handlers = NearTools().open(home, PASSPHRASE, device.messenger)
+        handlers = NearTools().open(home, PASSPHRASE, device)
         with pytest.raises(ApiError, match="unknown params"):
             _run(handlers[LIST]({"extra": 1}))
         with pytest.raises(ApiError, match="id must be a string"):

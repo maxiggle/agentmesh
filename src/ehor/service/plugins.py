@@ -3,6 +3,8 @@ from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
 from typing import Protocol
 
+from ehor.log.account_announce import AccountAnnounce
+from ehor.service.accounts import AnnouncedAccount
 from ehor.service.messenger import Messenger
 from ehor.service.roster_admin import AdminApi
 
@@ -15,10 +17,19 @@ class PluginError(Exception):
     """A plugin method failed in a way the agent should be told about."""
 
 
+class PluginHost(Protocol):
+    """What `ehor serve` gives a plugin: the messenger and the device's account announcements."""
+
+    @property
+    def messenger(self) -> Messenger: ...
+
+    def announce_account(self, announcement: AccountAnnounce) -> bool: ...
+
+    def announced_accounts(self, system: str) -> tuple[AnnouncedAccount, ...]: ...
+
+
 class ServicePlugin(Protocol):
-    def open(
-        self, home: Path, passphrase: bytes, messenger: Messenger
-    ) -> Mapping[str, ToolHandler]:
+    def open(self, home: Path, passphrase: bytes, host: PluginHost) -> Mapping[str, ToolHandler]:
         """Return the methods this plugin serves from `ehor serve`, keyed by `<plugin>.<name>`."""
         ...
 

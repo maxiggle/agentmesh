@@ -695,7 +695,7 @@ def _tool_plugins() -> list[_ToolPlugin]:
 def _plugin_methods(home: Path, passphrase: bytes, device: Device) -> dict[str, ToolHandler]:
     methods: dict[str, ToolHandler] = {}
     for plugin in _tool_plugins():
-        for name, handler in plugin.open(home, passphrase, device.messenger).items():
+        for name, handler in plugin.open(home, passphrase, device).items():
             if name in methods:
                 raise CliError(f"two installed packages serve the tool method {name!r}")
             methods[name] = handler
