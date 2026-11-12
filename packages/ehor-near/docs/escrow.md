@@ -1,12 +1,12 @@
 # ehor-near: paid requests with NEAR escrow
 
-Spec v1, 10 November 2026. Author: Gef. Status: building.
+Spec v1. Status: built and deployed on testnet as `ehor-escrow.testnet`. Commands marked Planned are not built yet.
 
 ## Summary
 
-`ehor` (PyPI v0.1.7, MIT, Python >= 3.11, repo github.com/maxiggle/agentmesh) is signed, end-to-end encrypted, serverless messaging between AI coding agents (Claude Code, Codex, opencode) on different machines. Devices sync directly over LAN mDNS or iroh, with an optional self-hosted relay mailbox. Agents use seven MCP tools: `digest`, `inbox`, `read`, `post`, `reply`, `set_status`, `team`.
+`ehor` (on PyPI, MIT, Python >= 3.11, repo github.com/maxiggle/agentmesh) is signed, end-to-end encrypted, serverless messaging between AI coding agents (Claude Code, Codex, opencode) on different machines. Devices sync directly over LAN mDNS or iroh, with an optional self-hosted relay mailbox. Agents use seven core MCP tools: `digest`, `inbox`, `read`, `post`, `reply`, `set_status`, `team`.
 
-This spec adds paid requests for the NEAR Hackathon (tracks: `agents` primary, `security` secondary). A `feature_request` can carry a NEAR bounty held by an escrow contract. A teammate's agent claims and completes it. Payment moves only when the contract verifies a P-256 signature from the sender's release key, a Secure Enclave key that signs only after the person at the Mac approves with Touch ID or their login password. It ships as the separate package `ehor-near`, which depends on ehor and adds the `near` and `pay` commands through ehor's `ehor.commands` entry point. Core ehor never imports it and must work unchanged without it. Testnet only. Native NEAR only.
+This spec adds paid requests, built for the NEAR Hackathon. A `feature_request` can carry a NEAR bounty held by an escrow contract. A teammate's agent claims and completes it. Payment moves only when the contract verifies a P-256 signature from the sender's release key, a Secure Enclave key that signs only after the person at the Mac approves with Touch ID or their login password. It ships as the separate package `ehor-near`, which depends on ehor and adds the `near` and `pay` commands through ehor's `ehor.commands` entry point and four bounty tools for agents through its `ehor.tools` entry point. Core ehor never imports it and must work unchanged without it. Testnet only. Native NEAR only.
 
 Non-goals: rewriting ehor in Rust; putting messages or the roster on chain; mainnet; NEAR Intents; dispute arbitration; multi-claimant splits; NEP-141 tokens.
 
@@ -184,7 +184,7 @@ NEAR Connect runs in a web page. Each wallet's code loads in a sandboxed iframe 
 5. The page posts the account id and transaction hashes back to the local server with the token. ehor then confirms both by view call: the limited key is a function-call key for the escrow contract whose method list is either exactly the four requested or empty, with an allowance no larger than requested; and the registered release key equals the local one. A full-access key, another receiver or any other method list is refused, and setup asks the person to remove the key in their wallet. Only when both checks pass does setup save the account, the contract and the release key in `near.json`. The page's report is never trusted on its own.
 6. Setup asks the person to restart `ehor serve`, which then announces the account to the team (see Identity binding).
 
-`ehor near deposit`, `ehor near withdraw` and changes to the release key or the spending limit each open the same page for one `signAndSendTransaction`. ehor prints what it is about to ask the wallet for before opening it, and the wallet shows the transaction before the person approves.
+Planned: `ehor near deposit`, `ehor near withdraw` and changing the spending limit each open the same page for one `signAndSendTransaction`. Until then the owner uses their wallet or NEAR CLI; a new release key goes through `ehor near setup`. ehor prints what it is about to ask the wallet for before opening it, and the wallet shows the transaction before the person approves.
 
 The wallet executors load from each wallet provider's URL when the page opens, not from ehor. A compromised executor could ask the wallet to sign something else, so the person must read the wallet's approval screen; this is the same trust every NEAR web app places in its wallet.
 
@@ -192,9 +192,8 @@ The wallet executors load from each wallet provider's URL when the page opens, n
 
 CLI commands are for the human, in a terminal:
 
-- `ehor near setup`, `ehor near deposit`, `ehor near withdraw`, `ehor near status`
-- `ehor pay <bounty>`
-- `ehor refund <bounty>`
+- Built: `ehor near setup`, `ehor pay <bounty>`.
+- Planned: `ehor near status`, `ehor near deposit`, `ehor near withdraw`, `ehor refund <bounty>`, `ehor cancel <bounty>`. `cancel` and `refund` will need those two methods added to the limited key's method list.
 
 MCP changes:
 
@@ -234,83 +233,35 @@ Secure Enclave and TPM return ASN.1 DER and may return high-S. ehor's signer bac
 6. A release signature needs a person at the Mac to approve it, and the Secure Enclave enforces this.
 7. ehor never stores a full-access NEAR key. Registering, deposits, withdrawals and key or limit changes are approved in the owner's wallet.
 
-## Test plan
+## Testing
 
-- Contract unit tests for every failure case above.
-- A near-workspaces sandbox integration test for the full lifecycle, if time allows.
-- Python tests for payload construction against a fixed test vector shared with the Rust tests, signature normalization, the unverified-bounty path, and the invariant tests.
-- A manual two-machine run on Friday.
-
-## Schedule
-
-Deadline: Saturday 14 November 2026, 23:59 UTC (00:59 Sunday in Lagos).
-
-| Day | Work | Deliverable |
-|---|---|---|
-| Tue 10 | Branch `feat/near-escrow`. Spike A: a real ehor signature verified by `p256_verify` on testnet. Spike B: py-near calling the contract from Python 3.11+. Contract with register, deposit, post, claim, cancel and unit tests. Gef creates the mainnet payout account. | Spike results, partial contract with tests |
-| Wed 11 | Contract complete: `mark_done`, `release` with callback, `refund`, `withdraw`, limits, events, all failure tests. | Contract deployed to testnet |
-| Thu 12 | `ehor[near]` client, config, CLI commands, bounty fields in `post`, bounty-aware claim and done, `ehor pay`. | Full lifecycle from one machine |
-| Fri 13 | Identity binding checks, invariant tests, two-machine run (Claude Code and Codex), first demo recording. | Feature freeze at end of day |
-| Sat 14 | README, final video, X post (written and published by Gef), tag `hackathon-submission`. No features. | Submission sent by 18:00 Lagos |
-
-### Spike fallbacks
-
-- If `p256_verify` is unavailable on testnet, release requires the sender's NEAR key instead and the P-256 approval is enforced locally in `ehor pay`. The README states this and the `security` track claim is reduced. Not needed: spike A passed.
-- If py-near does not install or lacks a needed call, use the `near` CLI implementation. Not needed: spike B passed.
-
-### Cut order if behind
-
-1. `digest` bounty mentions
-2. `get_bounties_by_sender`
-3. Sandbox integration test
-4. Refund flow (cancel covers the demo)
-5. `set_max_per_bounty` as a separate method
-
-Never cut: register, deposit, post, claim, done, signed release, identity binding check, README, video.
+- Contract unit tests for every failure case above: 51 tests, run with `cargo test`.
+- Python tests for payload construction against the test vector shared with the Rust tests, signature normalization, setup and the wallet page, the invariant tests, and the bounty tools. The bounty tool tests run two real ehor devices against a contract fake and cover forged bounties, bounties for another message or claimant, mismatched or unregistered release keys, and missing announcements.
+- Testnet runs on `ehor-escrow.testnet`: bounty 1 released with ehor's software device key, bounty 2 with the Secure Enclave release key after Touch ID, bounty 3 through `ehor pay`, and bounty 5 after two Claude Code agents, each on its own ehor device, posted, claimed and finished it through the bounty tools.
+- Not built: a near-workspaces sandbox test of the full lifecycle.
 
 ## Demo script
 
-About 90 seconds, two machines (A: Claude Code, B: Codex), six timed steps.
+About 90 seconds. Two ehor devices, each with its own Claude Code session as its agent.
 
 | Time | Step |
 |---|---|
-| 0:00 to 0:10 | Budget deposit shown. |
-| 0:10 to 0:25 | A posts a `feature_request` with a bounty and approves the draft. |
-| 0:25 to 0:40 | B's agent sees it verified in `inbox`, claims, and the human approves. |
-| 0:40 to 0:50 | B finishes and marks done. |
-| 0:50 to 1:20 | A runs `ehor pay`, reviews, and approves with Touch ID. The explorer shows the transfer. |
-| 1:20 to 1:30 | Closing shot: a release attempt with a wrong signature fails on chain, and the agent has no tool that can pay. |
+| 0:00 to 0:15 | The requester's agent sends a `feature_request` and, once approved, posts a 0.1 NEAR bounty on it with `bounty_post`. |
+| 0:15 to 0:35 | The claimant's agent reads the request, claims the bounty with `bounty_claim`, and later marks it done with `bounty_done`, each after approval. |
+| 0:35 to 1:05 | The requester runs `ehor pay`, reviews the terms read from the chain, and approves with Touch ID. The explorer shows the transfer. |
+| 1:05 to 1:30 | Closing shot: a release with a wrong signature fails on chain, and the agent's tool list has nothing that can pay. |
 
-## Submission checklist
+## Operational risks
 
-From the hackathon rules:
-
-- Public repo by the deadline, with a LICENSE file.
-- README written for a machine reader with "do X, see Y" steps. Claude Code and Codex screen every project before human judges.
-- README explains that ehor-near is a separate package built on top of ehor. The repository's `main` branch is what is submitted.
-- List of libraries used.
-- Demo post on X with video, tagging @NEARProtocol and #NEARHackathon, written and published by Gef.
-- One submission: project name, lead name, email, team size, tracks, mainnet NEAR payout account, repo link, demo link, a 20 to 2000 character description, and consent.
-- Keep any hosted demo up until 18 November.
-
-These need Gef's explicit go-ahead each time: pushing, making the repo public, signing transactions, posting on X, sending the submission.
-
-## Risks
-
-| Risk | Likelihood | Mitigation |
-|---|---|---|
-| `p256_verify` encoding mismatch or not active on testnet | Medium | Spike A on Tuesday with a real ehor signature. Fixed test vector shared between Rust and Python. Fallback described above. |
-| py-near gaps or wheel unavailable for the Python version | Medium | Spike B on Tuesday. `near` CLI implementation behind the same client interface. |
-| Secure Enclave signing fails in the demo | Low | Software key path as backup. |
-| Testnet or RPC outage during recording | Medium | Record the first take Friday. |
-| Storage or gas misestimates | Medium | Measure gas in unit and sandbox tests, and attach generous gas to `release` because of its callback. |
-| Scope slip | High | Feature freeze Friday. Cut order above. |
-| Function-call key allowance runs out mid-demo | Low | Check the allowance before each recording. |
-| NEAR Connect wallets misbehave on a page served from `127.0.0.1` | Low | Tested with Meteor on testnet: the page loaded, the key was added and a transaction was signed. Other wallets are untested. Fallback: the person adds the limited key and registers with NEAR CLI, and setup polls the chain until both appear. |
-| A wallet changes or drops its NEAR Connect executor | Low | The connector loads executors from each wallet's URL, so most changes need no ehor release. Setup still lists more than one testnet wallet. |
+| Risk | Mitigation |
+|---|---|
+| Testnet or RPC outage | ehor reports the RPC error and changes nothing; retry later. |
+| The limited key's gas allowance runs out | The bounty tools report the failed call. The owner removes the key in their wallet and runs `ehor near setup` again, which adds it back with a new allowance. |
+| NEAR Connect wallets misbehave on a page served from `127.0.0.1` | Tested with Meteor on testnet. Other wallets are untested. |
+| A wallet changes or drops its NEAR Connect executor | The connector loads executors from each wallet's URL, so most changes need no ehor release. |
 
 ## Open questions
 
 - Should setup also offer to create a new testnet account through the faucet, as a dedicated account that holds only the escrow budget?
-- Should `allowed_claimants` default to the message's addressed handles or require an explicit choice?
-- Is one contract shared by all teams, or one per team? Assumption: one shared contract on testnet for v1.
+- Should a bounty allow more than one claimant from an ehor request? Today `bounty_post` names one: the request's single addressed handle, or the handle the agent names.
+- Should open bounties, which any verified account may claim, come in a later contract version, for example for GitHub issue bounties?
