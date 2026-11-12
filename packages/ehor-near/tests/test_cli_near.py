@@ -15,10 +15,10 @@ from ehor.identity.base import KeyHandle
 from ehor.identity.software import SoftwareSigner
 from ehor.service.device import Device
 from ehor_near import cli as cli_module
-from ehor_near.cli import LIMITED_KEY_FILE, RELEASE_KEY_LABEL
+from ehor_near.cli import RELEASE_KEY_LABEL
 from ehor_near.client import DEFAULT_GAS, NearClient
 from ehor_near.config import NearConfig
-from ehor_near.limited_key import LimitedKeyFile
+from ehor_near.limited_key import LIMITED_KEY_FILE, LimitedKeyFile
 
 CONTRACT = "ehor-escrow.testnet"
 ME = "geff.testnet"

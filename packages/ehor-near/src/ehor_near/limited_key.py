@@ -4,6 +4,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+LIMITED_KEY_FILE = "near-limited.key"
 ALLOWED_METHODS = ("post_bounty", "claim", "mark_done", "release")
 DEFAULT_ALLOWANCE = 25 * 10**22
 _KEY_FILE_MODE = 0o600
