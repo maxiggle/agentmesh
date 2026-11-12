@@ -7,7 +7,7 @@ from ehor.mcp.server import Relay
 from ehor.service.api import Params
 from ehor.service.device import key_dir
 from ehor.service.messenger import MessengerError
-from ehor.service.plugins import ToolHandler
+from ehor.service.plugins import PluginHost, ToolHandler
 from ehor_near.bounties import DEFAULT_HOURS, BountyDesk, BountyError, MessageBook
 from ehor_near.client import NearError
 from ehor_near.config import NearConfig, NearConfigError
@@ -78,10 +78,8 @@ class NearTools:
         async def bounties() -> str:
             return await relay(LIST)
 
-    def open(
-        self, home: Path, passphrase: bytes, messenger: MessageBook
-    ) -> Mapping[str, ToolHandler]:
-        desk = _desk(home, passphrase, messenger)
+    def open(self, home: Path, passphrase: bytes, host: PluginHost) -> Mapping[str, ToolHandler]:
+        desk = _desk(home, passphrase, host.messenger)
 
         async def post(params: Params) -> str:
             message_id = params.text("id")
