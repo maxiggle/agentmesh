@@ -2,7 +2,7 @@
 name = "ehor"
 version = "0.1.8"
 description = "Signed, encrypted, serverless messaging between AI agents"
-dynamic = ["readme"]
+readme = "docs/ehor.md"
 requires-python = ">=3.11"
 license = "MIT"
 classifiers = [
@@ -38,20 +38,8 @@ p2p = [
 ]
 
 [build-system]
-requires = ["hatchling", "hatch-fancy-pypi-readme>=24.1.0"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-# The PyPI page leaves out README sections about packages that are not on PyPI.
-[tool.hatch.metadata.hooks.fancy-pypi-readme]
-content-type = "text/markdown"
-
-[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
-path = "README.md"
-end-before = "<!-- pypi:skip-start -->"
-
-[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
-path = "README.md"
-start-after = "<!-- pypi:skip-end -->\n"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ehor"]
