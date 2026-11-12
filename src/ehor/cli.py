@@ -10,7 +10,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import replace
 from importlib.metadata import entry_points
 from pathlib import Path
-from typing import TypeAlias
+from typing import Protocol, TypeAlias
 
 from ehor.agents import (
     Agent,
@@ -26,7 +26,7 @@ from ehor.identity.security_key import Authenticator, SecurityKeySigner
 from ehor.log.entry import EntryContent, EntryFormatError
 from ehor.log.names import parse_address
 from ehor.log.roster import Roster, RosterError
-from ehor.mcp.server import build_server
+from ehor.mcp.server import ToolProvider, build_server
 from ehor.relay.server import Relay, RelayError
 from ehor.service.alerts import AlertWatcher
 from ehor.service.config import ConfigError, DeviceConfig, default_home
@@ -45,6 +45,7 @@ from ehor.service.notify import (
     default_notifier,
 )
 from ehor.service.peer_sync import DEFAULT_PEER_INTERVAL, PeerSync
+from ehor.service.plugins import PluginError, ServicePlugin, ToolHandler
 from ehor.service.relay_policy import RelayGate, devices_to_reach
 from ehor.service.rpc import RpcClient, RpcError, default_endpoint
 from ehor.transport.iroh import IrohMode, IrohTransport
@@ -66,6 +67,7 @@ _PHONE_HELP = (
 # Each entry point in this group names a function that adds subcommands to the parser.
 # A plugin command reports a failure by raising CliError.
 COMMANDS_GROUP = "ehor.commands"
+TOOLS_GROUP = "ehor.tools"
 _SKIP_PROMPT = f"Set {PASSPHRASE_ENV} to skip this prompt."
 _NEW_DEVICE_PROMPT = (
     "ehor encrypts this device's keys with a passphrase. You'll enter it each time you run"
@@ -102,6 +104,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ConfigError,
         IdentityError,
         IrohKeyError,
+        PluginError,
         RelayError,
         RpcError,
         SetupError,
@@ -538,15 +541,24 @@ def _rpc(home: Path, method: str, params: dict[str, object]) -> str:
 def _serve(args: argparse.Namespace) -> int:
     _log_to_stderr()
     home = device_home(args)
-    with Device.open(home, _existing_passphrase(_DEVICE_PROMPT)) as device:
+    passphrase = _existing_passphrase(_DEVICE_PROMPT)
+    with Device.open(home, passphrase) as device:
         sys.stderr.write(f"ehor serving {device.config.handle} from {home}\n")
+        methods = _plugin_methods(home, passphrase, device)
         direct = None if args.no_p2p else _direct_sync(device)
         peers: list[Syncer] = [_relay_sync(device, args.lan_interval, direct)]
         if not args.no_lan:
             peers.append(_lan_sync(device, args.lan_interval))
         if direct is not None:
             peers.append(direct)
-        daemon = Daemon(device, default_endpoint(home), args.interval, peers, _watcher(device))
+        daemon = Daemon(
+            device,
+            default_endpoint(home),
+            args.interval,
+            peers,
+            watcher=_watcher(device),
+            methods=methods,
+        )
         asyncio.run(_run_until_signal(daemon.run))
     return 0
 
@@ -667,8 +679,27 @@ async def _run_until_signal(run: Callable[[asyncio.Event], Awaitable[None]]) -> 
 
 
 def _mcp(args: argparse.Namespace) -> int:
-    build_server(RpcClient(default_endpoint(device_home(args)))).run("stdio")
+    build_server(RpcClient(default_endpoint(device_home(args))), _tool_plugins()).run("stdio")
     return 0
+
+
+class _ToolPlugin(ServicePlugin, ToolProvider, Protocol):
+    pass
+
+
+def _tool_plugins() -> list[_ToolPlugin]:
+    entries = sorted(entry_points(group=TOOLS_GROUP), key=lambda entry: entry.name)
+    return [entry.load() for entry in entries]
+
+
+def _plugin_methods(home: Path, passphrase: bytes, device: Device) -> dict[str, ToolHandler]:
+    methods: dict[str, ToolHandler] = {}
+    for plugin in _tool_plugins():
+        for name, handler in plugin.open(home, passphrase, device.messenger).items():
+            if name in methods:
+                raise CliError(f"two installed packages serve the tool method {name!r}")
+            methods[name] = handler
+    return methods
 
 
 def _tool(args: argparse.Namespace) -> int:

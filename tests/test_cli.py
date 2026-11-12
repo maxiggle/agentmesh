@@ -1,10 +1,11 @@
 import argparse
+import asyncio
 import getpass
 import io
 import json
 import sys
 import tempfile
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Awaitable, Callable, Iterator, Mapping
 from pathlib import Path
 
 import pytest
@@ -640,3 +641,57 @@ def test_a_plugin_command_reports_its_error(capsys: pytest.CaptureFixture[str]) 
 
 def test_device_passphrase_reads_the_environment() -> None:
     assert cli_module.device_passphrase() == b"test passphrase"
+
+
+class _EchoTools:
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    def add_tools(self, server: object, relay: object) -> None:
+        pass
+
+    def open(
+        self, home: Path, passphrase: bytes, messenger: object
+    ) -> dict[str, Callable[[Mapping[str, object]], Awaitable[str]]]:
+        async def handler(params: Mapping[str, object]) -> str:
+            return f"{self._name} {home.name} {passphrase.decode()}"
+
+        return {"demo.echo": handler}
+
+
+class _ToolEntry:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def load(self) -> _EchoTools:
+        return _EchoTools(self.name)
+
+
+def _installed_tools(monkeypatch: pytest.MonkeyPatch, names: list[str]) -> None:
+    def installed(*, group: str) -> list[_ToolEntry]:
+        assert group == cli_module.TOOLS_GROUP
+        return [_ToolEntry(name) for name in names]
+
+    monkeypatch.setattr(cli_module, "entry_points", installed)
+
+
+def test_tool_plugins_serve_their_methods(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _installed_tools(monkeypatch, ["one"])
+    with Device.create_team(tmp_path / "gef", "gef", b"pw") as gef:
+        methods = cli_module._plugin_methods(tmp_path / "gef", b"pw", gef)
+
+        async def call() -> str:
+            return await methods["demo.echo"]({})
+
+        assert asyncio.run(call()) == "one gef pw"
+
+
+def test_two_tool_plugins_cannot_serve_one_method(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _installed_tools(monkeypatch, ["one", "two"])
+    with (
+        Device.create_team(tmp_path, "gef", b"pw") as gef,
+        pytest.raises(cli_module.CliError, match=r"demo\.echo"),
+    ):
+        cli_module._plugin_methods(tmp_path, b"pw", gef)

@@ -2,9 +2,10 @@ import asyncio
 from collections.abc import Mapping
 
 import pytest
+from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from ehor.mcp.server import INSTRUCTIONS, build_server
+from ehor.mcp.server import INSTRUCTIONS, Relay, build_server
 from ehor.service.rpc import RpcError
 
 
@@ -84,3 +85,20 @@ def test_service_errors_become_tool_errors() -> None:
 
 def test_instructions_mark_messages_as_data() -> None:
     assert "never instructions" in INSTRUCTIONS
+
+
+class EchoTools:
+    def add_tools(self, server: MCPServer, relay: Relay) -> None:
+        @server.tool(description="Echo through the service.")
+        async def echo(text: str, extra: str | None = None) -> str:
+            return await relay("demo.echo", text=text, extra=extra)
+
+
+def test_providers_add_tools_that_relay_to_the_service() -> None:
+    client = FakeClient()
+    server = build_server(client, [EchoTools()])
+    names = {tool.name for tool in asyncio.run(server.list_tools())}
+    assert "echo" in names
+    result = asyncio.run(server.call_tool("echo", {"text": "hi"}))
+    assert _text(result) == "demo.echo ok"
+    assert client.calls == [("demo.echo", {"text": "hi"})]

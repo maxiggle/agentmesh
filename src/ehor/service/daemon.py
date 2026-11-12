@@ -4,6 +4,7 @@ from typing import Protocol
 
 from ehor.service.api import ApiError
 from ehor.service.device import Device
+from ehor.service.plugins import PluginError, ToolHandler, check_method_name
 from ehor.service.rpc import Endpoint, RpcServer
 
 DEFAULT_SYNC_INTERVAL = 2.0
@@ -28,16 +29,21 @@ class Daemon:
         endpoint: Endpoint,
         interval: float = DEFAULT_SYNC_INTERVAL,
         peers: Sequence[Syncer] = (),
+        *,
         watcher: Watcher | None = None,
+        methods: Mapping[str, ToolHandler] | None = None,
     ) -> None:
+        for name in methods or {}:
+            check_method_name(name)
         self._device = device
+        self._methods = dict(methods or {})
         self._endpoint = endpoint
         self._interval = interval
         self._peers = tuple(peers)
         self._watcher = watcher
 
     async def run(self, stop: asyncio.Event) -> None:
-        server = await RpcServer(self._endpoint, self._dispatch, (ApiError,)).start()
+        server = await RpcServer(self._endpoint, self._dispatch, (ApiError, PluginError)).start()
         try:
             await asyncio.gather(
                 self._sync_folder(stop),
@@ -47,8 +53,14 @@ class Daemon:
             server.close()
             await server.wait_closed()
 
-    def _dispatch(self, method: str, params: Mapping[str, object]) -> str:
-        result = self._device.call(method, params)
+    async def _dispatch(self, method: str, params: Mapping[str, object]) -> str:
+        handler = self._methods.get(method)
+        if handler is None:
+            result = self._device.call(method, params)
+        else:
+            self._device.sync()
+            result = await handler(params)
+            self._device.sync()
         for peer in self._peers:
             peer.poke()
         return result

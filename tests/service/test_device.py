@@ -1,7 +1,7 @@
 import asyncio
 import json
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 
 import pytest
@@ -18,7 +18,8 @@ from ehor.service.daemon import Daemon
 from ehor.service.device import Device
 from ehor.service.invite import Invite
 from ehor.service.notify import Alert
-from ehor.service.rpc import RpcClient, TcpEndpoint
+from ehor.service.plugins import PluginError
+from ehor.service.rpc import RpcClient, RpcError, TcpEndpoint
 
 PASSPHRASE = b"test passphrase"
 TEAM = b"\x09" * 16
@@ -416,6 +417,53 @@ def test_daemons_serve_tool_calls(short_dir: Path) -> None:
     posted, digest = asyncio.run(_daemons_talk(short_dir))
     assert posted.startswith("posted ")
     assert digest == "1 new · 1 shipped"
+
+
+async def _daemon_with_plugin(root: Path) -> list[str]:
+    seen: list[dict[str, object]] = []
+
+    async def echo(params: Mapping[str, object]) -> str:
+        seen.append(dict(params))
+        if params.get("fail"):
+            raise PluginError("refused by the plugin")
+        return f"echo {params['text']}"
+
+    gef = Device.create_team(root / "gef", "gef", PASSPHRASE)
+    endpoint = TcpEndpoint(root / "gef.json")
+    stop = asyncio.Event()
+    daemon = Daemon(gef, endpoint, 0.05, methods={"demo.echo": echo})
+    task = asyncio.create_task(daemon.run(stop))
+    while not (root / "gef.json").exists():
+        await asyncio.sleep(0.01)
+    client = RpcClient(endpoint)
+    results = [await client.call("demo.echo", {"text": "hi"}), await client.call("digest")]
+    try:
+        await client.call("demo.echo", {"text": "no", "fail": True})
+    except RpcError as exc:
+        results.append(str(exc))
+    stop.set()
+    await task
+    gef.close()
+    assert seen == [{"text": "hi"}, {"text": "no", "fail": True}]
+    return results
+
+
+def test_daemon_serves_plugin_methods_next_to_core_tools(short_dir: Path) -> None:
+    assert asyncio.run(_daemon_with_plugin(short_dir)) == [
+        "echo hi",
+        "nothing new",
+        "refused by the plugin",
+    ]
+
+
+def test_daemon_refuses_plugin_methods_that_shadow_core_tools(tmp_path: Path) -> None:
+    async def handler(params: Mapping[str, object]) -> str:
+        return ""
+
+    with Device.create_team(tmp_path, "gef", PASSPHRASE) as gef:
+        for name in ("post", "roster.add"):
+            with pytest.raises(PluginError):
+                Daemon(gef, TcpEndpoint(tmp_path / "s.json"), methods={name: handler})
 
 
 def test_joining_remembers_the_invite_relay_until_the_roster_names_one(tmp_path: Path) -> None:

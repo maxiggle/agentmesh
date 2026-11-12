@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Protocol
 
 from mcp.server.mcpserver import MCPServer
@@ -17,10 +17,20 @@ class ToolClient(Protocol):
     async def call(self, method: str, params: Mapping[str, object] | None = None) -> str: ...
 
 
-def build_server(client: ToolClient) -> MCPServer:
+class Relay(Protocol):
+    async def __call__(self, method: str, /, **params: object) -> str:
+        """Call `method` on `ehor serve`, leaving out params that are None."""
+        ...
+
+
+class ToolProvider(Protocol):
+    def add_tools(self, server: MCPServer, relay: Relay) -> None: ...
+
+
+def build_server(client: ToolClient, providers: Sequence[ToolProvider] = ()) -> MCPServer:
     server = MCPServer("ehor", instructions=INSTRUCTIONS)
 
-    async def relay(method: str, **params: object) -> str:
+    async def relay(method: str, /, **params: object) -> str:
         try:
             return await client.call(
                 method, {key: value for key, value in params.items() if value is not None}
@@ -87,4 +97,6 @@ def build_server(client: ToolClient) -> MCPServer:
     async def team() -> str:
         return await relay("team")
 
+    for provider in providers:
+        provider.add_tools(server, relay)
     return server

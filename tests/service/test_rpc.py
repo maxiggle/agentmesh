@@ -21,7 +21,7 @@ class BoomError(Exception):
     pass
 
 
-def dispatch(method: str, params: Mapping[str, object]) -> str:
+async def dispatch(method: str, params: Mapping[str, object]) -> str:
     if method == "echo":
         return json.dumps(params, sort_keys=True)
     if method == "expected":
