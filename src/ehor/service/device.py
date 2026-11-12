@@ -8,6 +8,7 @@ from ehor.crypto.keyfile import EncryptionKeyFile
 from ehor.identity import KeyHandle, Signer
 from ehor.identity.backends import Backend, detect_hardware, open_signer
 from ehor.identity.security_key import Authenticator, SecurityKeySigner
+from ehor.log.account_announce import AccountAnnounce
 from ehor.log.endpoint_announce import EndpointAnnounce
 from ehor.log.entry import TEAM_ID_SIZE, Kind
 from ehor.log.key_announce import KeyAnnounce
@@ -23,6 +24,7 @@ from ehor.log.roster import (
 )
 from ehor.log.verify import EntryVerifier
 from ehor.roster.book import RosterBook
+from ehor.service.accounts import AccountDirectory, AnnouncedAccount
 from ehor.service.alerts import MessengerFeed
 from ehor.service.api import Params, ToolApi
 from ehor.service.config import CONFIG_FILE, ConfigError, DeviceConfig
@@ -70,6 +72,7 @@ class Device:
         )
         self._iroh_secret = load_or_create_secret(home / _KEY_DIR / _IROH_KEY)
         self._endpoints = EndpointDirectory(self._store)
+        self._accounts = AccountDirectory(self._store)
         directory = RosterDirectory(self._book, self._author, config.handle)
         self._messenger = Messenger(self._store, local_log, directory, self._codec)
         self._api = ToolApi(self._messenger)
@@ -302,6 +305,27 @@ class Device:
         body = EndpointAnnounce(endpoint_id).encode()
         self._local_log.append(CONTROL_CHANNEL, Kind.ENDPOINT_ANNOUNCE, body)
         return True
+
+    def announce_account(self, announcement: AccountAnnounce) -> bool:
+        """Publish this device's account in another system once it is on the roster, or when it
+        changes."""
+        if self._book.member_for_key(self._author) is None:
+            return False
+        if self._accounts.accounts(announcement.system).get(self._author) == announcement:
+            return False
+        self._local_log.append(CONTROL_CHANNEL, Kind.ACCOUNT_ANNOUNCE, announcement.encode())
+        return True
+
+    def announced_accounts(self, system: str) -> tuple[AnnouncedAccount, ...]:
+        """The current account in `system` of every device on the current roster that has one."""
+        found = []
+        for device, announced in self._accounts.accounts(system).items():
+            member = self._book.member_for_key(device)
+            if member is not None:
+                found.append(
+                    AnnouncedAccount(member.handle, device, announced.account, announced.key)
+                )
+        return tuple(sorted(found, key=lambda item: (item.handle, item.device)))
 
     def direct_peers(self) -> list[tuple[bytes, bytes]]:
         """`(device key, iroh endpoint ID)` for each other device of each current member.

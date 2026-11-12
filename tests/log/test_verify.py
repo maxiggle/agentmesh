@@ -138,10 +138,12 @@ def test_rejects_bad_shape(
         ("_team", Kind.ROSTER, True),
         ("_team", Kind.KEY_ANNOUNCE, True),
         ("_team", Kind.ENDPOINT_ANNOUNCE, True),
+        ("_team", Kind.ACCOUNT_ANNOUNCE, True),
         ("_team", Kind.MESSAGE, False),
         ("#backend", Kind.KEY_ANNOUNCE, False),
         ("#backend", Kind.ENDPOINT_ANNOUNCE, False),
         ("dm:gef+tobi", Kind.ENDPOINT_ANNOUNCE, False),
+        ("#backend", Kind.ACCOUNT_ANNOUNCE, False),
     ],
 )
 def test_channel_rules(channel: str, kind: Kind, valid: bool) -> None:
@@ -241,6 +243,24 @@ def test_accepts_an_endpoint_announce(
         kind=Kind.ENDPOINT_ANNOUNCE, channel="_team", body=encode({"iroh": b"\x01" * 32})
     )
     assert verifier.verify(good.encode()) == good
+
+
+def test_accepts_an_account_announce(
+    verifier: EntryVerifier, make_entry: Callable[..., Entry]
+) -> None:
+    body = encode({"system": "near-testnet", "account": "tobi.testnet", "key": b"\x02" * 33})
+    good = make_entry(kind=Kind.ACCOUNT_ANNOUNCE, channel="_team", body=body)
+    assert verifier.verify(good.encode()) == good
+
+
+def test_rejects_a_bad_account_announce(
+    verifier: EntryVerifier, make_entry: Callable[..., Entry]
+) -> None:
+    bad = make_entry(
+        kind=Kind.ACCOUNT_ANNOUNCE, channel="_team", body=encode({"system": "near-testnet"})
+    )
+    with pytest.raises(RejectedEntryError, match="bad account_announce"):
+        verifier.verify(bad.encode())
 
 
 def test_rejects_an_endpoint_announce_signed_by_a_security_key(

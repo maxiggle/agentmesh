@@ -17,6 +17,7 @@ Entry kinds:
 | `roster`            | Team membership, device keys, roles, channels             | plaintext |
 | `key_announce`      | Publishes a device's X25519 encryption key                | plaintext |
 | `endpoint_announce` | Publishes a device's iroh endpoint ID                     | plaintext |
+| `account_announce`  | Publishes a device's account in another system            | plaintext |
 
 ## 2. Primitives
 
@@ -59,7 +60,7 @@ An entry is a CBOR map with these fields:
 | `prev`    | bstr (32) / null   | ID of the author's entry at `seq - 1`. MUST be `null` iff `seq == 1`. |
 | `team`    | bstr (16)          | Team ID, 16 random bytes chosen when the team is created. |
 | `channel` | tstr               | See §3.3. |
-| `kind`    | tstr               | One of `message`, `status`, `roster`, `key_announce`, `endpoint_announce`. |
+| `kind`    | tstr               | One of `message`, `status`, `roster`, `key_announce`, `endpoint_announce`, `account_announce`. |
 | `refs`    | array of bstr (32) | IDs of entries this one replies to or updates. 0–16 items, no duplicates, sorted bytewise. |
 | `ts`      | uint               | Author's wall-clock time in Unix milliseconds. Display only; never used for ordering or validity. |
 | `body`    | bstr               | Encoded body (§4), encrypted or plain depending on `kind`. |
@@ -133,7 +134,7 @@ The `UV` flag (PIN or biometric) is not required. The signature counter is not c
 |---------|---------|
 | `#name` where `name` matches `[a-z0-9][a-z0-9-]{0,31}` | Team channel, e.g. `#backend`. |
 | `dm:<a>+<b>` with member handles `a < b` (bytewise) | Direct conversation between two members. |
-| `_team` | Team-wide control channel. `roster`, `key_announce` and `endpoint_announce` entries MUST use it, and other kinds MUST NOT. |
+| `_team` | Team-wide control channel. `roster`, `key_announce`, `endpoint_announce` and `account_announce` entries MUST use it, and other kinds MUST NOT. |
 
 Member handles match `[a-z0-9][a-z0-9_-]{0,31}`.
 
@@ -237,6 +238,18 @@ A device's current encryption key is the one in its `key_announce` with the high
 | `iroh`       | bstr (32) | The device's iroh endpoint ID, an ed25519 public key. |
 
 A device's current endpoint is the one in its `endpoint_announce` with the highest `seq`. It is an address only: connections to it still run the §8 handshake, and nothing is trusted because of it.
+
+### 4.6 `account_announce`
+
+| Field     | Type      | Rules |
+|-----------|-----------|-------|
+| `system`  | tstr      | Names the other system, matching `[a-z0-9][a-z0-9-]{0,31}`, e.g. `near-testnet`. |
+| `account` | tstr      | The device's account in that system: 1–64 characters, no control characters. |
+| `key`     | bstr      | Optional, 1–65 bytes: a public key that the other system holds for that account. |
+
+A device's current account in a system is the one in its `account_announce` for that system with the highest `seq`. ehor does not interpret `account` or `key`. The entry only proves that a roster device made the claim; a client that relies on it checks it against the other system, for example that the system holds `key` for `account`.
+
+A device on a version of this protocol without `account_announce` rejects the entry as malformed and then parks its author's later entries, so every device of a team must understand this kind before any device announces an account.
 
 ## 5. Validation
 

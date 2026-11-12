@@ -2,6 +2,7 @@ from collections.abc import Callable
 
 from ehor.identity import es256
 from ehor.identity.assertion import Assertion, InvalidAssertionError, check_assertion
+from ehor.log.account_announce import AccountAnnounce, AccountAnnounceError
 from ehor.log.body import BodyError, MessageBody, StatusBody
 from ehor.log.endpoint_announce import EndpointAnnounce, EndpointAnnounceError
 from ehor.log.entry import (
@@ -23,6 +24,7 @@ _CONTROL_BODIES: dict[Kind, tuple[Callable[[bytes], object], type[ValueError]]] 
     Kind.ROSTER: (Roster.decode, RosterError),
     Kind.KEY_ANNOUNCE: (KeyAnnounce.decode, KeyAnnounceError),
     Kind.ENDPOINT_ANNOUNCE: (EndpointAnnounce.decode, EndpointAnnounceError),
+    Kind.ACCOUNT_ANNOUNCE: (AccountAnnounce.decode, AccountAnnounceError),
 }
 _CONTROL_KINDS = frozenset(_CONTROL_BODIES)
 

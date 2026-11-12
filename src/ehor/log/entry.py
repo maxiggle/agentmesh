@@ -32,6 +32,7 @@ class Kind(StrEnum):
     ROSTER = "roster"
     KEY_ANNOUNCE = "key_announce"
     ENDPOINT_ANNOUNCE = "endpoint_announce"
+    ACCOUNT_ANNOUNCE = "account_announce"
 
 
 @dataclass(frozen=True, slots=True)
