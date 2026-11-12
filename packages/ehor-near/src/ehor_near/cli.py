@@ -19,6 +19,7 @@ from ehor_near.config import NearConfig, NearConfigError
 from ehor_near.limited_key import (
     ALLOWED_METHODS,
     DEFAULT_ALLOWANCE,
+    LIMITED_KEY_FILE,
     LimitedKey,
     LimitedKeyError,
     LimitedKeyFile,
@@ -43,7 +44,6 @@ from ehor_near.release import ReleaseSignError, ReleaseTerms, sign_release
 from ehor_near.wallet_page import WalletCall, WalletPage, WalletPageError
 
 RELEASE_KEY_LABEL = "release"
-LIMITED_KEY_FILE = "near-limited.key"
 DEFAULT_CONTRACT = "ehor-escrow.testnet"
 SETUP_TIMEOUT = 900.0
 _NO_NEAR = "this device has no NEAR account; run `ehor near setup` first"

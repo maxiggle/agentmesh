@@ -14,10 +14,10 @@ from ehor.identity.software import SoftwareSigner
 from ehor.service.config import DeviceConfig
 from ehor.service.rpc import RpcError
 from ehor_near import cli as cli_module
-from ehor_near.cli import LIMITED_KEY_FILE, RELEASE_KEY_LABEL
+from ehor_near.cli import RELEASE_KEY_LABEL
 from ehor_near.client import DEFAULT_GAS, ContractError, NearClient
 from ehor_near.config import NearConfig
-from ehor_near.limited_key import LimitedKeyFile
+from ehor_near.limited_key import LIMITED_KEY_FILE, LimitedKeyFile
 from ehor_near.payload import release_payload
 
 CONTRACT = "ehor-escrow.testnet"
