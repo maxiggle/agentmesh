@@ -73,6 +73,7 @@ class Device:
         self._iroh_secret = load_or_create_secret(home / _KEY_DIR / _IROH_KEY)
         self._endpoints = EndpointDirectory(self._store)
         self._accounts = AccountDirectory(self._store)
+        self._wanted_accounts: dict[str, AccountAnnounce] = {}
         directory = RosterDirectory(self._book, self._author, config.handle)
         self._messenger = Messenger(self._store, local_log, directory, self._codec)
         self._api = ToolApi(self._messenger)
@@ -268,6 +269,8 @@ class Device:
 
     def sync(self) -> int:
         self.announce_key()
+        for announcement in self._wanted_accounts.values():
+            self._publish_account(announcement)
         return 0 if self._exchange is None else self._exchange.sync()
 
     def _security_keys(self) -> list[bytes]:
@@ -307,8 +310,12 @@ class Device:
         return True
 
     def announce_account(self, announcement: AccountAnnounce) -> bool:
-        """Publish this device's account in another system once it is on the roster, or when it
-        changes."""
+        """Publish this device's account in another system, now if it is on the roster, else at
+        the first sync after it joins. Returns whether it was published now."""
+        self._wanted_accounts[announcement.system] = announcement
+        return self._publish_account(announcement)
+
+    def _publish_account(self, announcement: AccountAnnounce) -> bool:
         if self._book.member_for_key(self._author) is None:
             return False
         if self._accounts.accounts(announcement.system).get(self._author) == announcement:
