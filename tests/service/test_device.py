@@ -9,8 +9,10 @@ import pytest
 from ehor.identity import Signer
 from ehor.identity.backends import Backend
 from ehor.identity.software import SoftwareSigner
+from ehor.log.account_announce import AccountAnnounce
 from ehor.log.roster import Trust
 from ehor.service import device as device_module
+from ehor.service.accounts import AnnouncedAccount
 from ehor.service.alerts import AlertWatcher
 from ehor.service.api import ApiError
 from ehor.service.config import ConfigError, DeviceConfig, default_home
@@ -464,6 +466,25 @@ def test_daemon_refuses_plugin_methods_that_shadow_core_tools(tmp_path: Path) ->
         for name in ("post", "roster.add"):
             with pytest.raises(PluginError):
                 Daemon(gef, TcpEndpoint(tmp_path / "s.json"), methods={name: handler})
+
+
+def test_devices_announce_accounts_to_teammates(tmp_path: Path) -> None:
+    shared = tmp_path / "shared"
+    near = AccountAnnounce("near-testnet", "gef.testnet", b"\x02" * 33)
+    with Device.create_team(tmp_path / "gef", "gef", PASSPHRASE, exchange=shared) as gef:
+        tobi = Device.join(tmp_path / "tobi", gef.invite, "tobi", PASSPHRASE, exchange=shared)
+        assert not tobi.announce_account(near)
+        assert gef.announce_account(near)
+        assert not gef.announce_account(near)
+        _add(gef, tobi)
+        for _ in range(2):
+            gef.sync()
+            tobi.sync()
+        assert tobi.announced_accounts("near-testnet") == (
+            AnnouncedAccount("gef", gef.author, "gef.testnet", b"\x02" * 33),
+        )
+        assert tobi.announced_accounts("github") == ()
+        tobi.close()
 
 
 def test_joining_remembers_the_invite_relay_until_the_roster_names_one(tmp_path: Path) -> None:
