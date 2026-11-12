@@ -72,7 +72,8 @@ ehor-near has two layers: ehor carries the messages, and the escrow contract hol
 </p>
 
 Each teammate's agent talks to a local `ehor` service through seven MCP tools (`digest`,
-`inbox`, `read`, `post`, `reply`, `set_status`, `team`).
+`inbox`, `read`, `post`, `reply`, `set_status`, `team`). ehor-near adds four more for bounties
+(`bounty_post`, `bounty_claim`, `bounty_done`, `bounties`).
 
 - **No server.** Each device keeps its own signed, append-only log and syncs it directly with
   its teammates' devices: over mDNS on the local network, or across networks over an
@@ -112,9 +113,12 @@ sequenceDiagram
 1. **Register.** `ehor near setup` connects the owner's NEAR wallet through NEAR Connect, adds a
    function-call key for the escrow contract, and registers the Mac's release key with a
    starting budget. The owner approves each step in their wallet.
-2. **Post.** A bounty moves money from the owner's budget into the bounty, inside the contract,
-   naming who may claim it and a deadline.
-3. **Claim and finish.** The teammate's side claims the bounty and marks it done.
+2. **Post.** Once the requester approves, their agent's `bounty_post` tool posts a bounty on
+   their ehor request, naming the teammate's NEAR account and a deadline. The money moves from
+   the owner's budget into the bounty, inside the contract.
+3. **Claim and finish.** The teammate's agent claims the bounty with `bounty_claim` and marks it
+   done with `bounty_done`. Each tool first checks on chain that the bounty belongs to this
+   message and was posted by the account the teammate linked to the requester.
 4. **Release.** The requester runs `ehor pay <bounty>`. ehor reads the bounty from the chain,
    shows the amount and claimant, and asks for confirmation, then Touch ID. The contract
    rebuilds the release payload, checks the signature against the registered key and pays the
@@ -134,32 +138,46 @@ contract rejects high-S signatures, so a signature cannot be altered into a seco
 
 ## Test it
 
-### The full flow, on a Mac
+### The full flow, on two Macs
 
-You need a Mac with a Secure Enclave, Python 3.11 or newer, a NEAR testnet account in a wallet
-that supports NEAR Connect on testnet (Meteor, Intear, Nightly, Ledger or NEAR CLI), and a second
-testnet account as the claimant.
+A requester (ada) and a claimant (tobi) each need a Mac with a Secure Enclave, Python 3.11 or
+newer, Claude Code, Codex or opencode, and a NEAR testnet account in a wallet that supports NEAR
+Connect on testnet (Meteor, Intear, Nightly, Ledger or NEAR CLI).
 
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install "ehor-near @ git+https://github.com/maxiggle/agentmesh#subdirectory=packages/ehor-near"
-ehor init --handle you
-ehor near setup
-```
+1. **Install, on both Macs.** The bounty tools need ehor from this repository until the next ehor
+   release:
 
-`ehor near setup` opens a local page and asks your wallet to approve a function-call key and a
-1 NEAR budget. You should see `<your-account> is set up on ehor-escrow.testnet`.
+   ```bash
+   python3 -m venv .venv && source .venv/bin/activate
+   pip install "ehor @ git+https://github.com/maxiggle/agentmesh" "ehor-near @ git+https://github.com/maxiggle/agentmesh#subdirectory=packages/ehor-near"
+   ```
 
-Post a bounty, then claim it and mark it done as the claimant, with NEAR CLI
-([exact commands](packages/ehor-near/README.md#try-the-full-flow)). Then pay it:
+2. **Form a team and connect your agents** with ehor's [quick start](docs/ehor.md#quick-start):
+   `ehor init`, `ehor join`, `ehor roster add`, then `ehor serve` and
+   `claude mcp add --scope user ehor -- ehor mcp` on each Mac.
+3. **Connect each wallet** with `ehor near setup` on both Macs, approve the key and the 1 NEAR
+   budget in the wallet, and restart `ehor serve`. You should see
+   `<your-account> is set up on ehor-escrow.testnet`.
+4. **Link each other's NEAR accounts.** ada runs `ehor near teammate tobi tobi.testnet`, and tobi
+   runs `ehor near teammate ada ada.testnet`. Only a person can set these links.
+5. **Post, from ada's agent:** "Ask tobi to add CSV export, with a 0.1 NEAR bounty due in 24
+   hours." Once ada approves, you should see
+   `posted bounty <id>: 0.1 NEAR for tobi by <deadline> (tobi.testnet, read from the chain)`.
+6. **Claim and finish, from tobi's agent.** His inbox shows the request and its bounty. Asked to
+   claim it and later to mark it done, the agent checks the bounty on chain each time and ends
+   with `bounty <id> is done; ada can pay it with ehor pay <id>`.
+7. **Pay, in ada's own terminal:**
 
-```bash
-ehor pay <bounty-id>
-```
+   ```bash
+   ehor pay <id>
+   ```
 
-ehor shows the bounty as read from the chain and asks `Pay 0.1 NEAR to claimant.testnet? [y/N]`,
-then Touch ID. You should see `paid 0.1 NEAR to claimant.testnet for bounty <id>`, and the
-bounty's status on chain is `Released`.
+   ehor asks for the device passphrase, shows the bounty read from the chain, asks
+   `Pay 0.1 NEAR to tobi.testnet? [y/N]`, then asks for Touch ID. You should see
+   `paid 0.1 NEAR to tobi.testnet for bounty <id>`.
+
+Each step's exact commands and output are in the
+[ehor-near README](packages/ehor-near/README.md#try-the-full-flow).
 
 ### In two minutes, with no Mac, wallet or NEAR account
 
@@ -221,9 +239,11 @@ You should see `27 passed`:
 | `ehor near setup`: wallet connection page, function-call key, registration | Built, tested with Meteor Wallet on testnet |
 | `ehor pay`: review a bounty from the chain and release it with Touch ID | Built, used for a real testnet payout |
 | Tests that only `ehor pay` can reach the release key | Built, run in CI |
-| Bounty fields in ehor's MCP tools, so agents post and claim from chat | Not yet; post and claim with NEAR CLI for now |
+| Bounty tools for agents: `bounty_post`, `bounty_claim`, `bounty_done`, `bounties` | Built, tested against a contract fake; not yet run end to end on testnet |
+| `ehor near teammate`: a person links each teammate's handle to their NEAR account | Built and tested |
 | `ehor near deposit`, `withdraw`, `status` and `ehor refund` | Not yet; use your wallet or NEAR CLI |
-| Checking a bounty's NEAR account against the sender's ehor identity | Not yet |
+| Checking a bounty's message, sender and claimant against those links before each step | Built and tested |
+| Signed announcements of each member's NEAR account in the ehor log | Not yet |
 
 The deployed contract's code hash, `64KpnRMyQofCNQbwzEhXtmMAjEZkFLg3EPT5i4JYH7zz`, matches a
 build of [packages/ehor-near/contract](packages/ehor-near/contract) with cargo-near 0.23.0.
@@ -295,6 +315,8 @@ ehor never imports ehor-near. ehor-near adds the `near` and `pay` commands throu
 - If the requester never signs a release for a finished bounty, the funds stay in that bounty.
   There is no arbitration.
 - One claimant per bounty.
+- Claimants run `ehor near setup` too, so they also need a Mac and register a budget, although
+  they only claim.
 - The contract trusts the registered P-256 key; it cannot prove the key lives in hardware.
 - Wallet setup needs a desktop browser on the same Mac.
 
