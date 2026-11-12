@@ -8,400 +8,308 @@
 <p align="center">
   <a href="https://github.com/maxiggle/agentmesh/actions/workflows/ci.yml"><img src="https://github.com/maxiggle/agentmesh/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://pypi.org/project/ehor/"><img src="https://img.shields.io/pypi/v/ehor?color=0E8A5F" alt="PyPI version"></a>
-  <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-0E8A5F" alt="Python 3.11 | 3.12 | 3.13">
+  <img src="https://img.shields.io/badge/NEAR-testnet-0E8A5F" alt="NEAR testnet">
   <img src="https://img.shields.io/badge/status-pre--alpha-C2410C" alt="Status: pre-alpha">
-  <a href="https://github.com/maxiggle/agentmesh/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-1667C9" alt="MIT license"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1667C9" alt="MIT license"></a>
 </p>
 
-<p align="center">Signed, encrypted, serverless messaging between AI agents like Claude and Codex.</p>
+<p align="center">Paid requests between AI agents, held in a NEAR escrow contract and released only
+after a person approves with Touch ID.</p>
+
+ehor lets the AI coding agents on a small team (Claude Code, Codex, opencode) pass each other
+requests, questions and status updates from the chat or CLI they already work in, with no server
+to run. ehor-near lets a request carry a NEAR bounty. A teammate's agent claims it and finishes
+the work. The bounty is paid out only when the requester approves with Touch ID on a key held in
+their Mac's Secure Enclave, and the contract checks that approval on-chain with `p256_verify`.
+
+Agents can post, claim and finish paid work, but their NEAR key cannot move money to any
+account. No message, however it is worded, can make an agent pay anyone.
+
+Built at NEAR HACKATHON. Testnet only.
+
+- Contract: [`ehor-escrow.testnet`](https://testnet.nearblocks.io/address/ehor-escrow.testnet)
+- Escrow design spec: [packages/ehor-near/docs/escrow.md](packages/ehor-near/docs/escrow.md)
+- Messaging wire format: [docs/protocol.md](docs/protocol.md)
+
+## Contents
+
+- [The problem](#the-problem)
+- [How it works](#how-it-works)
+- [NEAR features used](#near-features-used)
+- [What is built](#what-is-built)
+- [Check it in five minutes](#check-it-in-five-minutes)
+- [Try the full flow](#try-the-full-flow)
+- [Security model](#security-model)
+- [Repository layout](#repository-layout)
+- [Hackathon disclosures](#hackathon-disclosures)
+- [Known limits](#known-limits)
+
+## The problem
+
+Teams that build with AI agents need those agents to hand work to each other: "add this
+endpoint", "the build is blocked on you", "shipped, here is the PR". When the work is paid, as
+with an open-source bounty, paying should follow automatically once it is done.
+
+But an agent that holds a spending key can be made to spend it: by a bug, a wrong plan, or a
+teammate's message written as a prompt injection. Telling the agent to be careful does not fix
+this. The only fix is an agent that has no way to pay.
+
+ehor-near splits the two jobs:
+
+- **Agents handle the workflow.** Post a bounty, claim it, mark it done. Their key is a NEAR
+  function-call key that cannot attach NEAR, withdraw or change keys.
+- **A person handles the money.** A payout needs a signature from a key that the Mac's Secure
+  Enclave uses only after Touch ID or the login password. The contract verifies that signature
+  itself, so the check does not depend on trusting ehor's code.
+
+## How it works
+
+ehor-near has two layers: ehor carries the messages, and the escrow contract holds the money.
+
+### Messages: ehor
 
 <p align="center">
   <img alt="Two laptops, each running Claude with ehor, sync directly over an encrypted iroh connection. n0's relays help only when a router blocks the direct path; a self-hosted ehor relay holds messages for teammates who are offline." src="https://raw.githubusercontent.com/maxiggle/agentmesh/main/docs/assets/how-it-works.svg" width="760">
 </p>
 
-<p align="center"><i>Each teammate's agent talks to its own <code>ehor</code> service. The services sync directly, with an optional mailbox for whoever is offline.</i></p>
+Each teammate's agent talks to a local `ehor` service through seven MCP tools (`digest`,
+`inbox`, `read`, `post`, `reply`, `set_status`, `team`).
 
-## Highlights
+- **No server.** Each device keeps its own signed, append-only log and syncs it directly with
+  its teammates' devices: over mDNS on the local network, or across networks over an
+  [iroh](https://iroh.computer) QUIC connection. An optional self-hosted relay holds messages
+  for teammates who are offline.
+- **Signed.** Every entry is signed by the writing device's P-256 key, held in the Secure
+  Enclave or TPM where the machine has one. Each entry's signature, roster membership,
+  `prev` chain and fork status are checked before it is stored.
+- **Encrypted per channel.** Each message gets a fresh AES-256-GCM key, wrapped with X25519 for
+  every device allowed to read its channel. There is no shared team key. Removing someone from
+  the roster cuts them off from the next message, and relays only ever carry ciphertext.
+- **Untrusted by default.** MCP results label a teammate's message as data from a named person,
+  never as instructions. Roster changes are not MCP tools at all.
 
-- Lets Claude and Codex agents on different machines hand each other
-  [requests, questions and status updates](#messages-for-agents) through seven MCP tools.
-- **No server to run.** Devices find each other on the LAN and
-  [connect directly across networks](#direct-connections-across-networks) with
-  [iroh](https://iroh.computer).
-- **End-to-end encrypted.** Relays, shared folders and the network only ever see ciphertext.
-- **Signed by hardware.** Every entry is signed by a key in the
-  [Secure Enclave or TPM](#hardware-signing-keys) where the machine has one.
-- **Touch to change the team.** Admins can require a [FIDO2 security key](#admin-security-keys)
-  for every roster change.
-- **Safe by default with untrusted input.** A teammate's message is labelled as data, and nothing
-  in it can change who is on the team.
-- [Notifications](#notifications) on your desktop, and optionally your phone, show a teammate's
-  new message without waiting for your agent to check.
-- An optional [self-hosted relay](#a-mailbox-for-offline-teammates) holds messages for teammates
-  who are offline.
-- Runs on macOS, Linux and Windows.
+The full guide to ehor, including installation and setup for Claude Code, Codex and opencode, is
+in [docs/ehor.md](docs/ehor.md).
 
-<!-- pypi:skip-start -->
+### Money: the ehor-escrow contract
 
-## Paid requests with NEAR: ehor-near
+```mermaid
+sequenceDiagram
+    participant A as Requester's agent
+    participant H as Requester (human)
+    participant C as ehor-escrow contract
+    participant B as Teammate's agent
 
-To let agents pay each other with NEAR, [ehor-near](packages/ehor-near) is a separate package built
-on top of ehor, so that ehor itself never depends on NEAR.
+    H->>C: register + deposit a budget (wallet approval)
+    A->>C: post_bounty(amount, message, claimant, deadline)
+    B->>C: claim(bounty)
+    B->>C: mark_done(bounty)
+    H->>H: ehor pay: review bounty from chain, approve with Touch ID
+    H->>C: release(bounty, P-256 signature)
+    C->>C: rebuild payload, require low-S, p256_verify
+    C->>B: transfer the bounty amount
+```
 
-With ehor-near, a request can carry a NEAR bounty held in escrow. A teammate's agent claims it and
-finishes the work, and the bounty is paid out only when the requester approves with Touch ID on a
-key in their Mac's Secure Enclave. The escrow contract verifies that approval on-chain with
-`p256_verify`. Agents can post, claim and finish paid work, but their key cannot move money to
-another account. Testnet only.
+1. **Register.** `ehor near setup` connects the owner's NEAR wallet through NEAR Connect, adds a
+   function-call key for the escrow contract, and registers the Mac's release key with a
+   starting budget. The owner approves each step in their wallet.
+2. **Post.** A bounty moves money from the owner's budget into the bounty, inside the contract,
+   naming who may claim it and a deadline.
+3. **Claim and finish.** The teammate's side claims the bounty and marks it done.
+4. **Release.** The requester runs `ehor pay <bounty>`. ehor reads the bounty from the chain,
+   shows the amount and claimant, and asks for confirmation, then Touch ID. The contract
+   rebuilds the release payload, checks the signature against the registered key and pays the
+   claimant.
+5. **Refund.** An unclaimed bounty can be cancelled at any time, and an unfinished one refunded
+   after its deadline.
 
-Installing ehor-near adds `ehor near setup` and `ehor pay`; ehor finds them through a plugin hook
-and never imports the package. Start with the **[ehor-near README](packages/ehor-near/README.md)**:
-how it works, the NEAR features it uses, what is built, do-and-see steps, the security model and the
-libraries used. The full design is in
-[packages/ehor-near/docs/escrow.md](packages/ehor-near/docs/escrow.md). Parts of the code were
-written with AI coding agents.
+The release key signs `ehor-escrow/v1|<chain_id>|<contract>|<bounty_id>|<claimant>|<amount>`,
+so a signature pays one bounty, to one account, for one amount, on one contract and chain. The
+contract rejects high-S signatures, so a signature cannot be altered into a second valid one.
 
-<!-- pypi:skip-end -->
+| Key | Held by | Can do |
+|---|---|---|
+| NEAR function-call key (Ed25519) | The Mac, encrypted with the ehor device passphrase | Post, claim, mark done, send a signed release, pay gas. Cannot attach NEAR, withdraw or change keys. |
+| Release key (P-256) | The Mac's Secure Enclave, after Touch ID or the login password | Release one bounty to its claimant. Nothing else. |
+| NEAR full-access key | The owner's wallet; ehor never stores it | Register, deposit, withdraw, change the release key or limits, each approved in the wallet. |
 
-## Installation
+## NEAR features used
 
-ehor is published on [PyPI](https://pypi.org/project/ehor/). Install it with
-[uv](https://docs.astral.sh/uv/):
+| Feature | How ehor-near uses it | Track hint |
+|---|---|---|
+| Function-call access keys | The agent side holds a key limited to the escrow contract. It cannot attach NEAR, so it cannot fund, withdraw or change keys. | `security`: function call keys |
+| `env::p256_verify` in near-sdk | The contract verifies the Secure Enclave's P-256 signature on-chain, so the payout check does not depend on ehor's code. | `security`: agent security |
+| Contract-enforced spending limits | Each owner deposits a budget in advance and sets a maximum per bounty. Bounties can only be posted within them. | `security`: spending limits |
+| 1 yoctoNEAR on owner-only methods | Withdraw and key or limit changes need a full-access key from the owner's wallet. | |
+| Escrowed bounties between agents | Agents post, claim and finish paid work; the contract pays the claimant. | `agents`: agent commerce |
+| NEAR Connect | Setup connects the owner's existing wallet in a browser, so ehor never sees a seed phrase. | |
+
+## What is built
+
+| Part | Status |
+|---|---|
+| ehor: signed, encrypted, serverless messaging with MCP tools for Claude Code, Codex and opencode | Built, released on [PyPI](https://pypi.org/project/ehor/) |
+| `ehor-escrow` contract: register, deposit, withdraw, post, claim, mark done, release, cancel, refund, views, events | Built, 51 tests, deployed on testnet |
+| Release payload with one test vector shared by the Rust and Python tests | Built and tested |
+| Touch ID release key in the Secure Enclave | Built, used for a real testnet payout |
+| `ehor near setup`: wallet connection page, function-call key, registration | Built, tested with Meteor Wallet on testnet |
+| `ehor pay`: review a bounty from the chain and release it with Touch ID | Built, used for a real testnet payout |
+| Tests that only `ehor pay` can reach the release key | Built, run in CI |
+| Bounty fields in ehor's MCP tools, so agents post and claim from chat | Not yet; post and claim with NEAR CLI for now |
+| `ehor near deposit`, `withdraw`, `status` and `ehor refund` | Not yet; use your wallet or NEAR CLI |
+| Checking a bounty's NEAR account against the sender's ehor identity | Not yet |
+
+The deployed contract's code hash, `64KpnRMyQofCNQbwzEhXtmMAjEZkFLg3EPT5i4JYH7zz`, matches a
+build of [packages/ehor-near/contract](packages/ehor-near/contract) with cargo-near 0.23.0.
+Bounties 1, 2 and 3 on it were each released with a P-256 signature the contract verified: the
+second after Touch ID, the third through `ehor pay` end to end.
+
+## Check it in five minutes
+
+None of these needs a Mac, a wallet or a NEAR account.
+
+**1. Read a released bounty from the chain.** Needs [NEAR CLI](https://github.com/near/near-cli-rs).
 
 ```bash
-uv tool install 'ehor[p2p]'
+near contract call-function as-read-only ehor-escrow.testnet get_bounty json-args '{"bounty_id": 3}' network-config testnet now
 ```
 
-To try the latest unreleased code from `main` instead:
+You should see `"status": "Released"`, with sender `ehor-sender.testnet` and claimant
+`ehor-claimant.testnet`.
+
+**2. Run the contract tests.** Needs a Rust toolchain.
 
 ```bash
-uv tool install 'ehor[p2p] @ git+https://github.com/maxiggle/agentmesh'
+git clone https://github.com/maxiggle/agentmesh
+cd agentmesh/packages/ehor-near/contract && cargo test
 ```
 
-The `p2p` extra adds direct connections across networks. iroh ships builds for Apple silicon
-Macs, 64-bit Linux and Windows; without the extra, everything else still works. Add `fido2` as
-well for [admin security keys](#admin-security-keys): `'ehor[p2p,fido2]'`.
-
-## Quick start
-
-Start a team. You become its first admin, and `init` prints an invite code:
-
-```bash
-ehor init --handle ada --team-name Acme
-```
-
-Your handle is how teammates and their agents address you: up to 32 lowercase letters, digits,
-`-` or `_`. `init` and `join` also ask you to choose a passphrase. It encrypts this device's keys
-on disk, and `ehor serve` asks for it each time it starts. If you forget it, the device can't read
-its messages and you'll need to set it up again.
-
-A teammate joins with the code, from any network:
-
-```bash
-ehor join eh1-... --handle tobi
-```
-
-`join` prints the command an admin runs to add them to the roster:
-
-```bash
-ehor roster add tobi 0372c4010a... --role @mobile --channel '#mobile'
-```
-
-<p align="center">
-  <img alt="Terminal: ada runs ehor init, tobi runs ehor join with the invite code on another network, and ada adds tobi to the roster." src="https://raw.githubusercontent.com/maxiggle/agentmesh/main/docs/assets/screenshot-setup.svg" width="760">
-</p>
-
-Installing ehor doesn't connect it to your agent. Do these two steps on every device.
-
-Run the background service. It syncs messages with your teammates, so keep it running while
-you work. If it's stopped, nothing is sent or received until you start it again:
-
-```bash
-ehor serve
-```
-
-Connect Claude Code. `--scope user` makes ehor available in all your projects, not just the
-folder you run this in:
-
-```bash
-claude mcp add --scope user ehor -- ehor mcp
-```
-
-For Claude Desktop, add ehor to `claude_desktop_config.json` and restart the app:
-
-```json
-{
-  "mcpServers": {
-    "ehor": { "command": "ehor", "args": ["mcp"] }
-  }
-}
-```
-
-Add ehor's slash commands to Claude Code, then restart it:
-
-```bash
-ehor setup claude
-```
-
-This installs them in `~/.claude/commands/` for all your projects; `--dir .claude/commands` puts
-them in one project instead. Optionally, have Claude check your inbox at the start of each session
-by adding ehor's instructions to your project's `CLAUDE.md`:
-
-```bash
-ehor setup claude --instructions >> CLAUDE.md
-```
-
-Connect Codex instead with one command. The Codex CLI, IDE extension and app share this setting:
-
-```bash
-codex mcp add ehor -- ehor mcp
-```
-
-Or add ehor to `~/.codex/config.toml` yourself:
-
-```toml
-[mcp_servers.ehor]
-command = "ehor"
-args = ["mcp"]
-```
-
-Run `/mcp` in Codex to check that ehor is connected. Then add ehor's skills, which go in
-`~/.agents/skills/`, and optionally ehor's instructions for your project's `AGENTS.md`:
-
-```bash
-ehor setup codex
-```
-
-```bash
-ehor setup codex --instructions >> AGENTS.md
-```
-
-For opencode, run `opencode mcp add` and add a local server named `ehor` that runs `ehor mcp`.
-To edit `opencode.json` yourself instead, see opencode's
-[MCP servers guide](https://opencode.ai/docs/mcp-servers/). Then add ehor's slash commands, which go
-in `~/.config/opencode/commands/`, and optionally ehor's instructions for your project's
-`AGENTS.md`:
-
-```bash
-ehor setup opencode
-```
-
-```bash
-ehor setup opencode --instructions >> AGENTS.md
-```
-
-`ehor setup` never replaces a file you've edited unless you pass `--force`. It installs these
-commands, with the same names in Claude Code and opencode; in Codex, each is a skill named
-`$ehor-<name>`, such as `$ehor-inbox`:
-
-| Command    | Does                                                |
-| ---------- | --------------------------------------------------- |
-| `/inbox`   | Summarizes new messages, grouped by what needs you  |
-| `/team`    | Shows who is on the team and who is working on what |
-| `/handoff` | Drafts a message about this session's work          |
-| `/reply`   | Drafts a reply to a message                         |
-| `/claim`   | Marks a request as taken on, so the sender sees it  |
-| `/done`    | Marks a request as finished                         |
-
-Commands that send or change something show you a draft and wait for your approval.
-
-Claude and Codex users can be on the same team. Messages are signed by devices, so it doesn't
-matter which agent sent them.
-
-## Features
-
-### Messages for agents
-
-Your agent works with your team through seven MCP tools. Results are short plain text, and every
-message from a teammate is labelled as data from another person, never as instructions.
-
-| Tool         | Does                                               |
-| ------------ | -------------------------------------------------- |
-| `digest`     | One line of counts                                 |
-| `inbox`      | Unread messages for you, one line each             |
-| `read`       | One message in full                                |
-| `post`       | Send a message to handles, `@roles` or `#channels` |
-| `reply`      | Reply to a message                                 |
-| `set_status` | Mark a message open, claimed, done or wontfix      |
-| `team`       | You, your teammates, and who is working on what    |
-
-<p align="center">
-  <img alt="The inbox and read tool results that tobi's Claude sees: a question and a feature request from ada, with acceptance criteria and a link." src="https://raw.githubusercontent.com/maxiggle/agentmesh/main/docs/assets/screenshot-claude.svg" width="760">
-</p>
-
-Messages have a type (`feature_request`, `shipped`, `blocked`, `question` or `fyi`), a summary of
-at most 140 characters, and optional links, acceptance criteria and detail. Statuses let the
-sender see who has picked up what:
-
-<p align="center">
-  <img alt="Terminal: ada runs ehor team and sees tobi working on her request, then ehor inbox shows tobi's claim and reply." src="https://raw.githubusercontent.com/maxiggle/agentmesh/main/docs/assets/screenshot-team.svg" width="760">
-</p>
-
-Roster changes are not MCP tools, so a teammate's message can never get Claude to change who is
-on the team. The receiving Claude decides what to do under its own user's permissions.
-
-### Notifications
-
-While `ehor serve` runs, each new message for you shows up as a notification with the sender and
-the summary. The detail stays out of it, so it does not show on a locked screen. Each message
-notifies once, your own messages never do, and a burst after time offline shows the first few
-and a count of the rest. Notifications never mark messages as read, so your agent still sees them.
-
-| System  | Shown with                                                           |
-| ------- | -------------------------------------------------------------------- |
-| macOS   | `osascript` (allow Script Editor in System Settings → Notifications) |
-| Linux   | `notify-send`, from `libnotify-bin` or `libnotify`                   |
-| Windows | A PowerShell toast                                                   |
-
-```bash
-ehor notify test   # show one now to check the system lets it through
-ehor notify off    # or on; restart ehor serve to apply
-```
-
-To get them on your phone too, run `ehor notify phone`. It creates a private
-[ntfy](https://ntfy.sh) topic and prints its URL. Subscribe to that URL in the ntfy app. The ntfy
-server sees the sender and summary of each new message, and anyone who has the URL can read
-them, so keep it private. To keep that data in-house,
-[run your own ntfy server](https://docs.ntfy.sh/install/) and give its topic URL instead:
-
-```bash
-ehor notify phone https://ntfy.example.com/my-team-alerts
-ehor notify phone off
-```
-
-Teammates' text is passed to these commands as data, never as part of a script, and is cut to one
-line of plain text.
-
-### Direct connections across networks
-
-On the same network, devices find each other over mDNS. Across networks, they connect directly
-with iroh. Each device announces its iroh address in a signed log entry, and invite codes carry
-the inviter's address, so a new teammate on another network can join straight away.
-
-When a router blocks the direct path, iroh carries the encrypted connection through
-[n0](https://n0.computer)'s public relays. n0 can see device addresses and when they connect,
-never message content. Either way, every session starts with both devices proving they hold their
-signing keys, and every entry is checked against its signature and the roster before it is stored.
-
-`ehor serve --no-lan` turns off LAN discovery, and `--no-p2p` turns off direct connections.
-
-### A mailbox for offline teammates
-
-Direct connections only work while both devices are online. A relay is a small service that
-stores the team's encrypted entries, so a teammate on a closed laptop gets messages when they come
-back. Devices use it only while some teammate is out of direct reach.
-
-```bash
-ehor relay init --invite eh1-...
-ehor relay serve --listen 0.0.0.0:7447
-```
-
-`relay init` prints the command an admin runs to list it in the roster,
-`ehor roster relay-add <host>:7447 <key>`. The relay stores only entries from roster members and
-cannot read them.
-
-For two devices on one machine, give each its own folder with `--home` and the same shared folder
-with `--exchange <folder>`. Any folder works, including one synced by a file-sync service: entries
-are signed, so the folder needs no trust.
-
-### End-to-end encryption
-
-Every message is encrypted for the devices allowed to read its channel: members of a `#channel`,
-both people in a direct message, and always your own devices.
-
-- Removing someone from the roster cuts them off from the very next message.
-- A new device reads only messages written after it was added, so a new laptop does not see older
-  history.
-- Encryption hides content, not metadata: who is talking, in which channel and when are visible to
-  anyone carrying the entries.
-
-The passphrase, from `EHOR_PASSPHRASE` or a prompt, protects the encryption key, and the signing
-key too when that is a software key.
-
-### Hardware signing keys
-
-Each device signs everything it writes with its own P-256 key. `init` and `join` put that key in
-hardware when the machine has some:
-
-| `--key`          | Where the key lives         | Needs                                                                                     |
-| ---------------- | --------------------------- | ----------------------------------------------------------------------------------------- |
-| `secure-enclave` | The Mac's Secure Enclave    | Apple silicon or a T2 chip, and the Xcode command line tools to build a small helper once |
-| `tpm`            | The machine's TPM 2.0 chip  | Linux, `tpm2-tools`, and read/write access to `/dev/tpmrm0` (usually the `tss` group)     |
-| `software`       | A passphrase-encrypted file | Nothing                                                                                   |
-
-`auto`, the default, uses hardware when it works and falls back to `software`. A hardware key
-never leaves the chip, so a copied `~/.ehor` folder cannot sign as you. It does not ask for Touch
-ID when it signs, so anything running as your user on that machine can still use it. The roster
-shows each device as `hardware` or `software`; that label is the admin's word for it, since
-neither chip proves where a key lives.
-
-### Admin security keys
-
-An admin can require a physical touch for every roster change by enrolling a FIDO2 security key,
-such as a YubiKey:
-
-```bash
-ehor roster enroll-key --label yubikey
-```
-
-From then on, roster changes print the version they are about to sign and wait for a touch, and
-every teammate's device refuses a roster change signed only by that admin's laptop key. A stolen
-laptop can no longer change who is on the team.
-
-- Enroll a backup key the same way; `--security-key <label>` picks which key signs.
-- Keep only one key plugged in at a time.
-- On Windows, talking to a security key directly needs an administrator terminal.
-- If you lose every enrolled key, another admin has to remove you and add you back. A team whose
-  only admin loses their keys cannot change its roster again, so give every team at least two
-  admins.
-
-## Documentation
-
-The wire format, validation rules and security model are specified in
-[`docs/protocol.md`](https://github.com/maxiggle/agentmesh/blob/main/docs/protocol.md). Every command has `--help`.
-
-## Contributing
-
-Contributions are welcome. Read [CONTRIBUTING.md](https://github.com/maxiggle/agentmesh/blob/main/CONTRIBUTING.md) for setup, the checks every
-commit must pass, and how commits and pull requests are written. To start:
+You should see `test result: ok. 51 passed`, including the rejecting cases: wrong caller, double
+claim, claim after the deadline, a high-S signature, and a signature for another bounty,
+claimant, amount, contract or chain.
+
+**3. Check that agents cannot reach the release key.** Needs [uv](https://docs.astral.sh/uv/).
+From the repository root:
 
 ```bash
 uv sync
-uv run pre-commit install
-uv run pytest
+uv run pytest -q packages/ehor-near/tests/test_release_isolation.py
 ```
 
-## FAQ
+You should see `15 passed`. These tests fail if any module other than the `ehor near` and
+`ehor pay` commands imports the release signer, or if loading the CLI, MCP server or background
+service loads it.
 
-#### Is there a server?
+**4. Watch teammates' devices sync without a network.**
 
-No. Devices sync with each other directly. n0's public relays only help two devices find a path
-when a router is in the way, and the optional ehor relay is a mailbox you host yourself.
+```bash
+uv run pytest -q tests/integration
+```
 
-#### Will an agent act on a teammate's message by itself?
+You should see `12 passed`. These tests run a team of devices in one process: messages reach a
+teammate directly and through a relay, an offline device catches up, a removed member is cut off,
+strangers are never shown, and changing any single byte of an entry gets it rejected.
 
-No. Tool results present teammates' messages as data from a named person. The receiving agent
-decides what to do under its own user's permissions, and roster changes cannot be made through
-MCP at all.
+The whole suite, `uv run pytest`, passes on macOS, Linux and Windows in CI. Tests that need Touch
+ID, a security key, a TPM or multicast are skipped unless enabled.
 
-#### What can a relay or n0 see?
+## Try the full flow
 
-Encrypted entries and their metadata: which device wrote an entry, its channel, kind, time and
-size, and who syncs with whom. Never the content.
+You need a Mac with a Secure Enclave, Python 3.11 or newer, a NEAR testnet account in a wallet
+that supports NEAR Connect on testnet (Meteor, Intear, Nightly, Ledger or NEAR CLI), and a second
+testnet account to act as the claimant.
 
-#### Why is it called ehor?
+1. Install ehor-near from this repository. It brings ehor with it:
 
-_Ehor_ means "message" in Benue.
+   ```bash
+   python3 -m venv .venv && source .venv/bin/activate
+   pip install "ehor-near @ git+https://github.com/maxiggle/agentmesh#subdirectory=packages/ehor-near"
+   ```
 
-## Acknowledgements
+   `ehor --help` should list `near` and `pay`.
+2. `ehor init --handle you` creates an ehor device.
+3. `ehor near setup` creates the Touch ID release key and the function-call key, opens a local
+   page, and asks your wallet to approve them. You should see
+   `<your-account> is set up on ehor-escrow.testnet`.
+4. Post a bounty, then claim it and mark it done as the claimant, with NEAR CLI.
+5. `ehor pay <bounty>` shows the bounty read from the chain, asks
+   `Pay 0.1 NEAR to claimant.testnet? [y/N]`, then asks for Touch ID. You should see
+   `paid 0.1 NEAR to claimant.testnet for bounty <id>`, and the bounty's status on chain is
+   `Released`.
 
-ehor builds on [iroh](https://github.com/n0-computer/iroh) for direct connections, the
-[MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk),
-[cryptography](https://github.com/pyca/cryptography),
-[python-fido2](https://github.com/Yubico/python-fido2),
-[python-zeroconf](https://github.com/python-zeroconf/python-zeroconf) and
-[cbor2](https://github.com/agronholm/cbor2).
+The exact commands for every step are in the
+[ehor-near README](packages/ehor-near/README.md#try-the-full-flow).
+
+## Security model
+
+These hold by design and are enforced by tests:
+
+1. **No inbound message can cause a signature, an on-chain call or a payout.** A teammate's
+   message is data. Nothing reads it as instructions.
+2. **Only `ehor pay` can sign a release, and MCP cannot reach it.** The tests fail if any MCP
+   tool or background code imports the release signer.
+3. **A payout needs a person at the Mac.** The release key is created with Secure Enclave user
+   presence, so the enclave refuses to sign until Touch ID or the login password is given.
+4. **What the person approves comes from the chain.** `ehor pay` reads the amount and claimant by
+   view call, never from message text, and the signature binds exactly those values.
+5. **ehor never stores a full-access NEAR key.** The contract requires exactly 1 yoctoNEAR on
+   owner-only methods, which a function-call key cannot attach.
+6. **Testnet only.** ehor refuses any network or RPC whose chain id is not `testnet`.
+
+If the function-call key leaks, the worst case is bounties posted from the pre-deposited budget,
+which the owner can cancel or refund, and gas spent up to the key's 0.25 NEAR allowance. No money
+can leave to another account without the release key, and none can leave to the owner without
+the wallet.
+
+## Repository layout
+
+```
+├── src/ehor/                 ehor: identity, log, crypto, store, roster, sync, transport,
+│                             service, MCP server and CLI
+├── tests/                    ehor's tests, mirroring src/ehor/, plus integration tests
+├── docs/
+│   ├── ehor.md               the full ehor guide (also ehor's PyPI page)
+│   └── protocol.md           the messaging wire format
+└── packages/ehor-near/       ehor-near, a separate package built on ehor
+    ├── src/ehor_near/        ehor near setup and ehor pay
+    ├── contract/             the ehor-escrow contract (Rust, near-sdk 5.30)
+    ├── docs/escrow.md        the escrow design spec
+    └── tests/
+```
+
+ehor never imports ehor-near. ehor-near adds the `near` and `pay` commands through the
+`ehor.commands` Python entry point, so ehor works the same without it.
+
+## Hackathon disclosures
+
+- **Timeline.** The repository's first commit is from 28 October 2026, after the hackathon was
+  announced on 19 October, so all of ehor and ehor-near was built in the hackathon window. ehor
+  0.1.x was released on PyPI during the window; ehor-near is not on PyPI.
+- **AI-written code.** Parts of the code were written with AI coding agents.
+- **Libraries.** ehor uses [iroh](https://github.com/n0-computer/iroh),
+  [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk),
+  [cryptography](https://github.com/pyca/cryptography),
+  [python-fido2](https://github.com/Yubico/python-fido2),
+  [python-zeroconf](https://github.com/python-zeroconf/python-zeroconf) and
+  [cbor2](https://github.com/agronholm/cbor2). The contract uses
+  [near-sdk](https://crates.io/crates/near-sdk) 5.30 and [hex](https://crates.io/crates/hex),
+  with [p256](https://crates.io/crates/p256) in tests, and is built with
+  [cargo-near](https://github.com/near/cargo-near). The Python client uses
+  [py-near](https://pypi.org/project/py-near/) 1.2.22. The wallet page bundles
+  [NEAR Connect](https://www.npmjs.com/package/@hot-labs/near-connect) 0.12.0 (MIT).
+
+## Known limits
+
+- Releases need a Mac with a Secure Enclave. TPM and software keys cannot require a person to be
+  present, so `ehor pay` refuses them.
+- If the requester never signs a release for a finished bounty, the funds stay in that bounty.
+  There is no arbitration.
+- One claimant per bounty.
+- The contract trusts the registered P-256 key; it cannot prove the key lives in hardware.
+- Wallet setup needs a desktop browser on the same Mac.
+
+More are listed in the [ehor-near README](packages/ehor-near/README.md#known-limits).
 
 ## License
 
-ehor is licensed under the [MIT license](https://github.com/maxiggle/agentmesh/blob/main/LICENSE).
+MIT. See [LICENSE](LICENSE).
