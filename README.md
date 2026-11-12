@@ -35,10 +35,9 @@ Built at NEAR HACKATHON. Testnet only.
 
 - [The problem](#the-problem)
 - [How it works](#how-it-works)
+- [Test it](#test-it)
 - [NEAR features used](#near-features-used)
 - [What is built](#what-is-built)
-- [Check it in five minutes](#check-it-in-five-minutes)
-- [Try the full flow](#try-the-full-flow)
 - [Security model](#security-model)
 - [Repository layout](#repository-layout)
 - [Hackathon disclosures](#hackathon-disclosures)
@@ -133,6 +132,73 @@ contract rejects high-S signatures, so a signature cannot be altered into a seco
 | Release key (P-256) | The Mac's Secure Enclave, after Touch ID or the login password | Release one bounty to its claimant. Nothing else. |
 | NEAR full-access key | The owner's wallet; ehor never stores it | Register, deposit, withdraw, change the release key or limits, each approved in the wallet. |
 
+## Test it
+
+### In two minutes, with no Mac, wallet or NEAR account
+
+**1. See a payout on the chain.** Needs [NEAR CLI](https://github.com/near/near-cli-rs).
+
+```bash
+near contract call-function as-read-only ehor-escrow.testnet get_bounty json-args '{"bounty_id": 3}' network-config testnet now
+```
+
+You should see `"status": "Released"`, paid from `ehor-sender.testnet` to `ehor-claimant.testnet`
+after the contract verified a Touch ID signature.
+
+**2. See the contract reject bad payouts.** Needs a Rust toolchain.
+
+```bash
+git clone https://github.com/maxiggle/agentmesh
+cd agentmesh/packages/ehor-near/contract && cargo test
+```
+
+You should see `test result: ok. 51 passed`. They include the rejecting cases: wrong caller,
+double claim, claim after the deadline, a high-S signature, and a signature for another bounty,
+claimant, amount, contract or chain.
+
+**3. See that agents cannot pay, and that teammates sync without a server.** Needs
+[uv](https://docs.astral.sh/uv/). From the repository root:
+
+```bash
+uv sync
+uv run pytest -q packages/ehor-near/tests/test_release_isolation.py tests/integration
+```
+
+You should see `27 passed`:
+
+- 15 tests fail if any module other than `ehor near` and `ehor pay` can reach the release
+  signer, or if loading the CLI, MCP server or background service loads it.
+- 12 tests run a team of devices in one process: messages arrive directly and through a relay, an
+  offline device catches up, a removed member is cut off, and changing any byte of an entry gets
+  it rejected.
+
+### The full flow, on a Mac
+
+You need a Mac with a Secure Enclave, Python 3.11 or newer, a NEAR testnet account in a wallet
+that supports NEAR Connect on testnet (Meteor, Intear, Nightly, Ledger or NEAR CLI), and a second
+testnet account as the claimant.
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install "ehor-near @ git+https://github.com/maxiggle/agentmesh#subdirectory=packages/ehor-near"
+ehor init --handle you
+ehor near setup
+```
+
+`ehor near setup` opens a local page and asks your wallet to approve a function-call key and a
+1 NEAR budget. You should see `<your-account> is set up on ehor-escrow.testnet`.
+
+Post a bounty, then claim it and mark it done as the claimant, with NEAR CLI
+([exact commands](packages/ehor-near/README.md#try-the-full-flow)). Then pay it:
+
+```bash
+ehor pay <bounty-id>
+```
+
+ehor shows the bounty as read from the chain and asks `Pay 0.1 NEAR to claimant.testnet? [y/N]`,
+then Touch ID. You should see `paid 0.1 NEAR to claimant.testnet for bounty <id>`, and the
+bounty's status on chain is `Released`.
+
 ## NEAR features used
 
 | Feature | How ehor-near uses it | Track hint |
@@ -163,82 +229,6 @@ The deployed contract's code hash, `64KpnRMyQofCNQbwzEhXtmMAjEZkFLg3EPT5i4JYH7zz
 build of [packages/ehor-near/contract](packages/ehor-near/contract) with cargo-near 0.23.0.
 Bounties 1, 2 and 3 on it were each released with a P-256 signature the contract verified: the
 second after Touch ID, the third through `ehor pay` end to end.
-
-## Check it in five minutes
-
-None of these needs a Mac, a wallet or a NEAR account.
-
-**1. Read a released bounty from the chain.** Needs [NEAR CLI](https://github.com/near/near-cli-rs).
-
-```bash
-near contract call-function as-read-only ehor-escrow.testnet get_bounty json-args '{"bounty_id": 3}' network-config testnet now
-```
-
-You should see `"status": "Released"`, with sender `ehor-sender.testnet` and claimant
-`ehor-claimant.testnet`.
-
-**2. Run the contract tests.** Needs a Rust toolchain.
-
-```bash
-git clone https://github.com/maxiggle/agentmesh
-cd agentmesh/packages/ehor-near/contract && cargo test
-```
-
-You should see `test result: ok. 51 passed`, including the rejecting cases: wrong caller, double
-claim, claim after the deadline, a high-S signature, and a signature for another bounty,
-claimant, amount, contract or chain.
-
-**3. Check that agents cannot reach the release key.** Needs [uv](https://docs.astral.sh/uv/).
-From the repository root:
-
-```bash
-uv sync
-uv run pytest -q packages/ehor-near/tests/test_release_isolation.py
-```
-
-You should see `15 passed`. These tests fail if any module other than the `ehor near` and
-`ehor pay` commands imports the release signer, or if loading the CLI, MCP server or background
-service loads it.
-
-**4. Watch teammates' devices sync without a network.**
-
-```bash
-uv run pytest -q tests/integration
-```
-
-You should see `12 passed`. These tests run a team of devices in one process: messages reach a
-teammate directly and through a relay, an offline device catches up, a removed member is cut off,
-strangers are never shown, and changing any single byte of an entry gets it rejected.
-
-The whole suite, `uv run pytest`, passes on macOS, Linux and Windows in CI. Tests that need Touch
-ID, a security key, a TPM or multicast are skipped unless enabled.
-
-## Try the full flow
-
-You need a Mac with a Secure Enclave, Python 3.11 or newer, a NEAR testnet account in a wallet
-that supports NEAR Connect on testnet (Meteor, Intear, Nightly, Ledger or NEAR CLI), and a second
-testnet account to act as the claimant.
-
-1. Install ehor-near from this repository. It brings ehor with it:
-
-   ```bash
-   python3 -m venv .venv && source .venv/bin/activate
-   pip install "ehor-near @ git+https://github.com/maxiggle/agentmesh#subdirectory=packages/ehor-near"
-   ```
-
-   `ehor --help` should list `near` and `pay`.
-2. `ehor init --handle you` creates an ehor device.
-3. `ehor near setup` creates the Touch ID release key and the function-call key, opens a local
-   page, and asks your wallet to approve them. You should see
-   `<your-account> is set up on ehor-escrow.testnet`.
-4. Post a bounty, then claim it and mark it done as the claimant, with NEAR CLI.
-5. `ehor pay <bounty>` shows the bounty read from the chain, asks
-   `Pay 0.1 NEAR to claimant.testnet? [y/N]`, then asks for Touch ID. You should see
-   `paid 0.1 NEAR to claimant.testnet for bounty <id>`, and the bounty's status on chain is
-   `Released`.
-
-The exact commands for every step are in the
-[ehor-near README](packages/ehor-near/README.md#try-the-full-flow).
 
 ## Security model
 
