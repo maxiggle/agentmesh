@@ -337,3 +337,32 @@ def test_setup_is_mac_only(
     monkeypatch.setattr("sys.platform", "linux")
     assert _setup(home) == 1
     assert "need a Mac" in capsys.readouterr().err
+
+
+def _teammate(home: Path, *args: str) -> int:
+    return main(["--home", str(home), "near", "teammate", *args])
+
+
+def test_teammate_links_lists_and_unlinks(home: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert _teammate(home) == 0
+    assert "no teammates linked" in capsys.readouterr().out
+    assert _teammate(home, "tobi", "tobi.testnet") == 0
+    assert _teammate(home, "ada", "ada.testnet") == 0
+    assert _teammate(home) == 0
+    assert _teammate(home, "tobi") == 0
+    assert _teammate(home, "tobi", "off") == 0
+    assert _teammate(home, "tobi") == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "linked tobi to tobi.testnet",
+        "linked ada to ada.testnet",
+        "ada  ada.testnet",
+        "tobi  tobi.testnet",
+        "tobi  tobi.testnet",
+        "unlinked tobi",
+        "tobi  not linked",
+    ]
+
+
+def test_teammate_refuses_a_bad_account(home: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert _teammate(home, "tobi", "Not An Account") == 1
+    assert "not a NEAR account id" in capsys.readouterr().err

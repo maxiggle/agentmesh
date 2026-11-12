@@ -145,7 +145,9 @@ The contract logs one NEP-297 style JSON event per state change, with standard n
 
 ## Identity binding between ehor and NEAR
 
-Each roster member announces their NEAR account id in a signed ehor log entry, using the same mechanism as the iroh address announcement.
+A person links each teammate's ehor handle to that teammate's NEAR account with `ehor near teammate <handle> <account>`, run in a terminal. The links live in `near-teammates.json` in the device folder, one account per handle. No MCP tool can change them, so neither an agent nor a teammate's message can change which account a bounty is offered to or accepted from.
+
+Planned: each roster member also announces their NEAR account id in a signed ehor log entry, using the same mechanism as the iroh address announcement.
 
 A bounty message carries the contract account id, bounty id, amount and deadline. On receipt, ehor makes a view call and checks:
 
@@ -188,7 +190,7 @@ The wallet executors load from each wallet provider's URL when the page opens, n
 
 CLI commands are for the human, in a terminal:
 
-- `ehor near setup`, `ehor near deposit`, `ehor near withdraw`, `ehor near status`
+- `ehor near setup`, `ehor near teammate`, `ehor near deposit`, `ehor near withdraw`, `ehor near status`
 - `ehor pay <bounty>`
 - `ehor refund <bounty>`
 

@@ -41,6 +41,7 @@ from ehor_near.registration import (
     registration_call,
 )
 from ehor_near.release import ReleaseSignError, ReleaseTerms, sign_release
+from ehor_near.teammates import TeammateAccounts, TeammateError
 from ehor_near.wallet_page import WalletCall, WalletPage, WalletPageError
 
 RELEASE_KEY_LABEL = "release"
@@ -49,6 +50,7 @@ SETUP_TIMEOUT = 900.0
 _NO_NEAR = "this device has no NEAR account; run `ehor near setup` first"
 _NO_RELEASE_KEY = "this device has no release key; run `ehor near setup` first"
 _MAC_ONLY = "releases need a Mac with a Secure Enclave in this version"
+_NO_LINKS = "no teammates linked; run `ehor near teammate <handle> <account>`"
 _ERRORS = (
     LimitedKeyError,
     NearConfigError,
@@ -56,6 +58,7 @@ _ERRORS = (
     PayError,
     RegistrationError,
     ReleaseSignError,
+    TeammateError,
     WalletPageError,
 )
 
@@ -76,6 +79,13 @@ def register(commands: Commands) -> None:
         "--max-per-bounty", default="0.5", help="largest bounty in NEAR, if not registered"
     )
     setup.set_defaults(run=_reporting(_near_setup))
+
+    teammate = near_commands.add_parser(
+        "teammate", help="link a teammate's ehor handle to their NEAR account"
+    )
+    teammate.add_argument("handle", nargs="?", help="their ehor handle; omit to list links")
+    teammate.add_argument("account", nargs="?", help="their NEAR account, or off to unlink")
+    teammate.set_defaults(run=_reporting(_near_teammate))
 
     pay = commands.add_parser("pay", help="review a done bounty and pay it with Touch ID")
     pay.add_argument("bounty", type=int, help="bounty id on the escrow contract")
@@ -179,6 +189,27 @@ def _connect_near(
     config: NearConfig, private_key: str
 ) -> "contextlib.AbstractAsyncContextManager[NearClient]":
     return PyNearClient.connect(config.account_id, private_key, config.rpc_url)
+
+
+def _near_teammate(args: argparse.Namespace) -> int:
+    home = device_home(args)
+    DeviceConfig.load(home)
+    links = TeammateAccounts.load(home)
+    handle: str | None = args.handle
+    account: str | None = args.account
+    if handle is None:
+        lines = [f"{name}  {linked}" for name, linked in links.accounts.items()]
+        sys.stdout.write("\n".join(lines) + "\n" if lines else f"{_NO_LINKS}\n")
+    elif account is None:
+        linked = links.account_for(handle)
+        sys.stdout.write(f"{handle}  {linked or 'not linked'}\n")
+    elif account == "off":
+        links.unlinked(handle).save(home)
+        sys.stdout.write(f"unlinked {handle}\n")
+    else:
+        links.linked(handle, account).save(home)
+        sys.stdout.write(f"linked {handle} to {account}\n")
+    return 0
 
 
 def _near_setup(args: argparse.Namespace) -> int:
