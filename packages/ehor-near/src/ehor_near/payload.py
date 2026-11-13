@@ -1,8 +1,11 @@
 import hashlib
 import re
 from decimal import Decimal, localcontext
+from enum import Enum
 
 PAYLOAD_DOMAIN = "ehor-escrow/v1"
+KEY_PAYLOAD_DOMAIN = "ehor-escrow/key/v1"
+X25519_KEY_BYTES = 32
 SEPARATOR = "|"
 YOCTO_PER_NEAR = 10**24
 _NEAR_AMOUNT = re.compile(r"(\d{1,12})(?:\.(\d{1,24}))?")
@@ -10,6 +13,11 @@ _NEAR_AMOUNT = re.compile(r"(\d{1,12})(?:\.(\d{1,24}))?")
 
 class PayloadError(ValueError):
     pass
+
+
+class KeyAction(Enum):
+    ADD = "add"
+    REMOVE = "remove"
 
 
 def format_near(amount_yocto: int) -> str:
@@ -53,3 +61,28 @@ def release_payload(
 
 def release_digest(payload: str) -> bytes:
     return hashlib.sha256(payload.encode("utf-8")).digest()
+
+
+def encryption_key_payload(
+    chain_id: str,
+    contract: str,
+    account: str,
+    *,
+    nonce: int,
+    action: KeyAction,
+    key: bytes,
+) -> str:
+    """Build the string the release key signs to add or remove an encryption key.
+
+    It must match `encryption_key_payload` in the contract byte for byte; see docs/escrow.md.
+    """
+    for name, field in (("chain_id", chain_id), ("contract", contract), ("account", account)):
+        if not field or SEPARATOR in field:
+            raise PayloadError(f"{name} must be non-empty and contain no {SEPARATOR!r}")
+    if isinstance(nonce, bool) or nonce < 0:
+        raise PayloadError("nonce must be a non-negative integer")
+    if len(key) != X25519_KEY_BYTES:
+        raise PayloadError(f"an encryption key is {X25519_KEY_BYTES} bytes")
+    return SEPARATOR.join(
+        (KEY_PAYLOAD_DOMAIN, chain_id, contract, account, str(nonce), action.value, key.hex())
+    )

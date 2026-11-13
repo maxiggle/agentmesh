@@ -31,8 +31,8 @@ Non-goals: rewriting ehor in Rust; putting messages or the roster on chain; main
 | Key | Type | Held by | Authority |
 |---|---|---|---|
 | NEAR function-call key (the limited key) | Ed25519, one per device, created on the Mac | Agent side and `ehor pay` | Restricted to the escrow contract. ehor asks for post, claim, mark done and release only, but some wallets add it for every method on the contract (see below). Pays gas. Cannot attach NEAR, cannot withdraw, cannot change the release key. |
-| ehor release key | P-256 in the Secure Enclave, created with `.userPresence` access control | Human's Mac | The only authority that can release a bounty to a claimant. The enclave refuses each signature until the person approves with Touch ID or the login password. |
-| Full-access NEAR key | Ed25519 or Secp256k1 | Human, in their NEAR wallet | Registering, depositing budget, withdrawing, changing the registered release key, changing the spending limit. ehor never stores it; each of these is approved in the wallet. |
+| ehor release key | P-256 in the Secure Enclave, created with `.userPresence` access control | Human's Mac | The only authority that can release a bounty to a claimant, and one of the two approvals needed to add or remove an encryption key. The enclave refuses each signature until the person approves with Touch ID or the login password. |
+| Full-access NEAR key | Ed25519 or Secp256k1 | Human, in their NEAR wallet | Registering, depositing budget, withdrawing, changing the registered release key, changing the spending limit, and, together with the release key, adding or removing encryption keys. ehor never stores it; each of these is approved in the wallet. |
 
 The release key is separate from the ehor device key that signs every message. The device key needs no approval, so it can sign messages without a prompt each time; the release key has no plain signing call in ehor, so it can never sign messages. The contract stores the release key in the account's `device_key` field and replaces it through `set_device_key`.
 
@@ -53,6 +53,7 @@ Rust, near-sdk 5.30.x, single crate, one file where practical.
 - `accounts`: map from NEAR account id to { available balance, registered P-256 public key (33 bytes), max amount per bounty }.
 - `bounties`: map from bounty id (u64, sequential) to { sender, amount, ehor message id (string, max 128 chars), allowed claimants (list of account ids, 1 to 8), claimant (optional), status, deadline (nanosecond timestamp), created timestamp }.
 - `next_bounty_id`.
+- Encryption keys: map from NEAR account id to { nonce (u64), X25519 public keys (32 bytes each, at most 8) }. It is stored under the `e` storage prefix outside the contract state struct, so adding it did not change the state layout and the deployed contract upgraded without a migration.
 
 ### Statuses and transitions
 
@@ -80,13 +81,15 @@ Released, Cancelled and Refunded are terminal.
 | `withdraw(amount)` | Owner, full-access key | 1 yocto attached, amount <= available balance | Transfers from available balance to the caller. |
 | `set_device_key(p256_public_key)` | Owner, full-access key | 1 yocto attached | Replaces the registered P-256 key. |
 | `set_max_per_bounty(amount)` | Owner, full-access key | 1 yocto attached | Sets the per-bounty limit. |
+| `add_encryption_key(x25519_public_key, signature)` | Owner, full-access key | 1 yocto attached; registered; key not yet listed; fewer than 8 keys; signature valid | Adds the key, so teammates may encrypt ehor messages to it. Advances the nonce. |
+| `remove_encryption_key(x25519_public_key, signature)` | Owner, full-access key | 1 yocto attached; registered; key listed; signature valid | Removes the key. Advances the nonce. |
 | `post_bounty(amount, message_id, allowed_claimants, deadline)` | Sender, agent key | Registered sender; amount > 0; amount <= max per bounty; amount <= available balance; deadline in the future; sender not in allowed claimants | Moves amount from available balance to the bounty. Returns the bounty id. |
 | `claim(bounty_id)` | Allowed claimant, agent key | Status Open; before deadline | Sets claimant, status Claimed. |
 | `mark_done(bounty_id)` | Claimant | Status Claimed | Status Done. |
 | `release(bounty_id, signature)` | Anyone | Status Done; signature valid | Rebuilds the canonical payload, hashes with SHA-256, requires low-S, calls `p256_verify` against the sender's registered key. On success: status Releasing, then transfer to the claimant with a callback. |
 | `cancel(bounty_id)` | Sender | Status Open | Amount returns to available balance. Status Cancelled. |
 | `refund(bounty_id)` | Sender | Deadline passed; status Open or Claimed | Amount returns to available balance. Status Refunded. |
-| `get_bounty`, `get_account`, `get_bounties_by_sender(sender, from_index, limit)` | Views | None | Read state. |
+| `get_bounty`, `get_account`, `get_bounties_by_sender(sender, from_index, limit)`, `get_encryption_keys(account_id)` | Views | None | Read state. |
 
 `release` is callable by anyone because the signature is the authority. This lets either side relay it. The callback sets Released on success and Done on failure.
 
@@ -107,6 +110,26 @@ ehor-escrow/v1|<chain_id>|<contract_account_id>|<bounty_id>|<claimant_account_id
 | `<claimant_account_id>` and `<amount_in_yoctonear>` | A signature that differs from what the human saw in the draft. Both are bound |
 
 The test vector in [`vectors/release-v1.json`](vectors/release-v1.json) fixes one set of inputs, the payload string and its SHA-256 digest. The contract tests and the Python tests both check it.
+
+### Encryption key payload
+
+Adding or removing an encryption key needs the full-access key, through the 1 yoctoNEAR, and a low-S P-256 signature from the account's registered release key over this UTF-8 string, hashed with SHA-256:
+
+```
+ehor-escrow/key/v1|<chain_id>|<contract_account_id>|<account_id>|<nonce>|<add or remove>|<x25519_public_key_hex>
+```
+
+| Field | What it prevents |
+|---|---|
+| `ehor-escrow/key/v1` | Use of a release signature as a key signature, or the reverse |
+| `<chain_id>` and `<contract_account_id>` | Replay on another chain or deployment |
+| `<account_id>` | Use of one owner's signature for another account |
+| `<nonce>` | Replay. Signatures are public in transaction arguments; the nonce advances on every change, so an old `add` cannot bring back a key after it was removed |
+| `<add or remove>` and the key | A signature for one change being used for another |
+
+The key is lowercase hex. The test vector in [`vectors/encryption-key-v1.json`](vectors/encryption-key-v1.json) fixes one set of inputs, the payload string and its SHA-256 digest. The contract tests and the Python tests both check it.
+
+`set_device_key` leaves the listed encryption keys in place; later changes need a signature from the new release key.
 
 ### Events
 
@@ -142,6 +165,8 @@ The contract logs one NEP-297 style JSON event per state change, with standard n
 - `cancel` after a claim.
 - Post above the limit or above the balance.
 - Transfer failure in the callback.
+- `add_encryption_key` or `remove_encryption_key` with the agent key, from an unregistered account, with a malformed or duplicate key, beyond 8 keys, or removing a key that is not listed.
+- Key signatures from another device key, with high S, for another key, action, account, contract or chain, from the release key replaced by `set_device_key`, and a replayed `add` after the key was removed.
 
 ## Identity binding between ehor and NEAR
 
