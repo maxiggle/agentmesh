@@ -1,5 +1,6 @@
 from collections.abc import Callable, Mapping
 
+from ehor.log.entry import Entry
 from ehor.service import render
 from ehor.service.messenger import Messenger, MessengerError
 
@@ -114,14 +115,17 @@ class ToolApi:
         entry = self._messenger.post(
             to, message_type, summary, links=links, acceptance=acceptance, detail=detail
         )
-        return render.posted(entry)
+        return self._posted(entry)
 
     def _reply(self, params: Params) -> str:
         entry_id = params.text("id")
         summary = params.text("summary")
         links = params.texts("links", required=False)
         params.finish()
-        return render.posted(self._messenger.reply(entry_id, summary, links=links))
+        return self._posted(self._messenger.reply(entry_id, summary, links=links))
+
+    def _posted(self, entry: Entry) -> str:
+        return render.posted(entry, self._messenger.withheld_from(entry.content.channel))
 
     def _set_status(self, params: Params) -> str:
         entry_id = params.text("id")

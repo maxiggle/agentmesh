@@ -297,6 +297,8 @@ encrypted_body = deterministic_cbor({
 
 **Recipients** are the X25519 keys, from each device's latest `key_announce` (§4.4), of every roster device whose member may read the channel: members whose `channels` allow a team channel, both members of a `dm:` channel, and always the writer's own devices. A device that has not announced a key cannot be a recipient.
 
+A writer MAY leave out another device's key that fails a local check, such as one an extension makes against an account the device announced (§4.6). It MUST tell its user which teammates were left out. The writer's own devices are never left out.
+
 **Sealing**:
 
 1. Pick a random 32-byte content key and 12-byte nonce. `data` is AES-256-GCM of the encoded body under the content key, with additional authenticated data `deterministic_cbor([v, author, team, channel, kind])`, so a ciphertext cannot be moved to another author, team, channel or kind.

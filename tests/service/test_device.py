@@ -520,3 +520,80 @@ def test_invite_method_includes_the_roster_relay(tmp_path: Path) -> None:
         assert Invite.decode(gef.call("invite", {})).relay == "relay.example.com:7447"
         with pytest.raises(ApiError, match="unknown params"):
             gef.call("invite", {"x": 1})
+
+
+class _Refuse:
+    def __init__(self, *devices: bytes) -> None:
+        self.devices = devices
+        self.asked: list[tuple[bytes, bytes]] = []
+
+    def allows(self, device: bytes, encryption_key: bytes) -> bool:
+        self.asked.append((device, encryption_key))
+        return device not in self.devices
+
+
+def _pair(root: Path) -> tuple[Device, Device]:
+    shared = root / "shared"
+    gef = Device.create_team(root / "gef", "gef", PASSPHRASE, exchange=shared)
+    tobi = Device.join(root / "tobi", gef.invite, "tobi", PASSPHRASE, exchange=shared)
+    _add(gef, tobi)
+    for _ in range(3):
+        gef.sync()
+        tobi.sync()
+    return gef, tobi
+
+
+def test_a_refused_teammate_key_is_left_out_and_reported(tmp_path: Path) -> None:
+    gef, tobi = _pair(tmp_path)
+    check = _Refuse(tobi.author)
+    gef.check_recipients(check)
+    posted = _post(gef, "tobi", "rotate the staging keys")
+    for _ in range(2):
+        gef.sync()
+        tobi.sync()
+    assert posted.endswith("; not sealed for tobi: encryption key failed a check")
+    assert [device for device, _ in check.asked] == [tobi.author, tobi.author]
+    assert "rotate the staging keys" not in tobi.call("inbox", {})
+    assert gef.messenger.read(posted.split()[1]).message.body.summary == "rotate the staging keys"
+    gef.close()
+    tobi.close()
+
+
+def test_an_allowed_teammate_key_is_sealed_for(tmp_path: Path) -> None:
+    gef, tobi = _pair(tmp_path)
+    gef.check_recipients(_Refuse())
+    posted = _post(gef, "tobi", "rotate the staging keys")
+    for _ in range(2):
+        gef.sync()
+        tobi.sync()
+    assert "not sealed" not in posted
+    assert "rotate the staging keys" in tobi.call("inbox", {})
+    gef.close()
+    tobi.close()
+
+
+class _Task:
+    def __init__(self) -> None:
+        self.ran = False
+
+    async def run(self, stop: asyncio.Event) -> None:
+        self.ran = True
+        await stop.wait()
+
+
+async def _daemon_with_task(root: Path, task: _Task) -> None:
+    with Device.create_team(root / "gef", "gef", PASSPHRASE) as gef:
+        gef.run_in_background(task)
+        stop = asyncio.Event()
+        daemon = Daemon(gef, TcpEndpoint(root / "gef.json"), 0.05, tasks=gef.background_tasks)
+        running = asyncio.create_task(daemon.run(stop))
+        while not task.ran:
+            await asyncio.sleep(0.01)
+        stop.set()
+        await running
+
+
+def test_daemon_runs_plugin_background_tasks(short_dir: Path) -> None:
+    task = _Task()
+    asyncio.run(_daemon_with_task(short_dir, task))
+    assert task.ran

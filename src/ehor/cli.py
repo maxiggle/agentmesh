@@ -558,6 +558,7 @@ def _serve(args: argparse.Namespace) -> int:
             peers,
             watcher=_watcher(device),
             methods=methods,
+            tasks=device.background_tasks,
         )
         asyncio.run(_run_until_signal(daemon.run))
     return 0

@@ -1,3 +1,5 @@
+from typing import Protocol
+
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
 from ehor.crypto.sealing import Recipient, Sealed, SealError, open_sealed, public_bytes, seal
@@ -27,6 +29,12 @@ class KeyDirectory:
         return {author: key for author, (_, key) in latest.items()}
 
 
+class RecipientCheck(Protocol):
+    def allows(self, device: bytes, encryption_key: bytes) -> bool:
+        """Whether this device may seal to `encryption_key`, announced by `device`."""
+        ...
+
+
 class SealingCodec:
     """Seals bodies for every device allowed to read the channel (protocol §6)."""
 
@@ -44,27 +52,46 @@ class SealingCodec:
         self._public = public_bytes(private)
         self._author = author
         self._team = team
+        self._checks: list[RecipientCheck] = []
 
     @property
     def public_key(self) -> bytes:
         return self._public
 
+    def add_check(self, check: RecipientCheck) -> None:
+        """Leave out every teammate key that `check` refuses. This device's own key stays in."""
+        self._checks.append(check)
+
     def recipients(self, channel: str) -> list[Recipient]:
+        allowed = [
+            Recipient(key) for device, key in self._readers(channel) if self._allows(device, key)
+        ]
+        return [Recipient(self._public), *allowed]
+
+    def withheld(self, channel: str) -> tuple[bytes, ...]:
+        return tuple(
+            device for device, key in self._readers(channel) if not self._allows(device, key)
+        )
+
+    def _readers(self, channel: str) -> list[tuple[bytes, bytes]]:
         roster = self._book.current
-        announced = self._keys.encryption_keys()
-        found = [Recipient(self._public)]
         if roster is None:
-            return found
+            return []
+        announced = self._keys.encryption_keys()
         readers = [m for m in roster.members if m.can_read(channel)]
         me = roster.member_for_key(self._author)
         if me is not None and me not in readers:
             readers.append(me)
+        found = []
         for member in readers:
             for device in member.devices:
                 key = announced.get(device.key)
                 if key is not None and device.key != self._author:
-                    found.append(Recipient(key))
+                    found.append((device.key, key))
         return found
+
+    def _allows(self, device: bytes, key: bytes) -> bool:
+        return all(check.allows(device, key) for check in self._checks)
 
     def seal(self, channel: str, kind: Kind, body: bytes) -> bytes:
         sealed = seal(body, self.recipients(channel), self._aad(self._author, channel, kind))

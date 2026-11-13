@@ -1,5 +1,5 @@
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 
 from ehor.log.body import Status
@@ -33,8 +33,11 @@ def timestamp(ts: int) -> str:
     return datetime.fromtimestamp(ts / 1000, UTC).strftime("%Y-%m-%d %H:%M UTC")
 
 
-def posted(entry: Entry) -> str:
-    return f"posted {short_id(entry.id)} in {entry.content.channel}"
+def posted(entry: Entry, withheld: Sequence[str] = ()) -> str:
+    line = f"posted {short_id(entry.id)} in {entry.content.channel}"
+    if withheld:
+        line += f"; not sealed for {', '.join(withheld)}: encryption key failed a check"
+    return line
 
 
 def inbox(page: InboxPage, names: Names) -> str:
