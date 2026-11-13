@@ -6,11 +6,13 @@ use near_sdk::{
 };
 
 const PAYLOAD_DOMAIN: &str = "ehor-escrow/v1";
+const KEY_PAYLOAD_DOMAIN: &str = "ehor-escrow/key/v1";
 const EVENT_STANDARD: &str = "ehor-escrow";
 const EVENT_VERSION: &str = "1.0.0";
 const MAX_MESSAGE_ID_LEN: usize = 128;
 const MAX_CLAIMANTS: usize = 8;
 const MAX_PAGE: u64 = 50;
+const MAX_ENCRYPTION_KEYS: usize = 8;
 const CALLBACK_GAS: Gas = Gas::from_tgas(10);
 
 #[near(serializers = [borsh, json])]
@@ -57,6 +59,13 @@ pub struct Bounty {
     pub created: U64,
 }
 
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug, Default)]
+pub struct EncryptionKeys {
+    pub nonce: u64,
+    pub keys: Vec<String>,
+}
+
 #[near(contract_state)]
 pub struct Contract {
     accounts: LookupMap<AccountId, Account>,
@@ -87,6 +96,22 @@ pub fn release_payload(
     )
 }
 
+pub fn encryption_key_payload(
+    chain_id: &str,
+    contract: &AccountId,
+    account: &AccountId,
+    nonce: u64,
+    action: &str,
+    key: &str,
+) -> String {
+    format!("{KEY_PAYLOAD_DOMAIN}|{chain_id}|{contract}|{account}|{nonce}|{action}|{key}")
+}
+
+// Kept outside the contract state struct so the deployed contract upgrades without a migration.
+fn encryption_keys() -> LookupMap<AccountId, EncryptionKeys> {
+    LookupMap::new(b"e")
+}
+
 fn required<T>(value: Option<T>, error: &str) -> T {
     value.unwrap_or_else(|| env::panic_str(error))
 }
@@ -104,6 +129,23 @@ fn normalize_device_key(value: &str) -> String {
     let key: [u8; 33] = decode_fixed(value, "ERR_BAD_DEVICE_KEY");
     require!(key[0] == 2 || key[0] == 3, "ERR_BAD_DEVICE_KEY");
     hex::encode(key)
+}
+
+fn normalize_encryption_key(value: &str) -> String {
+    let key: [u8; 32] = decode_fixed(value, "ERR_BAD_ENCRYPTION_KEY");
+    hex::encode(key)
+}
+
+fn verify_device_signature(device_key: &str, signature: &str, payload: &str) {
+    let signature: [u8; 64] = decode_fixed(signature, "ERR_BAD_SIGNATURE");
+    // Rejecting high-S keeps one valid encoding per signature, as ehor normalizes to low-S.
+    require!(env::p256_signature_is_low_s(&signature), "ERR_HIGH_S");
+    let device_key: [u8; 33] = decode_fixed(device_key, "ERR_BAD_DEVICE_KEY");
+    let digest = env::sha256_array(payload.as_bytes());
+    require!(
+        env::p256_verify(&signature, &digest, &device_key),
+        "ERR_BAD_SIGNATURE"
+    );
 }
 
 // A function-call key cannot attach NEAR, so an attached deposit or yoctoNEAR proves the
@@ -199,6 +241,42 @@ impl Contract {
         emit_amount("set_max_per_bounty", &owner, amount);
     }
 
+    /// Approves an X25519 key that teammates may encrypt ehor messages to. Needs the owner's
+    /// full-access key and a signature from the registered device key over the key payload.
+    #[payable]
+    pub fn add_encryption_key(&mut self, x25519_public_key: String, signature: String) {
+        let owner = full_access_caller();
+        let key = normalize_encryption_key(&x25519_public_key);
+        let device_key = self.account_ref(&owner).device_key.clone();
+        let mut stored = encryption_keys();
+        let mut record = stored.get(&owner).cloned().unwrap_or_default();
+        require!(!record.keys.contains(&key), "ERR_DUPLICATE_KEY");
+        require!(record.keys.len() < MAX_ENCRYPTION_KEYS, "ERR_TOO_MANY_KEYS");
+        Self::verify_key_change(&owner, &device_key, &record, "add", &key, &signature);
+        record.nonce += 1;
+        record.keys.push(key.clone());
+        emit("add_encryption_key", json!({"account": owner, "key": key}));
+        stored.insert(owner, record);
+    }
+
+    #[payable]
+    pub fn remove_encryption_key(&mut self, x25519_public_key: String, signature: String) {
+        let owner = full_access_caller();
+        let key = normalize_encryption_key(&x25519_public_key);
+        let device_key = self.account_ref(&owner).device_key.clone();
+        let mut stored = encryption_keys();
+        let mut record = stored.get(&owner).cloned().unwrap_or_default();
+        require!(record.keys.contains(&key), "ERR_UNKNOWN_KEY");
+        Self::verify_key_change(&owner, &device_key, &record, "remove", &key, &signature);
+        record.nonce += 1;
+        record.keys.retain(|stored_key| stored_key != &key);
+        emit(
+            "remove_encryption_key",
+            json!({"account": owner, "key": key}),
+        );
+        stored.insert(owner, record);
+    }
+
     pub fn post_bounty(
         &mut self,
         amount: NearToken,
@@ -291,11 +369,6 @@ impl Contract {
             (bounty.sender.clone(), claimant, bounty.amount)
         };
 
-        let signature: [u8; 64] = decode_fixed(&signature, "ERR_BAD_SIGNATURE");
-        // Rejecting high-S keeps one valid encoding per signature, as ehor normalizes to low-S.
-        require!(env::p256_signature_is_low_s(&signature), "ERR_HIGH_S");
-        let device_key: [u8; 33] =
-            decode_fixed(&self.account_ref(&sender).device_key, "ERR_BAD_DEVICE_KEY");
         let payload = release_payload(
             &env::chain_id(),
             &env::current_account_id(),
@@ -303,11 +376,7 @@ impl Contract {
             &claimant,
             amount,
         );
-        let digest = env::sha256_array(payload.as_bytes());
-        require!(
-            env::p256_verify(&signature, &digest, &device_key),
-            "ERR_BAD_SIGNATURE"
-        );
+        verify_device_signature(&self.account_ref(&sender).device_key, &signature, &payload);
 
         // The status changes before the transfer so a second release in the next block
         // cannot pay twice; the callback reverts it if the transfer fails.
@@ -374,6 +443,13 @@ impl Contract {
         self.accounts.get(&account_id).cloned()
     }
 
+    pub fn get_encryption_keys(&self, account_id: AccountId) -> EncryptionKeys {
+        encryption_keys()
+            .get(&account_id)
+            .cloned()
+            .unwrap_or_default()
+    }
+
     pub fn get_bounty(&self, bounty_id: u64) -> Option<Bounty> {
         self.bounties.get(&bounty_id).cloned()
     }
@@ -414,6 +490,27 @@ impl Contract {
         };
         self.account_mut(&caller).credit(amount);
         emit(event, json!({"bounty_id": bounty_id}));
+    }
+
+    // The nonce in the payload makes each signature good for one change, so a signature seen
+    // on-chain cannot re-add a key after it was removed.
+    fn verify_key_change(
+        owner: &AccountId,
+        device_key: &str,
+        record: &EncryptionKeys,
+        action: &str,
+        key: &str,
+        signature: &str,
+    ) {
+        let payload = encryption_key_payload(
+            &env::chain_id(),
+            &env::current_account_id(),
+            owner,
+            record.nonce,
+            action,
+            key,
+        );
+        verify_device_signature(device_key, signature, &payload);
     }
 
     fn callback() -> ContractExt {

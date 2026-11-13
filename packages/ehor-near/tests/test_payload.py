@@ -5,14 +5,18 @@ from typing import Any
 import pytest
 
 from ehor_near.payload import (
+    KeyAction,
     PayloadError,
+    encryption_key_payload,
     format_near,
     parse_near,
     release_digest,
     release_payload,
 )
 
-VECTOR = Path(__file__).resolve().parents[1] / "docs" / "vectors" / "release-v1.json"
+VECTORS = Path(__file__).resolve().parents[1] / "docs" / "vectors"
+VECTOR = VECTORS / "release-v1.json"
+KEY_VECTOR = VECTORS / "encryption-key-v1.json"
 
 
 @pytest.fixture
@@ -114,3 +118,70 @@ def test_parse_near_is_exact_and_inverts_format(text: str, yocto: int) -> None:
 def test_parse_near_refuses_bad_amounts(text: str) -> None:
     with pytest.raises(PayloadError):
         parse_near(text)
+
+
+@pytest.fixture
+def key_vector() -> dict[str, Any]:
+    loaded: dict[str, Any] = json.loads(KEY_VECTOR.read_text(encoding="utf-8"))
+    return loaded
+
+
+def build_key(vector: dict[str, Any], **overrides: Any) -> str:
+    fields = {
+        "chain_id": vector["chain_id"],
+        "contract": vector["contract"],
+        "account": vector["account"],
+        "nonce": vector["nonce"],
+        "action": KeyAction(vector["action"]),
+        "key": bytes.fromhex(vector["key"]),
+    }
+    fields.update(overrides)
+    return encryption_key_payload(**fields)
+
+
+def test_key_payload_matches_shared_vector(key_vector: dict[str, Any]) -> None:
+    payload = build_key(key_vector)
+    assert payload == key_vector["payload"]
+    assert release_digest(payload).hex() == key_vector["sha256"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("chain_id", "mainnet"),
+        ("contract", "other-escrow.testnet"),
+        ("account", "mallory.testnet"),
+        ("nonce", 4),
+        ("action", KeyAction.REMOVE),
+        ("key", bytes(32)),
+    ],
+)
+def test_every_key_field_changes_the_payload(
+    key_vector: dict[str, Any], field: str, value: Any
+) -> None:
+    assert build_key(key_vector, **{field: value}) != key_vector["payload"]
+
+
+def test_key_payload_differs_from_release_domain(key_vector: dict[str, Any]) -> None:
+    assert not build_key(key_vector).startswith("ehor-escrow/v1|")
+
+
+@pytest.mark.parametrize("field", ["chain_id", "contract", "account"])
+@pytest.mark.parametrize("value", ["", "a|b"])
+def test_bad_key_payload_field_is_rejected(
+    key_vector: dict[str, Any], field: str, value: str
+) -> None:
+    with pytest.raises(PayloadError, match=field):
+        build_key(key_vector, **{field: value})
+
+
+@pytest.mark.parametrize("value", [-1, True])
+def test_bad_nonce_is_rejected(key_vector: dict[str, Any], value: object) -> None:
+    with pytest.raises(PayloadError, match="nonce"):
+        build_key(key_vector, nonce=value)
+
+
+@pytest.mark.parametrize("size", [31, 33])
+def test_wrong_size_encryption_key_is_rejected(key_vector: dict[str, Any], size: int) -> None:
+    with pytest.raises(PayloadError, match="32 bytes"):
+        build_key(key_vector, key=bytes(size))

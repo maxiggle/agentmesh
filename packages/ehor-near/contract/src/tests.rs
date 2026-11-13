@@ -5,13 +5,18 @@ use near_sdk::{env, testing_env, AccountId, NearToken, PromiseError};
 use p256::ecdsa::signature::hazmat::PrehashSigner;
 use p256::ecdsa::{Signature, SigningKey};
 
-use crate::{release_payload, Contract, Status};
+use crate::{encryption_key_payload, release_payload, Contract, Status};
 
 const DEADLINE: u64 = 1_000;
 const NEAR: NearToken = NearToken::from_near(1);
 const YOCTO: NearToken = NearToken::from_yoctonear(1);
 const ZERO: NearToken = NearToken::from_yoctonear(0);
 const RELEASE_VECTOR: &str = include_str!("../../docs/vectors/release-v1.json");
+const KEY_VECTOR: &str = include_str!("../../docs/vectors/encryption-key-v1.json");
+const P256_ORDER: [u8; 32] = [
+    0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xbc, 0xe6, 0xfa, 0xad, 0xa7, 0x17, 0x9e, 0x84, 0xf3, 0xb9, 0xca, 0xc2, 0xfc, 0x63, 0x25, 0x51,
+];
 
 fn id(name: &str) -> AccountId {
     name.parse().unwrap()
@@ -59,6 +64,17 @@ fn sign_raw(key: &SigningKey, payload: &str) -> Signature {
 
 fn sign(key: &SigningKey, payload: &str) -> String {
     hex::encode(sign_raw(key, payload).to_bytes())
+}
+
+fn sign_high_s(key: &SigningKey, payload: &str) -> String {
+    let mut bytes = sign_raw(key, payload).to_bytes();
+    let mut borrow = 0i16;
+    for index in (0..32).rev() {
+        let difference = i16::from(P256_ORDER[index]) - i16::from(bytes[32 + index]) - borrow;
+        borrow = i16::from(difference < 0);
+        bytes[32 + index] = (difference + borrow * 256) as u8;
+    }
+    hex::encode(bytes)
 }
 
 fn payload_for(contract: &Contract, bounty_id: u64) -> String {
@@ -501,21 +517,10 @@ fn release_with_malformed_signature_fails() {
 #[test]
 #[should_panic(expected = "ERR_HIGH_S")]
 fn release_with_high_s_signature_fails() {
-    const ORDER: [u8; 32] = [
-        0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-        0xff, 0xbc, 0xe6, 0xfa, 0xad, 0xa7, 0x17, 0x9e, 0x84, 0xf3, 0xb9, 0xca, 0xc2, 0xfc, 0x63,
-        0x25, 0x51,
-    ];
     let (mut contract, bounty_id) = done();
     call_as(&ada(), ZERO, 3);
-    let mut bytes = sign_raw(&device_key(7), &payload_for(&contract, bounty_id)).to_bytes();
-    let mut borrow = 0i16;
-    for index in (0..32).rev() {
-        let difference = i16::from(ORDER[index]) - i16::from(bytes[32 + index]) - borrow;
-        borrow = i16::from(difference < 0);
-        bytes[32 + index] = (difference + borrow * 256) as u8;
-    }
-    let _ = contract.release(bounty_id, hex::encode(bytes));
+    let signature = sign_high_s(&device_key(7), &payload_for(&contract, bounty_id));
+    let _ = contract.release(bounty_id, signature);
 }
 
 #[test]
@@ -600,4 +605,293 @@ fn bounties_are_listed_by_sender() {
     assert!(contract
         .get_bounties_by_sender(tobi(), None, None)
         .is_empty());
+}
+
+fn encryption_key(seed: u8) -> String {
+    hex::encode([seed; 32])
+}
+
+fn key_payload(contract: &Contract, account: &AccountId, action: &str, key: &str) -> String {
+    let nonce = contract.get_encryption_keys(account.clone()).nonce;
+    encryption_key_payload(&env::chain_id(), &escrow(), account, nonce, action, key)
+}
+
+fn add_key(contract: &mut Contract, signer: &SigningKey, key: &str) -> String {
+    call_as(&ada(), YOCTO, 0);
+    let signature = sign(signer, &key_payload(contract, &ada(), "add", key));
+    contract.add_encryption_key(key.into(), signature.clone());
+    signature
+}
+
+fn with_key() -> Contract {
+    let mut contract = registered();
+    add_key(&mut contract, &device_key(7), &encryption_key(1));
+    contract
+}
+
+#[test]
+fn key_payload_matches_shared_vector() {
+    let vector: Value = serde_json::from_str(KEY_VECTOR).unwrap();
+    let field = |name: &str| vector[name].as_str().unwrap().to_owned();
+    let payload = encryption_key_payload(
+        &field("chain_id"),
+        &id(&field("contract")),
+        &id(&field("account")),
+        vector["nonce"].as_u64().unwrap(),
+        &field("action"),
+        &field("key"),
+    );
+    assert_eq!(payload, field("payload"));
+    assert_eq!(
+        hex::encode(env::sha256_array(payload.as_bytes())),
+        field("sha256")
+    );
+}
+
+#[test]
+fn add_encryption_key_stores_key_and_advances_nonce() {
+    let contract = with_key();
+    let record = contract.get_encryption_keys(ada());
+    assert_eq!(record.keys, vec![encryption_key(1)]);
+    assert_eq!(record.nonce, 1);
+}
+
+#[test]
+fn encryption_keys_of_unknown_account_are_empty() {
+    let contract = registered();
+    let record = contract.get_encryption_keys(tobi());
+    assert!(record.keys.is_empty());
+    assert_eq!(record.nonce, 0);
+}
+
+#[test]
+fn encryption_key_is_stored_lowercase() {
+    let mut contract = registered();
+    let upper = encryption_key(0xab).to_uppercase();
+    call_as(&ada(), YOCTO, 0);
+    let signature = sign(
+        &device_key(7),
+        &key_payload(&contract, &ada(), "add", &encryption_key(0xab)),
+    );
+    contract.add_encryption_key(upper, signature);
+    assert_eq!(
+        contract.get_encryption_keys(ada()).keys,
+        vec![encryption_key(0xab)]
+    );
+}
+
+#[test]
+fn remove_encryption_key_drops_only_that_key() {
+    let mut contract = with_key();
+    add_key(&mut contract, &device_key(7), &encryption_key(2));
+    call_as(&ada(), YOCTO, 0);
+    let signature = sign(
+        &device_key(7),
+        &key_payload(&contract, &ada(), "remove", &encryption_key(1)),
+    );
+    contract.remove_encryption_key(encryption_key(1), signature);
+    let record = contract.get_encryption_keys(ada());
+    assert_eq!(record.keys, vec![encryption_key(2)]);
+    assert_eq!(record.nonce, 3);
+}
+
+#[test]
+fn key_change_after_new_device_key_needs_the_new_key() {
+    let mut contract = with_key();
+    call_as(&ada(), YOCTO, 0);
+    contract.set_device_key(public_hex(&device_key(9)));
+    add_key(&mut contract, &device_key(9), &encryption_key(2));
+    assert_eq!(contract.get_encryption_keys(ada()).keys.len(), 2);
+}
+
+#[test]
+#[should_panic(expected = "Requires attached deposit of exactly 1 yoctoNEAR")]
+fn add_encryption_key_with_agent_key_fails() {
+    let mut contract = registered();
+    let signature = sign(
+        &device_key(7),
+        &key_payload(&contract, &ada(), "add", &encryption_key(1)),
+    );
+    call_as(&ada(), ZERO, 0);
+    contract.add_encryption_key(encryption_key(1), signature);
+}
+
+#[test]
+#[should_panic(expected = "Requires attached deposit of exactly 1 yoctoNEAR")]
+fn remove_encryption_key_with_agent_key_fails() {
+    let mut contract = with_key();
+    let signature = sign(
+        &device_key(7),
+        &key_payload(&contract, &ada(), "remove", &encryption_key(1)),
+    );
+    call_as(&ada(), ZERO, 0);
+    contract.remove_encryption_key(encryption_key(1), signature);
+}
+
+#[test]
+#[should_panic(expected = "ERR_NOT_REGISTERED")]
+fn add_encryption_key_requires_registration() {
+    let mut contract = registered();
+    let signature = sign(
+        &device_key(7),
+        &key_payload(&contract, &tobi(), "add", &encryption_key(1)),
+    );
+    call_as(&tobi(), YOCTO, 0);
+    contract.add_encryption_key(encryption_key(1), signature);
+}
+
+#[test]
+#[should_panic(expected = "ERR_BAD_ENCRYPTION_KEY")]
+fn add_short_encryption_key_fails() {
+    let mut contract = registered();
+    call_as(&ada(), YOCTO, 0);
+    contract.add_encryption_key(hex::encode([1u8; 31]), "00".repeat(64));
+}
+
+#[test]
+#[should_panic(expected = "ERR_BAD_ENCRYPTION_KEY")]
+fn add_non_hex_encryption_key_fails() {
+    let mut contract = registered();
+    call_as(&ada(), YOCTO, 0);
+    contract.add_encryption_key("zz".repeat(32), "00".repeat(64));
+}
+
+#[test]
+#[should_panic(expected = "ERR_DUPLICATE_KEY")]
+fn add_duplicate_encryption_key_fails() {
+    let mut contract = with_key();
+    add_key(&mut contract, &device_key(7), &encryption_key(1));
+}
+
+#[test]
+#[should_panic(expected = "ERR_TOO_MANY_KEYS")]
+fn add_ninth_encryption_key_fails() {
+    let mut contract = registered();
+    for seed in 1..=9 {
+        add_key(&mut contract, &device_key(7), &encryption_key(seed));
+    }
+}
+
+#[test]
+#[should_panic(expected = "ERR_UNKNOWN_KEY")]
+fn remove_unknown_encryption_key_fails() {
+    let mut contract = with_key();
+    call_as(&ada(), YOCTO, 0);
+    let signature = sign(
+        &device_key(7),
+        &key_payload(&contract, &ada(), "remove", &encryption_key(2)),
+    );
+    contract.remove_encryption_key(encryption_key(2), signature);
+}
+
+#[test]
+#[should_panic(expected = "ERR_BAD_SIGNATURE")]
+fn add_encryption_key_signed_by_other_device_fails() {
+    let mut contract = registered();
+    add_key(&mut contract, &device_key(9), &encryption_key(1));
+}
+
+#[test]
+#[should_panic(expected = "ERR_BAD_SIGNATURE")]
+fn add_encryption_key_with_malformed_signature_fails() {
+    let mut contract = registered();
+    call_as(&ada(), YOCTO, 0);
+    contract.add_encryption_key(encryption_key(1), "00".repeat(63));
+}
+
+#[test]
+#[should_panic(expected = "ERR_HIGH_S")]
+fn add_encryption_key_with_high_s_signature_fails() {
+    let mut contract = registered();
+    call_as(&ada(), YOCTO, 0);
+    let signature = sign_high_s(
+        &device_key(7),
+        &key_payload(&contract, &ada(), "add", &encryption_key(1)),
+    );
+    contract.add_encryption_key(encryption_key(1), signature);
+}
+
+#[test]
+#[should_panic(expected = "ERR_BAD_SIGNATURE")]
+fn replayed_add_after_remove_fails() {
+    let mut contract = registered();
+    let signature = add_key(&mut contract, &device_key(7), &encryption_key(1));
+    call_as(&ada(), YOCTO, 0);
+    let removal = sign(
+        &device_key(7),
+        &key_payload(&contract, &ada(), "remove", &encryption_key(1)),
+    );
+    contract.remove_encryption_key(encryption_key(1), removal);
+    contract.add_encryption_key(encryption_key(1), signature);
+}
+
+#[test]
+#[should_panic(expected = "ERR_BAD_SIGNATURE")]
+fn add_signature_used_to_remove_fails() {
+    let mut contract = with_key();
+    call_as(&ada(), YOCTO, 0);
+    let signature = sign(
+        &device_key(7),
+        &key_payload(&contract, &ada(), "add", &encryption_key(1)),
+    );
+    contract.remove_encryption_key(encryption_key(1), signature);
+}
+
+#[test]
+#[should_panic(expected = "ERR_BAD_SIGNATURE")]
+fn add_signature_for_other_key_fails() {
+    let mut contract = registered();
+    call_as(&ada(), YOCTO, 0);
+    let signature = sign(
+        &device_key(7),
+        &key_payload(&contract, &ada(), "add", &encryption_key(2)),
+    );
+    contract.add_encryption_key(encryption_key(1), signature);
+}
+
+#[test]
+#[should_panic(expected = "ERR_BAD_SIGNATURE")]
+fn add_signature_for_other_account_fails() {
+    let mut contract = registered();
+    call_as(&ada(), YOCTO, 0);
+    let signature = sign(
+        &device_key(7),
+        &key_payload(&contract, &tobi(), "add", &encryption_key(1)),
+    );
+    contract.add_encryption_key(encryption_key(1), signature);
+}
+
+#[test]
+#[should_panic(expected = "ERR_BAD_SIGNATURE")]
+fn add_signature_for_other_contract_fails() {
+    let mut contract = registered();
+    call_as(&ada(), YOCTO, 0);
+    let payload = encryption_key_payload(
+        &env::chain_id(),
+        &id("other-escrow.testnet"),
+        &ada(),
+        0,
+        "add",
+        &encryption_key(1),
+    );
+    contract.add_encryption_key(encryption_key(1), sign(&device_key(7), &payload));
+}
+
+#[test]
+#[should_panic(expected = "ERR_BAD_SIGNATURE")]
+fn add_signature_for_other_chain_fails() {
+    let mut contract = registered();
+    call_as(&ada(), YOCTO, 0);
+    let payload =
+        encryption_key_payload("mainnet", &escrow(), &ada(), 0, "add", &encryption_key(1));
+    contract.add_encryption_key(encryption_key(1), sign(&device_key(7), &payload));
+}
+
+#[test]
+#[should_panic(expected = "ERR_BAD_SIGNATURE")]
+fn add_signature_from_old_device_key_fails() {
+    let mut contract = registered();
+    call_as(&ada(), YOCTO, 0);
+    contract.set_device_key(public_hex(&device_key(9)));
+    add_key(&mut contract, &device_key(7), &encryption_key(1));
 }

@@ -1,0 +1,10 @@
+{
+  "chain_id": "testnet",
+  "contract": "escrow.testnet",
+  "account": "ada.testnet",
+  "nonce": 3,
+  "action": "add",
+  "key": "abababababababababababababababababababababababababababababababab",
+  "payload": "ehor-escrow/key/v1|testnet|escrow.testnet|ada.testnet|3|add|abababababababababababababababababababababababababababababababab",
+  "sha256": "0d9e61f5a3d5ccf0ed6eb70b512d218e882d64e0e857d1359c85a9f41f8e60f0"
+}
