@@ -153,7 +153,7 @@ The Rust contract and the Python signer both test against one shared vector,
 
 | Part | Status |
 |---|---|
-| `ehor-escrow` contract: register, deposit, withdraw, post, claim, mark done, release, cancel, refund, encryption keys, views, events | Built, 75 tests; deployed on testnet without the encryption key methods |
+| `ehor-escrow` contract: register, deposit, withdraw, post, claim, mark done, release, cancel, refund, encryption keys, views, events | Built, 75 tests, deployed on testnet |
 | Release payload and shared Rust/Python test vector | Built and tested |
 | Touch ID release key in the Secure Enclave (P-256 with user presence) | Built, used for a real testnet payout |
 | `ehor near setup`: wallet connection page, limited key, registration | Built, tested with Meteor Wallet on testnet |
@@ -163,14 +163,16 @@ The Rust contract and the Python signer both test against one shared vector,
 | Signed announcements of each device's NEAR account in the ehor log, checked against the contract | Built and tested |
 | Checking a bounty's message, sender and claimant against those announcements before each step | Built and tested |
 | `ehor near status`: budget, release key and bounties, read from the chain | Built and tested |
-| `ehor near keys`: approve or withdraw a device's encryption key with Touch ID and the wallet; `ehor serve` then seals only to keys a teammate's account approved | Built and tested; the contract methods are not on the testnet deployment yet |
+| `ehor near keys`: approve or withdraw a device's encryption key with Touch ID and the wallet; `ehor serve` then seals only to keys a teammate's account approved | Built and tested; `ehor-claimant.testnet` approved its first key on testnet with Touch ID and its wallet |
 | `ehor near deposit`, `withdraw`, `ehor refund` and `ehor cancel` | Not yet; use your wallet or NEAR CLI |
 
 ### On-chain evidence
 
-The deployed contract's code hash, `64KpnRMyQofCNQbwzEhXtmMAjEZkFLg3EPT5i4JYH7zz`, matches a
-build of the source in this folder at commit `54802b0`, before encryption keys were added, with
-cargo-near 0.23.0. These bounties on it were each paid
+The contract is deployed on `ehor-escrow.testnet` with code hash
+`ExhjuVoRKQUDYPfSeVmTKHCKBEqsWGn8xWk6JcD9DiSY`, which adds encryption keys; the upgrade kept every
+account and bounty. The bounties below were paid under the previous code hash,
+`64KpnRMyQofCNQbwzEhXtmMAjEZkFLg3EPT5i4JYH7zz`, which matches a build of the source in this folder at
+commit `54802b0` with cargo-near 0.23.0. These bounties on the contract were each paid
 out with a P-256 signature that the contract verified:
 
 | Bounty | Signed by | Status |

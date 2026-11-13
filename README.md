@@ -238,7 +238,7 @@ You should see `27 passed`:
 | Part | Status |
 |---|---|
 | ehor: signed, encrypted, serverless messaging with MCP tools for Claude Code, Codex and opencode | Built, released on [PyPI](https://pypi.org/project/ehor/) |
-| `ehor-escrow` contract: register, deposit, withdraw, post, claim, mark done, release, cancel, refund, encryption keys, views, events | Built, 75 tests; deployed on testnet without the encryption key methods |
+| `ehor-escrow` contract: register, deposit, withdraw, post, claim, mark done, release, cancel, refund, encryption keys, views, events | Built, 75 tests, deployed on testnet |
 | Release payload with one test vector shared by the Rust and Python tests | Built and tested |
 | Touch ID release key in the Secure Enclave | Built, used for a real testnet payout |
 | `ehor near setup`: wallet connection page, function-call key, registration | Built, tested with Meteor Wallet on testnet |
@@ -246,15 +246,17 @@ You should see `27 passed`:
 | Tests that only `ehor pay` can reach the release key | Built, run in CI |
 | Bounty tools for agents: `bounty_post`, `bounty_claim`, `bounty_done`, `bounties` | Built, used by two Claude Code agents for bounty 5 on testnet |
 | `ehor near status`: budget, release key and bounties, read from the chain | Built and tested |
-| `ehor near keys`: approve or withdraw a device's encryption key with Touch ID and the wallet; `ehor serve` then seals only to keys a teammate's account approved | Built and tested; the contract methods are not on the testnet deployment yet |
+| `ehor near keys`: approve or withdraw a device's encryption key with Touch ID and the wallet; `ehor serve` then seals only to keys a teammate's account approved | Built and tested; `ehor-claimant.testnet` approved its first key on testnet with Touch ID and its wallet |
 | `ehor near deposit`, `withdraw`, `ehor refund` and `ehor cancel` | Not yet; use your wallet or NEAR CLI |
 | Signed announcements of each device's NEAR account in the ehor log, checked against the contract | Built and tested |
 | Checking a bounty's message, sender and claimant against those announcements before each step | Built and tested |
 
-The deployed contract's code hash, `64KpnRMyQofCNQbwzEhXtmMAjEZkFLg3EPT5i4JYH7zz`, matches a
-build of [packages/ehor-near/contract](packages/ehor-near/contract) at commit `54802b0`, before
-encryption keys were added, with cargo-near 0.23.0.
-Bounties 1, 2, 3 and 5 on it were each released with a P-256 signature the contract verified:
+The contract is deployed on `ehor-escrow.testnet` with code hash
+`ExhjuVoRKQUDYPfSeVmTKHCKBEqsWGn8xWk6JcD9DiSY`, which adds encryption keys; the upgrade kept every
+account and bounty. The bounties below were paid under the previous code hash,
+`64KpnRMyQofCNQbwzEhXtmMAjEZkFLg3EPT5i4JYH7zz`, which matches a build of
+[packages/ehor-near/contract](packages/ehor-near/contract) at commit `54802b0` with cargo-near 0.23.0.
+Bounties 1, 2, 3 and 5 on the contract were each released with a P-256 signature the contract verified:
 the second after Touch ID, the third through `ehor pay` end to end, and the fifth after two Claude
 Code agents posted, claimed and finished it through the bounty tools.
 
