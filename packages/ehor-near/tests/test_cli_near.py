@@ -340,3 +340,74 @@ def test_setup_is_mac_only(
     monkeypatch.setattr("sys.platform", "linux")
     assert _setup(home) == 1
     assert "need a Mac" in capsys.readouterr().err
+
+
+@dataclass
+class StatusChain:
+    account: dict[str, object] | None
+
+    async def view(self, contract: str, method: str, args: Mapping[str, object]) -> object:
+        assert contract == CONTRACT
+        if method == "get_account":
+            return self.account if args["account_id"] == ME else None
+        assert method == "get_bounty"
+        return None
+
+    async def call(
+        self,
+        contract: str,
+        method: str,
+        args: Mapping[str, object],
+        *,
+        deposit_yocto: int = 0,
+        gas: int = DEFAULT_GAS,
+    ) -> object:
+        raise AssertionError("status only reads")
+
+    async def access_key(self, account: str, public_key: str) -> object | None:
+        raise AssertionError("status only reads")
+
+    async def add_function_call_key(
+        self, public_key: str, contract: str, methods: Sequence[str], allowance_yocto: int
+    ) -> None:
+        raise AssertionError("status only reads")
+
+
+def _status(home: Path, monkeypatch: pytest.MonkeyPatch, account: dict[str, object] | None) -> int:
+    @asynccontextmanager
+    async def connect(config: NearConfig) -> AsyncIterator[NearClient]:
+        yield StatusChain(account)
+
+    monkeypatch.setattr(cli_module, "_connect_view", connect)
+    monkeypatch.setattr("sys.platform", "darwin")
+    return main(["--home", str(home), "near", "status"])
+
+
+def test_status_reads_the_chain_without_the_passphrase(
+    home: Path,
+    signer: TouchSigner,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("EHOR_PASSPHRASE")
+    signer.create_key(RELEASE_KEY_LABEL)
+    NearConfig(ME, CONTRACT).save(home)
+    account: dict[str, object] = {
+        "balance": str(10**24),
+        "device_key": _release_hex(signer),
+        "max_per_bounty": "1",
+    }
+    assert _status(home, monkeypatch, account) == 0
+    out = capsys.readouterr().out
+    assert f"account      {ME} on {CONTRACT} (testnet)" in out
+    assert "budget       1 NEAR available" in out
+    assert "so `ehor pay` can release here" in out
+    assert "limited key  missing" in out
+    assert "posted       none" in out
+
+
+def test_status_needs_setup_first(
+    home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert _status(home, monkeypatch, None) == 1
+    assert "ehor near setup" in capsys.readouterr().err

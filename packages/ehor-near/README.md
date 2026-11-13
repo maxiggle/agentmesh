@@ -161,7 +161,8 @@ The Rust contract and the Python signer both test against one shared vector,
 | Bounty tools for agents: `bounty_post`, `bounty_claim`, `bounty_done`, `bounties` | Built, used by two Claude Code agents for bounty 5 on testnet |
 | Signed announcements of each device's NEAR account in the ehor log, checked against the contract | Built and tested |
 | Checking a bounty's message, sender and claimant against those announcements before each step | Built and tested |
-| `ehor near deposit`, `withdraw`, `status` and `ehor refund` | Not yet; use your wallet or NEAR CLI |
+| `ehor near status`: budget, release key and bounties, read from the chain | Built and tested |
+| `ehor near deposit`, `withdraw`, `ehor refund` and `ehor cancel` | Not yet; use your wallet or NEAR CLI |
 
 ### On-chain evidence
 
@@ -236,7 +237,8 @@ ehor creates the Touch ID release key and the limited NEAR key, then opens a loc
 browser. Pick your wallet and approve up to two requests: adding the limited key (gas allowance
 0.25 NEAR, cannot move NEAR), and registering with a 1 NEAR budget and a 0.5 NEAR limit per bounty.
 Change these with `--deposit` and `--max-per-bounty`. You should see
-`<your-account> is set up on ehor-escrow.testnet`. Then restart `ehor serve`. It announces your
+`<your-account> is set up on ehor-escrow.testnet`. Check it with `ehor near status`: the
+`release key` line should say `this Mac's`. Then restart `ehor serve`. It announces your
 NEAR account to the team in a signed ehor entry, so neither of you types the other's account, and
 it loads the bounty tools.
 
@@ -301,7 +303,8 @@ same without it.
 ```
 packages/ehor-near/
 ├── src/ehor_near/
-│   ├── cli.py            ehor near setup and ehor pay
+│   ├── cli.py            ehor near setup, ehor near status and ehor pay
+│   ├── status.py         reads an account's budget, release key and bounties
 │   ├── tools.py          the bounty tools for agents, served by ehor serve
 │   ├── bounties.py       posts, claims and finishes bounties linked to ehor messages
 │   ├── client.py         NearClient interface; pynear.py implements it with py-near

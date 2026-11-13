@@ -192,8 +192,10 @@ The wallet executors load from each wallet provider's URL when the page opens, n
 
 CLI commands are for the human, in a terminal:
 
-- Built: `ehor near setup`, `ehor pay <bounty>`.
-- Planned: `ehor near status`, `ehor near deposit`, `ehor near withdraw`, `ehor refund <bounty>`, `ehor cancel <bounty>`. `cancel` and `refund` will need those two methods added to the limited key's method list.
+- Built: `ehor near setup`, `ehor near status`, `ehor pay <bounty>`.
+- Planned: `ehor near deposit`, `ehor near withdraw`, `ehor refund <bounty>`, `ehor cancel <bounty>`. `cancel` and `refund` will need those two methods added to the limited key's method list.
+
+`ehor near status` reads, by view call and without the device passphrase: the account's budget and per-bounty limit on the contract, whether the contract holds this Mac's release key, every bounty the account posted, and the bounties this device claimed. It also says whether the limited key file is on this device; checking it on chain would need the passphrase. It changes nothing.
 
 MCP changes:
 
