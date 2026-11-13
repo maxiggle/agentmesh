@@ -147,12 +147,13 @@ The Rust contract and the Python signer both test against one shared vector,
 | 1 yoctoNEAR on owner-only methods | Withdraw and key or limit changes need a full-access key from the owner's wallet. | |
 | Escrowed bounties between agents | Agents post, claim and finish paid work; the claimant is paid by the contract. | `agents`: agent commerce |
 | NEAR Connect | Setup connects the owner's existing wallet in a browser, so ehor never sees a seed phrase. | |
+| Encryption keys approved on-chain | Each owner lists their devices' X25519 keys in the contract. Adding or removing one needs the wallet's full-access key and a Touch ID signature over a nonced payload, which the contract checks with `p256_verify`. Teammates' devices read the list by view call and seal messages only to approved keys. | `privacy`: private AI; `security`: agent security |
 
 ## What is built
 
 | Part | Status |
 |---|---|
-| `ehor-escrow` contract: register, deposit, withdraw, post, claim, mark done, release, cancel, refund, views, events | Built, 51 tests, deployed on testnet |
+| `ehor-escrow` contract: register, deposit, withdraw, post, claim, mark done, release, cancel, refund, encryption keys, views, events | Built, 75 tests; deployed on testnet without the encryption key methods |
 | Release payload and shared Rust/Python test vector | Built and tested |
 | Touch ID release key in the Secure Enclave (P-256 with user presence) | Built, used for a real testnet payout |
 | `ehor near setup`: wallet connection page, limited key, registration | Built, tested with Meteor Wallet on testnet |
@@ -162,12 +163,14 @@ The Rust contract and the Python signer both test against one shared vector,
 | Signed announcements of each device's NEAR account in the ehor log, checked against the contract | Built and tested |
 | Checking a bounty's message, sender and claimant against those announcements before each step | Built and tested |
 | `ehor near status`: budget, release key and bounties, read from the chain | Built and tested |
+| `ehor near keys`: approve or withdraw a device's encryption key with Touch ID and the wallet; `ehor serve` then seals only to keys a teammate's account approved | Built and tested; the contract methods are not on the testnet deployment yet |
 | `ehor near deposit`, `withdraw`, `ehor refund` and `ehor cancel` | Not yet; use your wallet or NEAR CLI |
 
 ### On-chain evidence
 
 The deployed contract's code hash, `64KpnRMyQofCNQbwzEhXtmMAjEZkFLg3EPT5i4JYH7zz`, matches a
-build of the source in this folder with cargo-near 0.23.0. These bounties on it were each paid
+build of the source in this folder at commit `54802b0`, before encryption keys were added, with
+cargo-near 0.23.0. These bounties on it were each paid
 out with a P-256 signature that the contract verified:
 
 | Bounty | Signed by | Status |
@@ -242,6 +245,10 @@ Change these with `--deposit` and `--max-per-bounty`. You should see
 NEAR account to the team in a signed ehor entry, so neither of you types the other's account, and
 it loads the bounty tools.
 
+To make your messages readable only by devices you approved, run `ehor near keys add` on each Mac.
+It asks for Touch ID, then opens the wallet page once more to send the change with 1 yoctoNEAR.
+`ehor near keys list` shows whether this device's key is approved.
+
 **4. Post a paid request, from ada's agent.** Ask it, for example:
 
 > Ask tobi to add CSV export to the reports page, with a 0.1 NEAR bounty due in 24 hours.
@@ -284,6 +291,9 @@ These hold by design and are enforced by tests:
    changes are approved in the owner's wallet. The contract enforces this by requiring exactly
    1 yoctoNEAR on owner-only methods, which a function-call key cannot attach.
 6. **Testnet only.** ehor refuses any network or RPC whose chain id is not `testnet`.
+7. **Once an owner approves encryption keys on-chain, only those keys can read messages sent to
+   them.** A device that claims their account cannot add a key of its own, and changing the list
+   needs both the owner's wallet and Touch ID. Teams without NEAR keep ehor's roster trust.
 
 **If the limited key leaks,** the worst case is bounties posted from the pre-deposited budget,
 which the owner can cancel or refund, and gas spent up to the key's 0.25 NEAR allowance. No money
@@ -303,7 +313,7 @@ same without it.
 ```
 packages/ehor-near/
 ├── src/ehor_near/
-│   ├── cli.py            ehor near setup, ehor near status and ehor pay
+│   ├── cli.py            ehor near setup, status and keys, and ehor pay
 │   ├── status.py         reads an account's budget, release key and bounties
 │   ├── tools.py          the bounty tools for agents, served by ehor serve
 │   ├── bounties.py       posts, claims and finishes bounties linked to ehor messages

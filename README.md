@@ -160,6 +160,9 @@ Connect on testnet (Meteor, Intear, Nightly, Ledger or NEAR CLI).
    `<your-account> is set up on ehor-escrow.testnet`, and `ehor near status` should show
    `this Mac's` on its `release key` line. On restart, each device announces its NEAR
    account to the team in a signed ehor entry, so nobody types a teammate's account.
+   Optionally run `ehor near keys add` on each Mac to approve its encryption key on-chain with
+   Touch ID and the wallet; from then on teammates seal messages to that account only for
+   approved keys.
 4. **Post, from ada's agent:** "Ask tobi to add CSV export, with a 0.1 NEAR bounty due in 24
    hours." Once ada approves, you should see
    `posted bounty <id>: 0.1 NEAR for tobi by <deadline> (tobi.testnet, read from the chain)`.
@@ -228,13 +231,14 @@ You should see `27 passed`:
 | 1 yoctoNEAR on owner-only methods | Withdraw and key or limit changes need a full-access key from the owner's wallet. | |
 | Escrowed bounties between agents | Agents post, claim and finish paid work; the contract pays the claimant. | `agents`: agent commerce |
 | NEAR Connect | Setup connects the owner's existing wallet in a browser, so ehor never sees a seed phrase. | |
+| Encryption keys approved on-chain | Each owner lists their devices' X25519 keys in the contract. Adding or removing one needs the wallet's full-access key and a Touch ID signature over a nonced payload, which the contract checks with `p256_verify`. Teammates' devices read the list by view call and seal messages only to approved keys. | `privacy`: private AI; `security`: agent security |
 
 ## What is built
 
 | Part | Status |
 |---|---|
 | ehor: signed, encrypted, serverless messaging with MCP tools for Claude Code, Codex and opencode | Built, released on [PyPI](https://pypi.org/project/ehor/) |
-| `ehor-escrow` contract: register, deposit, withdraw, post, claim, mark done, release, cancel, refund, views, events | Built, 51 tests, deployed on testnet |
+| `ehor-escrow` contract: register, deposit, withdraw, post, claim, mark done, release, cancel, refund, encryption keys, views, events | Built, 75 tests; deployed on testnet without the encryption key methods |
 | Release payload with one test vector shared by the Rust and Python tests | Built and tested |
 | Touch ID release key in the Secure Enclave | Built, used for a real testnet payout |
 | `ehor near setup`: wallet connection page, function-call key, registration | Built, tested with Meteor Wallet on testnet |
@@ -242,12 +246,14 @@ You should see `27 passed`:
 | Tests that only `ehor pay` can reach the release key | Built, run in CI |
 | Bounty tools for agents: `bounty_post`, `bounty_claim`, `bounty_done`, `bounties` | Built, used by two Claude Code agents for bounty 5 on testnet |
 | `ehor near status`: budget, release key and bounties, read from the chain | Built and tested |
+| `ehor near keys`: approve or withdraw a device's encryption key with Touch ID and the wallet; `ehor serve` then seals only to keys a teammate's account approved | Built and tested; the contract methods are not on the testnet deployment yet |
 | `ehor near deposit`, `withdraw`, `ehor refund` and `ehor cancel` | Not yet; use your wallet or NEAR CLI |
 | Signed announcements of each device's NEAR account in the ehor log, checked against the contract | Built and tested |
 | Checking a bounty's message, sender and claimant against those announcements before each step | Built and tested |
 
 The deployed contract's code hash, `64KpnRMyQofCNQbwzEhXtmMAjEZkFLg3EPT5i4JYH7zz`, matches a
-build of [packages/ehor-near/contract](packages/ehor-near/contract) with cargo-near 0.23.0.
+build of [packages/ehor-near/contract](packages/ehor-near/contract) at commit `54802b0`, before
+encryption keys were added, with cargo-near 0.23.0.
 Bounties 1, 2, 3 and 5 on it were each released with a P-256 signature the contract verified:
 the second after Touch ID, the third through `ehor pay` end to end, and the fifth after two Claude
 Code agents posted, claimed and finished it through the bounty tools.
@@ -267,6 +273,9 @@ These hold by design and are enforced by tests:
 5. **ehor never stores a full-access NEAR key.** The contract requires exactly 1 yoctoNEAR on
    owner-only methods, which a function-call key cannot attach.
 6. **Testnet only.** ehor refuses any network or RPC whose chain id is not `testnet`.
+7. **Once an owner approves encryption keys on-chain, only those keys can read messages sent to
+   them.** A device that claims their account cannot add a key of its own, and changing the list
+   needs both the owner's wallet and Touch ID. Teams without NEAR keep ehor's roster trust.
 
 If the function-call key leaks, the worst case is bounties posted from the pre-deposited budget,
 which the owner can cancel or refund, and gas spent up to the key's 0.25 NEAR allowance. No money
