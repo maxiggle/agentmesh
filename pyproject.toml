@@ -45,7 +45,7 @@ build-backend = "hatchling.build"
 packages = ["src/ehor"]
 
 [tool.hatch.build.targets.sdist]
-exclude = ["packages/", ".claude/"]
+exclude = ["packages/", "site/", ".claude/"]
 
 [dependency-groups]
 dev = [
