@@ -296,6 +296,11 @@ both people in a direct message, and always your own devices.
 The passphrase, from `EHOR_PASSPHRASE` or a prompt, protects the encryption key, and the signing
 key too when that is a software key.
 
+An extension can narrow who a message is sealed for. [ehor-near](../packages/ehor-near/README.md),
+for example, leaves out a teammate's key unless their NEAR account approved it on-chain. Whoever
+posts is told which teammates were left out, so a message is never withheld silently, and your own
+devices always keep their copy.
+
 ### Hardware signing keys
 
 Each device signs everything it writes with its own P-256 key. `init` and `join` put that key in
@@ -366,6 +371,26 @@ MCP at all.
 
 Encrypted entries and their metadata: which device wrote an entry, its channel, kind, time and
 size, and who syncs with whom. Never the content.
+
+#### I forgot my passphrase. What now?
+
+What you can recover depends on where your signing key lives (`ehor roster` shows it as `hardware`
+or `software`).
+
+- **Hardware key (Secure Enclave or TPM).** The passphrase guards only your encryption key, so you
+  keep your place on the team. Delete `~/.ehor/keys/encryption.key`, then run `ehor serve` and type
+  a new passphrase. It asks once and does not ask you to confirm, so type it carefully or set
+  `EHOR_PASSPHRASE`. ehor makes a new encryption key and announces it. Messages this device
+  received before the reset can no longer be read here; your teammates' copies are unaffected.
+- **Software key.** The same passphrase protects your signing key, and there is no way to recover
+  it. Join again as a new device with `ehor join`, and ask an admin to run `ehor roster remove` for
+  the old one.
+
+If you use ehor-near, delete `~/.ehor/keys/near-limited.key` too, then run `ehor near setup`. The
+old limited key stays on your NEAR account until you remove it in your wallet; it cannot move NEAR.
+If you approved encryption keys, approve the new one with `ehor near keys add` and withdraw the old
+one with `ehor near keys remove <old key>`; `ehor near keys list` shows both. Until you do,
+teammates seal to your old, lost key and not the new one.
 
 #### Why is it called ehor?
 
