@@ -8,7 +8,7 @@ These rules apply to every contributor, human or agent. They are not optional.
 - Never bundle unrelated changes. Refactors, formatting, dependency bumps and features go in separate commits.
 - **Conventional Commits** for every message: `type(scope): summary`.
   - Types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`, `revert`.
-  - Scopes follow the package layout: `identity`, `log`, `store`, `crypto`, `roster`, `sync`, `transport`, `escrow` (the `ehor-near` package), `service`, `mcp`, `cli`, `relay`, `contract`.
+  - Scopes follow the package layout: `identity`, `log`, `store`, `crypto`, `roster`, `sync`, `transport`, `escrow` (the `ehor-near` package), `service`, `mcp`, `cli`, `relay`, `contract`, `site` (the website in `site/`).
   - Summary is imperative, lowercase, no trailing period, at most 72 characters.
   - The body explains *why*, not *what*.
 - Commit messages and pull requests describe the work itself. Never mention build-plan phases, milestones or roadmap steps.
@@ -26,6 +26,7 @@ These rules apply to every contributor, human or agent. They are not optional.
 ## CI/CD
 
 - Every push to any branch and every pull request runs lint, format check, type-check and tests on macOS, Linux and Windows, for both the Python package and the escrow contract. The contract is also built to wasm.
+- The website in `site/` is linted, format-checked, type-checked and built on Linux.
 - Commit messages are checked against Conventional Commits in CI.
 - Releases are cut by pushing a `vX.Y.Z` tag; the release workflow builds the wheel and sdist, publishes them to PyPI, then attaches them to a GitHub release.
 - Do not merge or push when CI is red. Do not disable or skip checks to make them pass.
@@ -101,3 +102,5 @@ These rules apply to every contributor, human or agent. They are not optional.
   - `cargo fmt --check && cargo clippy --all-targets -- -D warnings` — lint the contract (from `packages/ehor-near/contract/`)
   - `cargo test` — test the contract (from `packages/ehor-near/contract/`)
   - `cargo near build non-reproducible-wasm` — build the contract wasm (from `packages/ehor-near/contract/`)
+  - `npm ci && npm run dev` — run the website (from `site/`)
+  - `npm run lint && npm run format:check && npm run typecheck && npm run build` — check the website (from `site/`)
