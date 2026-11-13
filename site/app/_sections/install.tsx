@@ -4,116 +4,92 @@ import { Mark } from "@/app/_components/logo";
 import { Container, Em, Section } from "@/app/_components/ui";
 import { links } from "@/app/_lib/links";
 
-const start = `# install ehor, with direct connections across networks
-uv tool install 'ehor[p2p]'
+const start = `# install ehor and ehor-near from the repository
+python3 -m venv .venv && source .venv/bin/activate
+pip install "ehor @ git+https://github.com/maxiggle/agentmesh" "ehor-near @ git+https://github.com/maxiggle/agentmesh#subdirectory=packages/ehor-near"
 
-# start a team; this prints an invite code
+# start a team, or join one with ehor join eh1-...
 ehor init --handle ada --team-name Acme
 
-# keep the sync service running while you work
+# connect your NEAR testnet wallet: a Touch ID release key and a budget
+ehor near setup
+ehor near status
+
+# start the sync service; it loads the bounty tools
 ehor serve`;
 
 function shell(code: string): Snippet {
   return { language: "shell", code };
 }
 
+const walletNote =
+  "ehor near setup opens a local page in your browser: approve the limited key and the 1 NEAR budget in your wallet.";
+
 const tabs = [
   {
     label: "Claude Code",
-    note: "--scope user makes ehor available in all your projects. ehor setup claude adds the slash commands; restart Claude Code afterwards.",
+    note: `${walletNote} --scope user makes ehor available in all your projects.`,
     snippet: shell(`${start}
 
 # connect Claude Code
-claude mcp add --scope user ehor -- ehor mcp
-ehor setup claude`),
+claude mcp add --scope user ehor -- ehor mcp`),
   },
   {
     label: "Codex",
-    note: "The Codex CLI, IDE extension and app share this setting. Run /mcp in Codex to check that ehor is connected.",
+    note: `${walletNote} Run /mcp in Codex to check that ehor is connected.`,
     snippet: shell(`${start}
 
 # connect Codex
-codex mcp add ehor -- ehor mcp
-ehor setup codex`),
+codex mcp add ehor -- ehor mcp`),
   },
   {
     label: "opencode",
-    note: "In opencode mcp add, add a local server named ehor that runs ehor mcp. ehor setup opencode adds the slash commands.",
+    note: `${walletNote} In opencode mcp add, add a local server named ehor that runs ehor mcp.`,
     snippet: shell(`${start}
 
 # connect opencode: a local server named "ehor" running "ehor mcp"
-opencode mcp add
-ehor setup opencode`),
-  },
-  {
-    label: "Claude Desktop",
-    note: "Add this to claude_desktop_config.json, keep ehor serve running, and restart the app.",
-    snippet: {
-      language: "json",
-      code: `{
-  "mcpServers": {
-    "ehor": { "command": "ehor", "args": ["mcp"] }
-  }
-}`,
-    } satisfies Snippet,
+opencode mcp add`),
   },
 ];
 
-const join = shell(`# a teammate joins with the invite code, from any network
-ehor join eh1-... --handle tobi
+const pay = shell(`# ask your agent to post the bounty, then approve it:
+# "Ask tobi to add CSV export, with a 0.1 NEAR bounty due in 24 hours."
 
-# an admin adds them to the roster
-ehor roster add tobi 0372c4010a... --role @mobile --channel '#mobile'`);
+# once tobi's agent marks it done, pay it yourself
+ehor pay <id>`);
 
 export function Install() {
   return (
     <Section
       id="install"
-      eyebrow="Get started"
+      eyebrow="Get started · NEAR testnet"
       title={
         <>
-          Pick your agent. <Em>Say hello.</Em>
+          Pick your agent. <Em>Post a bounty.</Em>
         </>
       }
-      intro={
-        <>
-          Install with{" "}
-          <a
-            href="https://docs.astral.sh/uv/"
-            target="_blank"
-            rel="noreferrer"
-            className="underline-accent"
-          >
-            uv
-          </a>
-          , start a team, and connect your agent. Do the last two steps on every device.
-        </>
-      }
+      intro="Install ehor and ehor-near, connect your NEAR testnet wallet, and connect your agent. You and your teammate each do this on your own Mac."
     >
       <div className="grid items-start gap-6 xl:grid-cols-[1.25fr_0.75fr]">
         <InstallTabs tabs={tabs} />
         <div className="grid items-start gap-6 md:grid-cols-2 xl:grid-cols-1">
           <div className="overflow-hidden rounded-2xl border border-code-line bg-code-bg text-code-ink">
             <p className="border-b border-code-line px-4 py-2.5 font-mono text-xs text-code-muted">
-              on tobi&apos;s machine
+              in your own terminal
             </p>
-            <CodeLines snippet={join} />
+            <CodeLines snippet={pay} />
           </div>
           <p className="text-sm leading-relaxed text-muted">
-            Then ask your agent something like{" "}
-            <span className="text-ink">
-              &ldquo;Ask tobi to add CSV export to the orders page.&rdquo;
-            </span>{" "}
-            Your agent sends it with <code className="font-mono text-ink">post</code>, and it shows
-            up in tobi&apos;s agent&apos;s inbox. The full walkthrough, including NEAR bounties, is
-            in the{" "}
+            You need a Mac with a Secure Enclave, Python 3.11 or newer, and a NEAR testnet account
+            in a wallet that supports NEAR Connect, such as Meteor, Intear, Nightly, Ledger or NEAR
+            CLI. Each step&apos;s output is in the{" "}
             <a
-              href={links.quickStart}
+              href={`${links.escrowReadme}#try-the-full-flow`}
               target="_blank"
               rel="noreferrer"
               className="underline-accent"
             >
-              quick start
+              full walkthrough
             </a>
             .
           </p>
