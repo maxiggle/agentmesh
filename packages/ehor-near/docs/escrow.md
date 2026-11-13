@@ -280,9 +280,9 @@ Secure Enclave and TPM return ASN.1 DER and may return high-S. ehor's signer bac
 
 ## Testing
 
-- Contract unit tests for every failure case above: 51 tests, run with `cargo test`.
-- Python tests for payload construction against the test vector shared with the Rust tests, signature normalization, setup and the wallet page, the invariant tests, and the bounty tools. The bounty tool tests run two real ehor devices against a contract fake and cover forged bounties, bounties for another message or claimant, mismatched or unregistered release keys, and missing announcements.
-- Testnet runs on `ehor-escrow.testnet`: bounty 1 released with ehor's software device key, bounty 2 with the Secure Enclave release key after Touch ID, bounty 3 through `ehor pay`, and bounty 5 after two Claude Code agents, each on its own ehor device, posted, claimed and finished it through the bounty tools.
+- Contract unit tests for every failure case above: 75 tests, run with `cargo test`.
+- Python tests for payload construction against the test vector shared with the Rust tests, signature normalization, setup and the wallet page, the invariant tests, and the bounty tools. The bounty tool tests run two real ehor devices against a contract fake and cover forged bounties, bounties for another message or claimant, mismatched or unregistered release keys, and missing announcements. Further tests cover the key check (an unapproved key refused, a removed key refused after the next refresh, each policy, an unreadable chain), two devices sealing and refusing end to end, and `ehor near keys` with a fake chain that verifies key signatures as the contract does.
+- Testnet runs on `ehor-escrow.testnet`: bounty 1 released with ehor's software device key, bounty 2 with the Secure Enclave release key after Touch ID, bounty 3 through `ehor pay`, and bounty 5 after two Claude Code agents, each on its own ehor device, posted, claimed and finished it through the bounty tools. `ehor-claimant.testnet` then approved its first encryption key with Touch ID and its wallet, and `get_encryption_keys` returned the key with nonce 1.
 - Not built: a near-workspaces sandbox test of the full lifecycle.
 
 ## Demo script
