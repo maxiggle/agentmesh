@@ -59,6 +59,9 @@ class Device:
         self._config = config
         signer = _signer(home, config.key_backend, passphrase)
         key = KeyHandle(config.key_backend.value, config.key_label)
+        # Loaded before the store opens, so a wrong passphrase leaves no database handle open.
+        encryption_key = EncryptionKeyFile(home / _KEY_DIR / _ENCRYPTION_KEY, passphrase)
+        private = encryption_key.load_or_create()
         self._store = SqliteStore(home / _DB_FILE)
         self._book = RosterBook(config.genesis)
         self._book.load_stored(self._store)
@@ -67,10 +70,7 @@ class Device:
         self._author = local_log.author
         self._local_log = local_log
         self._keys = KeyDirectory(self._store)
-        encryption_key = EncryptionKeyFile(home / _KEY_DIR / _ENCRYPTION_KEY, passphrase)
-        self._codec = SealingCodec(
-            self._book, self._keys, encryption_key.load_or_create(), self._author, config.team
-        )
+        self._codec = SealingCodec(self._book, self._keys, private, self._author, config.team)
         self._iroh_secret = load_or_create_secret(home / _KEY_DIR / _IROH_KEY)
         self._endpoints = EndpointDirectory(self._store)
         self._accounts = AccountDirectory(self._store)
