@@ -188,7 +188,7 @@ Every device of a team must run an ehor version that knows `account_announce` be
 
 ### Config and client
 
-- New package `ehor-near` and a `near.json` file in the device folder, kept apart from the core `config.json`: account id, contract id, network (`testnet`, the only accepted value) and an HTTPS RPC URL (default `https://test.rpc.fastnear.com`).
+- New package `ehor-near` and a `near.json` file in the device folder, kept apart from the core `config.json`: account id, contract id, network (`testnet`, the only accepted value), an HTTPS RPC URL (default `https://test.rpc.fastnear.com`) and the encryption key policy (`verify` by default, or `require`).
 - `ehor_near.client` defines the `NearClient` interface: view call, function call (with attached deposit and gas), and adding a function-call access key. `ehor_near.pynear` implements it with py-near. Spike B showed py-near installs on every supported Python, so the `near` CLI implementation is not built.
 
 ### Wallet connection
@@ -234,6 +234,16 @@ ehor-near adds four MCP tools through ehor's `ehor.tools` entry point. Their cal
 | `bounties()` | Lists the bounties this device posted or claimed, each read from the chain, and names `ehor pay <bounty>` for a Done bounty it posted. The IDs are kept in `near-bounties.json` in the device folder. |
 
 No MCP tool can sign or send a release, and tests check that loading the tools never loads the release signer. Each bounty tool's description tells the agent to show the person the terms and call it only after they approve, and agent clients such as Claude Code ask before running an MCP tool unless the person has allowed it. The money does not depend on that approval: the limited key cannot move NEAR out of the contract.
+
+### Encryption keys checked against the chain
+
+When `ehor serve` starts on a device with ehor-near set up, the plugin registers a recipient check with ehor (protocol §6) and a background task. Devices without ehor-near, or without `ehor near setup`, seal exactly as ehor always has.
+
+- Every 5 minutes, and once at start, the task reads `get_encryption_keys` by view call for each NEAR account a roster device announced. Sealing reads only what was last fetched, so it never waits on the network. If the chain cannot be read, the last keys read stay in force.
+- A device's account comes from its own signed `account_announce`, never from message text.
+- When that account has approved keys, a teammate key is sealed for only if it is one of them, so a device that claims an account cannot add a key of its own.
+- When the account approved none, or the device announced no account, or the account has not been read yet, `encryption_keys` in `near.json` decides: `verify` (the default) seals to the announced key as ehor always has; `require` leaves the device out.
+- The post or reply result names each teammate left out, so a message is never withheld silently.
 
 ### Pay flow
 

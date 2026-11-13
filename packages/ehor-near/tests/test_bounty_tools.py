@@ -11,6 +11,7 @@ from ehor.service.api import ApiError
 from ehor.service.device import Device, key_dir
 from ehor_near.bounties import NEAR_SYSTEM, BountyError
 from ehor_near.config import NearConfig
+from ehor_near.encryption_keys import ChainKeyCheck
 from ehor_near.limited_key import LIMITED_KEY_FILE, LimitedKeyFile
 from ehor_near.tools import CLAIM, DONE, LIST, POST, NearTools
 
@@ -126,3 +127,17 @@ def test_a_broken_setup_leaves_ehor_serve_running(home: Path, broken: str) -> No
         handlers = NearTools().open(home, PASSPHRASE, device)
         with pytest.raises(BountyError, match="NEAR setup on this device is broken"):
             _run(handlers[LIST]({}))
+
+
+def test_a_set_up_device_checks_teammate_keys_against_the_chain(home: Path) -> None:
+    NearConfig("gef.testnet", "ehor-escrow.testnet", release_key=RELEASE_KEY.hex()).save(home)
+    LimitedKeyFile(key_dir(home) / LIMITED_KEY_FILE, PASSPHRASE).create()
+    with Device.open(home, PASSPHRASE) as device:
+        NearTools().open(home, PASSPHRASE, device)
+        assert [type(task) for task in device.background_tasks] == [ChainKeyCheck]
+
+
+def test_a_device_without_near_setup_seals_as_ehor_always_has(home: Path) -> None:
+    with Device.open(home, PASSPHRASE) as device:
+        NearTools().open(home, PASSPHRASE, device)
+        assert device.background_tasks == ()

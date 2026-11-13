@@ -1,6 +1,7 @@
 import json
 import re
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 
 from ehor_near.client import TESTNET, TESTNET_RPC, is_account_id
@@ -13,6 +14,17 @@ class NearConfigError(Exception):
     pass
 
 
+class KeyPolicy(Enum):
+    """What to do with a teammate whose NEAR account has approved no encryption keys.
+
+    `verify` trusts their announced key as ehor always has; `require` seals nothing to them.
+    A key that differs from the ones an account approved is refused under both.
+    """
+
+    VERIFY = "verify"
+    REQUIRE = "require"
+
+
 @dataclass(frozen=True, slots=True)
 class NearConfig:
     account_id: str
@@ -20,6 +32,7 @@ class NearConfig:
     network: str = TESTNET
     rpc_url: str = TESTNET_RPC
     release_key: str | None = None
+    encryption_keys: KeyPolicy = KeyPolicy.VERIFY
 
     def __post_init__(self) -> None:
         if self.network != TESTNET:
@@ -41,6 +54,8 @@ class NearConfig:
         }
         if self.release_key is not None:
             data["release_key"] = self.release_key
+        if self.encryption_keys is not KeyPolicy.VERIFY:
+            data["encryption_keys"] = self.encryption_keys.value
         return data
 
     @classmethod
@@ -51,6 +66,7 @@ class NearConfig:
             network=data.get("network", TESTNET),
             rpc_url=data.get("rpc_url", TESTNET_RPC),
             release_key=data.get("release_key"),
+            encryption_keys=KeyPolicy(data.get("encryption_keys", KeyPolicy.VERIFY.value)),
         )
 
     def save(self, home: Path) -> None:
