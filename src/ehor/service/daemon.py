@@ -4,7 +4,7 @@ from typing import Protocol
 
 from ehor.service.api import ApiError
 from ehor.service.device import Device
-from ehor.service.plugins import PluginError, ToolHandler, check_method_name
+from ehor.service.plugins import BackgroundTask, PluginError, ToolHandler, check_method_name
 from ehor.service.rpc import Endpoint, RpcServer
 
 DEFAULT_SYNC_INTERVAL = 2.0
@@ -32,6 +32,7 @@ class Daemon:
         *,
         watcher: Watcher | None = None,
         methods: Mapping[str, ToolHandler] | None = None,
+        tasks: Sequence[BackgroundTask] = (),
     ) -> None:
         for name in methods or {}:
             check_method_name(name)
@@ -41,6 +42,7 @@ class Daemon:
         self._interval = interval
         self._peers = tuple(peers)
         self._watcher = watcher
+        self._tasks = tuple(tasks)
 
     async def run(self, stop: asyncio.Event) -> None:
         server = await RpcServer(self._endpoint, self._dispatch, (ApiError, PluginError)).start()
@@ -48,6 +50,7 @@ class Daemon:
             await asyncio.gather(
                 self._sync_folder(stop),
                 *(peer.run(stop) for peer in self._peers),
+                *(task.run(stop) for task in self._tasks),
             )
         finally:
             server.close()

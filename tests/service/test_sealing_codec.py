@@ -55,3 +55,25 @@ def test_codec_round_trip_and_unreadable_bodies(
     assert codec.open(make_content(body=b"not an envelope").sign(signer, handle)) is None
     assert codec.open(make_content(body=message("plain")).sign(signer, handle)) is not None
     store.close()
+
+
+class _RefuseAll:
+    def allows(self, device: bytes, encryption_key: bytes) -> bool:
+        return False
+
+
+def test_a_check_never_leaves_out_the_writer(
+    tmp_db: Path, signer: SoftwareSigner, handle: KeyHandle, team: bytes
+) -> None:
+    store = SqliteStore(tmp_db)
+    codec = SealingCodec(
+        RosterBook(b"\x00" * 32),
+        KeyDirectory(store),
+        X25519PrivateKey.generate(),
+        signer.public_key(handle),
+        team,
+    )
+    codec.add_check(_RefuseAll())
+    assert [r.public for r in codec.recipients("#backend")] == [codec.public_key]
+    assert codec.withheld("#backend") == ()
+    store.close()

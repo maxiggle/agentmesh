@@ -137,10 +137,17 @@ class BodyCodec(Protocol):
         """The plaintext body, or None if this device cannot read it."""
         ...
 
+    def withheld(self, channel: str) -> tuple[bytes, ...]:
+        """Devices allowed to read `channel` that a recipient check leaves out of sealing."""
+        ...
+
 
 class PlainCodec:
     def seal(self, channel: str, kind: Kind, body: bytes) -> bytes:
         return Envelope.plain(body).encode()
+
+    def withheld(self, channel: str) -> tuple[bytes, ...]:
+        return ()
 
     def open(self, entry: Entry) -> bytes | None:
         try:
@@ -198,6 +205,10 @@ class Messenger:
             detail=detail,
         )
         return self._append(self._channel_for(targets), Kind.MESSAGE, body.encode(), ())
+
+    def withheld_from(self, channel: str) -> tuple[str, ...]:
+        """Teammates with a device that new entries in `channel` are not sealed for."""
+        return tuple(sorted({self.display_name(d) for d in self._codec.withheld(channel)}))
 
     def reply(self, id_prefix: str, summary: str, *, links: Sequence[str] = ()) -> Entry:
         original = self._resolve(id_prefix)

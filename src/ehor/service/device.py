@@ -33,8 +33,9 @@ from ehor.service.endpoints import EndpointDirectory
 from ehor.service.invite import Invite
 from ehor.service.iroh_key import endpoint_id_for, load_or_create_secret, stored_endpoint_id
 from ehor.service.messenger import Messenger
+from ehor.service.plugins import BackgroundTask
 from ehor.service.roster_admin import AdminApi, RosterAdmin
-from ehor.service.sealing import KeyDirectory, SealingCodec
+from ehor.service.sealing import KeyDirectory, RecipientCheck, SealingCodec
 from ehor.store.ingest import Ingestor
 from ehor.store.local_log import LocalLog
 from ehor.store.sqlite import SqliteStore
@@ -74,6 +75,7 @@ class Device:
         self._endpoints = EndpointDirectory(self._store)
         self._accounts = AccountDirectory(self._store)
         self._wanted_accounts: dict[str, AccountAnnounce] = {}
+        self._background: list[BackgroundTask] = []
         directory = RosterDirectory(self._book, self._author, config.handle)
         self._messenger = Messenger(self._store, local_log, directory, self._codec)
         self._api = ToolApi(self._messenger)
@@ -333,6 +335,17 @@ class Device:
                     AnnouncedAccount(member.handle, device, announced.account, announced.key)
                 )
         return tuple(sorted(found, key=lambda item: (item.handle, item.device)))
+
+    def check_recipients(self, check: RecipientCheck) -> None:
+        self._codec.add_check(check)
+
+    def run_in_background(self, task: BackgroundTask) -> None:
+        self._background.append(task)
+
+    @property
+    def background_tasks(self) -> tuple[BackgroundTask, ...]:
+        """Work plugins asked `ehor serve` to run alongside syncing."""
+        return tuple(self._background)
 
     def direct_peers(self) -> list[tuple[bytes, bytes]]:
         """`(device key, iroh endpoint ID)` for each other device of each current member.
