@@ -311,3 +311,20 @@ def test_list_shows_whether_this_device_is_approved(
 def test_keys_need_near_setup_first(home: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert _keys(home, "list") == 1
     assert "run `ehor near setup` first" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("command", [["list"], ["add"]])
+def test_a_wrong_passphrase_is_reported_without_a_traceback(
+    home: Path,
+    signer: TouchSigner,
+    chain: Chain,
+    wallet: Wallet,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    command: list[str],
+) -> None:
+    monkeypatch.setenv("EHOR_PASSPHRASE", "not the passphrase")
+    assert _keys(home, *command) == 1
+    assert "that passphrase does not unlock this device" in capsys.readouterr().err
+    assert signer.reasons == []
+    assert wallet.thread is None

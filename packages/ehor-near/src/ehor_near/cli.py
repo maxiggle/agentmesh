@@ -535,7 +535,12 @@ def _near_config(home: Path) -> NearConfig:
 
 
 def _device_encryption_key(home: Path) -> bytes:
-    with Device.open(home, device_passphrase()) as device:
+    passphrase = device_passphrase()
+    try:
+        check_passphrase(home, passphrase)
+    except KeyFileError as exc:
+        raise CliError("that passphrase does not unlock this device") from exc
+    with Device.open(home, passphrase) as device:
         return device.encryption_key
 
 
