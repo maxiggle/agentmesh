@@ -1,10 +1,11 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from ehor_near.client import TESTNET_RPC
-from ehor_near.config import NEAR_CONFIG_FILE, NearConfig, NearConfigError
+from ehor_near.config import NEAR_CONFIG_FILE, KeyPolicy, NearConfig, NearConfigError
 
 NEAR = NearConfig("gef.testnet", "escrow.gef.testnet")
 
@@ -42,6 +43,7 @@ def test_a_file_without_network_or_rpc_uses_testnet(tmp_path: Path) -> None:
         ({"account_id": "gef.testnet"}, "contract_id"),
         ({**NEAR.to_json(), "network": "mainnet"}, "must be testnet"),
         ({**NEAR.to_json(), "account_id": "Gef"}, "invalid NEAR account"),
+        ({**NEAR.to_json(), "encryption_keys": "trust"}, "invalid"),
         ("gef.testnet", "invalid"),
     ],
 )
@@ -67,7 +69,11 @@ def test_load_rejects_a_file_that_is_not_json(tmp_path: Path) -> None:
     ],
 )
 def test_near_rejects_bad_values(kwargs: dict[str, str], error: str) -> None:
-    fields = {"account_id": "gef.testnet", "contract_id": "escrow.gef.testnet", **kwargs}
+    fields: dict[str, Any] = {
+        "account_id": "gef.testnet",
+        "contract_id": "escrow.gef.testnet",
+        **kwargs,
+    }
     with pytest.raises(NearConfigError, match=error):
         NearConfig(**fields)
 
@@ -76,3 +82,11 @@ def test_near_rejects_bad_values(kwargs: dict[str, str], error: str) -> None:
 def test_a_malformed_release_key_is_refused(key: str) -> None:
     with pytest.raises(NearConfigError, match="compressed P-256"):
         NearConfig("gef.testnet", "ehor-escrow.testnet", release_key=key)
+
+
+def test_a_device_verifies_encryption_keys_unless_told_to_require_them(tmp_path: Path) -> None:
+    assert NEAR.encryption_keys is KeyPolicy.VERIFY
+    strict = NearConfig("gef.testnet", "escrow.gef.testnet", encryption_keys=KeyPolicy.REQUIRE)
+    strict.save(tmp_path)
+    assert json.loads((tmp_path / NEAR_CONFIG_FILE).read_text())["encryption_keys"] == "require"
+    assert NearConfig.load(tmp_path) == strict

@@ -13,6 +13,7 @@ from ehor.service.plugins import PluginHost, ToolHandler
 from ehor_near.bounties import DEFAULT_HOURS, NEAR_SYSTEM, BountyDesk, BountyError
 from ehor_near.client import NearError
 from ehor_near.config import NearConfig, NearConfigError
+from ehor_near.encryption_keys import ChainKeyCheck
 from ehor_near.limited_key import LIMITED_KEY_FILE, LimitedKeyError, LimitedKeyFile
 from ehor_near.pay import PayError
 from ehor_near.payload import PayloadError
@@ -138,13 +139,14 @@ def _desk(home: Path, passphrase: bytes, host: PluginHost) -> BountyDesk | str:
         AccountAnnounce(NEAR_SYSTEM, config.account_id, bytes.fromhex(config.release_key))
     )
     secret = key_file.load().near_secret()
-    return BountyDesk(
-        home,
-        config,
-        lambda: PyNearClient.connect(config.account_id, secret, config.rpc_url),
-        messages=host.messenger,
-        accounts=host,
-    )
+
+    def connect() -> PyNearClient:
+        return PyNearClient.connect(config.account_id, secret, config.rpc_url)
+
+    check = ChainKeyCheck(config.contract_id, connect, host, config.encryption_keys)
+    host.check_recipients(check)
+    host.run_in_background(check)
+    return BountyDesk(home, config, connect, messages=host.messenger, accounts=host)
 
 
 def _ready(desk: BountyDesk | str) -> BountyDesk:
