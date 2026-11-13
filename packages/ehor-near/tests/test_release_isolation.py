@@ -16,7 +16,7 @@ import ehor_near
 
 PACKAGES = [Path(ehor.__file__).parent, Path(ehor_near.__file__).parent]
 SIGNER_MODULE = "ehor_near.release"
-SIGNER_NAMES = {"release", "sign_release"}
+SIGNER_NAMES = {"release", "sign_release", "sign_key_change"}
 PRESENCE_SIGNER = "SecureEnclavePresenceSigner"
 ALLOWED = {"ehor_near.cli", SIGNER_MODULE}
 PRESENCE_ALLOWED = {"ehor_near.cli", "ehor.identity.secure_enclave"}

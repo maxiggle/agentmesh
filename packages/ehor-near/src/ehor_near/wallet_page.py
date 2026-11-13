@@ -88,7 +88,7 @@ class WalletPage:
         *,
         network: str,
         contract: str,
-        public_key: str,
+        public_key: str | None,
         methods: Sequence[str],
         allowance_yocto: int,
         planner: Planner,

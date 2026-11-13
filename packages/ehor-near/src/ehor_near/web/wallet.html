@@ -78,14 +78,14 @@
     $("connect").disabled = true;
     show("Waiting for your wallet…");
     try {
-      wallet = await connector.connect({
+      wallet = await connector.connect(config.publicKey ? {
         addFunctionCallKey: {
           contractId: config.contract,
           publicKey: config.publicKey,
           allowMethods: { anyMethod: false, methodNames: config.methods },
           gasAllowance: { kind: "limited", amount: config.allowance },
         },
-      });
+      } : {});
       const accounts = await wallet.getAccounts({ network: config.network });
       accountId = accounts[0] && accounts[0].accountId;
       if (!accountId) throw new Error("the wallet returned no account");
