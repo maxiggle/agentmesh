@@ -710,3 +710,4 @@ def test_serve_with_the_wrong_passphrase_says_so_without_a_traceback(
     assert capsys.readouterr().err.endswith(
         "error: cannot decrypt the encryption key; check the device passphrase\n"
     )
+    (home / "ehor.db").rename(home / "moved.db")
