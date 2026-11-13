@@ -282,6 +282,11 @@ class Device:
             return []
         return [device.key for device in member.devices if device.trust is Trust.SECURITY_KEY]
 
+    @property
+    def encryption_key(self) -> bytes:
+        """This device's X25519 public key, the one it announces for teammates to seal to."""
+        return self._codec.public_key
+
     def announce_key(self) -> bool:
         """Publish this device's encryption key once it is on the roster, or when it changes."""
         if self._book.member_for_key(self._author) is None:
