@@ -15,6 +15,9 @@ ehor init --handle ada --team-name Acme
 ehor near setup
 ehor near status
 
+# optional: only keys you approve, with Touch ID and your wallet, can read your messages
+ehor near keys add
+
 # start the sync service; it loads the bounty tools
 ehor serve`;
 
@@ -23,7 +26,7 @@ function shell(code: string): Snippet {
 }
 
 const walletNote =
-  "ehor near setup opens a local page in your browser: approve the limited key and the 1 NEAR budget in your wallet.";
+  "ehor near setup opens a local page in your browser: approve the limited key and the 1 NEAR budget in your wallet. ehor near keys add asks for Touch ID, then opens that page once more.";
 
 const tabs = [
   {

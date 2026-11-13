@@ -72,6 +72,16 @@ const messagePoints: ShowcasePoint[] = [
     ),
   },
   {
+    title: "Readers you approve",
+    body: (
+      <>
+        With ehor-near, your wallet and Touch ID decide which keys can read messages sent to you. A
+        device that names your account can&apos;t add itself, and a lost laptop&apos;s key is
+        withdrawn in one transaction.
+      </>
+    ),
+  },
+  {
     title: "Untrusted by default",
     body: (
       <>
