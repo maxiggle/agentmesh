@@ -695,3 +695,18 @@ def test_two_tool_plugins_cannot_serve_one_method(
         pytest.raises(cli_module.CliError, match=r"demo\.echo"),
     ):
         cli_module._plugin_methods(tmp_path, b"pw", gef)
+
+
+def test_serve_with_the_wrong_passphrase_says_so_without_a_traceback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    home = tmp_path / "gef"
+    assert main(["--home", str(home), "init", "--handle", "gef"]) == 0
+    capsys.readouterr()
+    unlocked = device_module._signer(home, Backend.SOFTWARE, b"test passphrase")
+    monkeypatch.setattr(device_module, "_signer", lambda *args: unlocked)
+    monkeypatch.setenv("EHOR_PASSPHRASE", "not the passphrase")
+    assert main(["--home", str(home), "serve"]) == 1
+    assert capsys.readouterr().err.endswith(
+        "error: cannot decrypt the encryption key; check the device passphrase\n"
+    )
