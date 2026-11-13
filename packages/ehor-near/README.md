@@ -367,6 +367,15 @@ Parts of the code were written with AI coding agents.
 - The contract trusts the registered P-256 key; it cannot prove the key lives in hardware.
 - Wallet setup needs a desktop browser on the same Mac. HOT Wallet and NEAR Mobile do not declare
   testnet support in NEAR Connect 0.12.0, and WalletConnect wallets are not offered.
+- Approved encryption keys narrow who can read your messages; the roster still decides who is on
+  the team. A dishonest member who names your account gains nothing, because teammates seal only
+  to keys you approved.
+- Teammates read approved keys every 5 minutes, so a removed key can still be sealed to for that
+  long. Messages already sealed to a key stay readable by it.
+- Approved keys are read from the NEAR RPC node. A node that lied could hide an approval or show a
+  stale list, but it cannot make a device read anything it was not already sealed for.
+- Accounts that approved no keys keep ehor's roster trust. Set `"encryption_keys": "require"` in
+  `~/.ehor/near.json` to leave out any teammate who has not approved one.
 - Some wallets, Meteor among them, add the limited key for every method on the escrow contract
   instead of the four requested. ehor accepts this because the contract, not the method list,
   guards the money.

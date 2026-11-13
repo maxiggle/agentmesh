@@ -146,6 +146,7 @@ The contract logs one NEP-297 style JSON event per state change, with standard n
 - Setup supports only wallets that NEAR Connect lists with testnet, function-call-key sign-in and transaction signing. HOT Wallet and NEAR Mobile do not declare testnet at version 0.12.0. WalletConnect wallets are left out because they need a WalletConnect project id.
 - Setup needs a desktop browser on the same Mac, since the page is served on `127.0.0.1`.
 - Some wallets, Meteor among them, add the limited key for every method on the escrow contract instead of the four requested. See Keys and their jobs.
+- Approved encryption keys narrow who can read an owner's messages; the roster still decides who is on the team. Teammates refresh approvals every 5 minutes, so a removed key can still be sealed to for that long, and the node that answers the view call is trusted to report the list truthfully.
 
 ### Failure cases to test
 
@@ -302,6 +303,7 @@ About 90 seconds. Two ehor devices, each with its own Claude Code session as its
 | Testnet or RPC outage | ehor reports the RPC error and changes nothing; retry later. |
 | The limited key's gas allowance runs out | The bounty tools report the failed call. The owner removes the key in their wallet and runs `ehor near setup` again, which adds it back with a new allowance. |
 | NEAR Connect wallets misbehave on a page served from `127.0.0.1` | Tested with Meteor on testnet. Other wallets are untested. |
+| The RPC cannot be read when approved keys are refreshed | The last keys read stay in force and `ehor serve` logs a warning. Until the first read, `encryption_keys` in `near.json` decides. |
 | A wallet changes or drops its NEAR Connect executor | The connector loads executors from each wallet's URL, so most changes need no ehor release. |
 
 ## Open questions

@@ -332,6 +332,9 @@ ehor never imports ehor-near. ehor-near adds the `near` and `pay` commands throu
   they only claim.
 - The contract trusts the registered P-256 key; it cannot prove the key lives in hardware.
 - Wallet setup needs a desktop browser on the same Mac.
+- Approved encryption keys narrow who can read your messages; the roster still decides who is on
+  the team. Teammates read the approvals every 5 minutes, so a removed key can still be sealed to
+  for that long.
 
 More are listed in the [ehor-near README](packages/ehor-near/README.md#known-limits).
 
