@@ -597,3 +597,15 @@ def test_daemon_runs_plugin_background_tasks(short_dir: Path) -> None:
     task = _Task()
     asyncio.run(_daemon_with_task(short_dir, task))
     assert task.ran
+
+
+def test_a_teammate_sees_the_encryption_key_a_device_reports(tmp_path: Path) -> None:
+    gef, tobi = _pair(tmp_path)
+    assert len(tobi.encryption_key) == 32
+    assert gef.encryption_key != tobi.encryption_key
+    check = _Refuse()
+    gef.check_recipients(check)
+    _post(gef, "tobi", "hello")
+    assert (tobi.author, tobi.encryption_key) in check.asked
+    gef.close()
+    tobi.close()
