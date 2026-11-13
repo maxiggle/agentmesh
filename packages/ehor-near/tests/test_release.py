@@ -7,11 +7,18 @@ import pytest
 from ehor.identity.base import KeyHandle
 from ehor.identity.es256 import CURVE_ORDER, verify
 from ehor.identity.software import SoftwareSigner
-from ehor_near.payload import PayloadError
-from ehor_near.release import ReleaseSignError, ReleaseTerms, sign_release
+from ehor_near.payload import KeyAction, PayloadError
+from ehor_near.release import (
+    KeyChange,
+    ReleaseSignError,
+    ReleaseTerms,
+    sign_key_change,
+    sign_release,
+)
 
 VECTOR = Path(__file__).resolve().parents[1] / "docs" / "vectors" / "release-v1.json"
 TERMS = ReleaseTerms("testnet", "ehor-escrow.testnet", 7, "bob.testnet", 10**23)
+CHANGE = KeyChange("testnet", "ehor-escrow.testnet", "bob.testnet", 2, KeyAction.ADD, b"\xab" * 32)
 
 
 @dataclass
@@ -117,3 +124,20 @@ def test_the_person_is_asked_with_the_amount_claimant_and_bounty(
 ) -> None:
     sign_release(signer, handle, TERMS)
     assert signer.reasons == ["pay 0.1 NEAR to bob.testnet for ehor bounty 7"]
+
+
+def test_key_change_signature_verifies_and_names_the_change(
+    signer: TouchSigner, handle: KeyHandle
+) -> None:
+    signer.flip_s = True
+    raw = _decoded(sign_key_change(signer, handle, CHANGE))
+    assert int.from_bytes(raw[32:], "big") <= CURVE_ORDER // 2
+    assert verify(signer.public_key(handle), raw, CHANGE.payload().encode())
+    assert signer.reasons == ["approve ehor encryption key abababababababab for bob.testnet"]
+
+
+def test_a_key_change_signature_is_not_a_release_signature(
+    signer: TouchSigner, handle: KeyHandle
+) -> None:
+    raw = _decoded(sign_key_change(signer, handle, CHANGE))
+    assert not verify(signer.public_key(handle), raw, TERMS.payload().encode())

@@ -13,11 +13,12 @@ from ehor.identity import KeyHandle, KeyNotFoundError
 from ehor.identity.base import PresenceSigner
 from ehor.identity.secure_enclave import SecureEnclavePresenceSigner, SwiftHelper
 from ehor.service.config import DeviceConfig
-from ehor.service.device import check_passphrase, key_dir, tools_dir
+from ehor.service.device import Device, check_passphrase, key_dir, tools_dir
 from ehor.service.rpc import RpcClient, RpcError, default_endpoint
 from ehor_near.bounties import TAKEN, BountyError, BountyLedger
-from ehor_near.client import TESTNET, NearClient, NearError, is_account_id
+from ehor_near.client import ONE_YOCTO, TESTNET, NearClient, NearError, is_account_id
 from ehor_near.config import NearConfig, NearConfigError
+from ehor_near.encryption_keys import ApprovedKeys
 from ehor_near.limited_key import (
     ALLOWED_METHODS,
     DEFAULT_ALLOWANCE,
@@ -34,7 +35,7 @@ from ehor_near.pay import (
     registered_release_key,
     submit_release,
 )
-from ehor_near.payload import PayloadError, format_near, parse_near
+from ehor_near.payload import X25519_KEY_BYTES, KeyAction, PayloadError, format_near, parse_near
 from ehor_near.pynear import PyNearClient
 from ehor_near.registration import (
     RegistrationError,
@@ -42,7 +43,13 @@ from ehor_near.registration import (
     is_set_up,
     registration_call,
 )
-from ehor_near.release import ReleaseSignError, ReleaseTerms, sign_release
+from ehor_near.release import (
+    KeyChange,
+    ReleaseSignError,
+    ReleaseTerms,
+    sign_key_change,
+    sign_release,
+)
 from ehor_near.status import (
     Status,
     bounties_posted_by,
@@ -55,6 +62,8 @@ from ehor_near.wallet_page import WalletCall, WalletPage, WalletPageError
 RELEASE_KEY_LABEL = "release"
 DEFAULT_CONTRACT = "ehor-escrow.testnet"
 SETUP_TIMEOUT = 900.0
+KEY_CONFIRM_ATTEMPTS = 10
+KEY_CONFIRM_DELAY = 2.0
 _NO_NEAR = "this device has no NEAR account; run `ehor near setup` first"
 _NO_RELEASE_KEY = "this device has no release key; run `ehor near setup` first"
 _MAC_ONLY = "releases need a Mac with a Secure Enclave in this version"
@@ -94,6 +103,26 @@ def register(commands: Commands) -> None:
         "status", help="show this device's escrow budget, release key and bounties"
     )
     status.set_defaults(run=_reporting(_near_status))
+
+    keys = near_commands.add_parser(
+        "keys", help="choose which encryption keys teammates may seal your messages to"
+    )
+    keys_commands = keys.add_subparsers(required=True, metavar="command")
+    keys_commands.add_parser(
+        "list", help="show the encryption keys your account approved"
+    ).set_defaults(run=_reporting(_keys_list))
+    add_key = keys_commands.add_parser(
+        "add", help="approve an encryption key with Touch ID and your wallet"
+    )
+    add_key.add_argument(
+        "key", nargs="?", help="another device's key in hex, from its `ehor near keys list`"
+    )
+    add_key.set_defaults(run=_reporting(_keys_add))
+    remove_key = keys_commands.add_parser(
+        "remove", help="withdraw an encryption key with Touch ID and your wallet"
+    )
+    remove_key.add_argument("key", help="the key in hex, as `ehor near keys list` shows it")
+    remove_key.set_defaults(run=_reporting(_keys_remove))
 
     pay = commands.add_parser("pay", help="review a done bounty and pay it with Touch ID")
     pay.add_argument("bounty", type=int, help="bounty id on the escrow contract")
@@ -361,6 +390,165 @@ async def _connect_wallet(
                 "wallet if it is there, then run `ehor near setup` again."
             ) from exc
     return link.account_id
+
+
+def _keys_list(args: argparse.Namespace) -> int:
+    home = device_home(args)
+    config = _near_config(home)
+    mine = _device_encryption_key(home)
+
+    async def read() -> ApprovedKeys:
+        async with _connect_view(config) as near:
+            return await _approved_keys(near, config)
+
+    approved = asyncio.run(read())
+    sys.stdout.write(f"this device's encryption key: {mine.hex()}\n")
+    if not approved.keys:
+        sys.stdout.write(
+            f"{config.account_id} has approved no encryption keys, so teammates seal to the key "
+            "each of your devices announces. Run `ehor near keys add` to approve this one.\n"
+        )
+        return 0
+    sys.stdout.write(f"approved by {config.account_id}:\n")
+    for key in sorted(approved.keys):
+        sys.stdout.write(f"  {key.hex()}{'  (this device)' if key == mine else ''}\n")
+    if mine not in approved.keys:
+        sys.stdout.write(
+            "This device's key is not approved, so teammates will not seal messages to it. "
+            "Run `ehor near keys add` to approve it.\n"
+        )
+    return 0
+
+
+def _keys_add(args: argparse.Namespace) -> int:
+    home = device_home(args)
+    key = _device_encryption_key(home) if args.key is None else _parse_key(args.key)
+    return _change_key(home, KeyAction.ADD, key)
+
+
+def _keys_remove(args: argparse.Namespace) -> int:
+    return _change_key(device_home(args), KeyAction.REMOVE, _parse_key(args.key))
+
+
+def _change_key(home: Path, action: KeyAction, key: bytes) -> int:
+    config = _near_config(home)
+    signer = _release_signer(home)
+    handle = KeyHandle(SecureEnclavePresenceSigner.backend, RELEASE_KEY_LABEL)
+    try:
+        release_key = signer.public_key(handle)
+    except KeyNotFoundError as exc:
+        raise CliError(_NO_RELEASE_KEY) from exc
+    return asyncio.run(
+        _send_key_change(config, signer, handle, release_key=release_key, action=action, key=key)
+    )
+
+
+async def _send_key_change(
+    config: NearConfig,
+    signer: PresenceSigner,
+    handle: KeyHandle,
+    *,
+    release_key: bytes,
+    action: KeyAction,
+    key: bytes,
+) -> int:
+    contract, account = config.contract_id, config.account_id
+    async with _connect_view(config) as near:
+        if await registered_release_key(near, contract, account) != release_key:
+            raise CliError(
+                f"{contract} has a different release key for {account}; "
+                "run `ehor near setup` to register this Mac's key"
+            )
+        approved = await _approved_keys(near, config)
+    listed = key in approved.keys
+    if action is KeyAction.ADD and listed:
+        sys.stdout.write(f"{account} already approved {key.hex()}; nothing to do\n")
+        return 0
+    if action is KeyAction.REMOVE and not listed:
+        raise CliError(f"{account} has not approved {key.hex()}")
+    change = KeyChange(config.network, contract, account, approved.nonce, action, key)
+    sys.stdout.write("approve with Touch ID or your login password\n")
+    signature = sign_key_change(signer, handle, change)
+    verb = "approves" if action is KeyAction.ADD else "withdraws"
+    call = WalletCall(
+        contract,
+        f"{action.value}_encryption_key",
+        {"x25519_public_key": key.hex(), "signature": signature},
+        ONE_YOCTO,
+        f"This {verb} ehor encryption key {key.hex()[:16]} for {account}. "
+        "It attaches 1 yoctoNEAR to prove the request comes from your wallet.",
+    )
+
+    async def plan(connected: str) -> WalletCall:
+        if connected != account:
+            raise WalletPageError(f"the wallet connected {connected}, not {account}")
+        async with _connect_view(config) as near:
+            if (await _approved_keys(near, config)).nonce != approved.nonce:
+                raise WalletPageError("the approved keys changed meanwhile; run this again")
+        return call
+
+    sys.stdout.write(
+        f"Your browser will open a page where your NEAR wallet approves this for {account}.\n"
+    )
+    with WalletPage(
+        network=TESTNET,
+        contract=contract,
+        public_key=None,
+        methods=(),
+        allowance_yocto=0,
+        planner=plan,
+    ) as page:
+        sys.stdout.write(f"If the page does not open, visit {page.url}\n")
+        sys.stdout.flush()
+        _open_browser(page.url)
+        await page.wait(SETUP_TIMEOUT)
+    sys.stdout.write("approved in the wallet; checking the chain\n")
+    await _confirm_key_change(config, action, key)
+    done = "approved" if action is KeyAction.ADD else "withdrew"
+    sys.stdout.write(f"{account} {done} encryption key {key.hex()}\n")
+    return 0
+
+
+async def _confirm_key_change(config: NearConfig, action: KeyAction, key: bytes) -> None:
+    want = action is KeyAction.ADD
+    for attempt in range(KEY_CONFIRM_ATTEMPTS):
+        async with _connect_view(config) as near:
+            if (key in (await _approved_keys(near, config)).keys) == want:
+                return
+        if attempt + 1 < KEY_CONFIRM_ATTEMPTS:
+            await asyncio.sleep(KEY_CONFIRM_DELAY)
+    raise CliError(f"{config.contract_id} does not show the change for {config.account_id} yet")
+
+
+async def _approved_keys(near: NearClient, config: NearConfig) -> ApprovedKeys:
+    data = await near.view(
+        config.contract_id, "get_encryption_keys", {"account_id": config.account_id}
+    )
+    return ApprovedKeys.from_view(data)
+
+
+def _near_config(home: Path) -> NearConfig:
+    config = NearConfig.load(home)
+    if config is None:
+        raise CliError(_NO_NEAR)
+    return config
+
+
+def _device_encryption_key(home: Path) -> bytes:
+    with Device.open(home, device_passphrase()) as device:
+        return device.encryption_key
+
+
+def _parse_key(text: str) -> bytes:
+    try:
+        key = bytes.fromhex(text.strip())
+    except ValueError as exc:
+        raise CliError(f"not a hex encryption key: {text!r}") from exc
+    if len(key) != X25519_KEY_BYTES:
+        raise CliError(
+            f"an encryption key is {X25519_KEY_BYTES} bytes, {2 * X25519_KEY_BYTES} hex digits"
+        )
+    return key
 
 
 def _open_browser(url: str) -> None:

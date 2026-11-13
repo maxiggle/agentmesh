@@ -217,8 +217,15 @@ The wallet executors load from each wallet provider's URL when the page opens, n
 
 CLI commands are for the human, in a terminal:
 
-- Built: `ehor near setup`, `ehor near status`, `ehor pay <bounty>`.
+- Built: `ehor near setup`, `ehor near status`, `ehor near keys list|add|remove`, `ehor pay <bounty>`.
 - Planned: `ehor near deposit`, `ehor near withdraw`, `ehor refund <bounty>`, `ehor cancel <bounty>`. `cancel` and `refund` will need those two methods added to the limited key's method list.
+
+`ehor near keys list` shows this device's encryption key and the keys the account approved, read by view call. `ehor near keys add [key]` approves this device's key, or another device's key given in hex, and `ehor near keys remove <key>` withdraws one. Each change:
+
+1. Checks by view call that the contract holds this Mac's release key for the account, and reads the account's approved keys and nonce. Adding a key that is already approved, or removing one that is not, stops here without a prompt.
+2. Signs the encryption key payload with the release key; the person approves with Touch ID or the login password, and the prompt names the key and the account.
+3. Opens the wallet page without asking for a limited key. The wallet must connect the account in `near.json`, and the nonce must be unchanged, or the page stops. The wallet then signs `add_encryption_key` or `remove_encryption_key` with 1 yoctoNEAR.
+4. Confirms the change by view call. The page's report is never trusted on its own.
 
 `ehor near status` reads, by view call and without the device passphrase: the account's budget and per-bounty limit on the contract, whether the contract holds this Mac's release key, every bounty the account posted, and the bounties this device claimed. It also says whether the limited key file is on this device; checking it on chain would need the passphrase. It changes nothing.
 
@@ -263,7 +270,7 @@ Secure Enclave and TPM return ASN.1 DER and may return high-S. ehor's signer bac
 ### Safety invariants
 
 1. No inbound message can cause a signing call or a release.
-2. The release signature is produced only inside `ehor pay`, which is not reachable from MCP.
+2. The release signature is produced only inside `ehor pay`, which is not reachable from MCP. The release key also signs encryption key changes, only inside `ehor near keys`, under its own payload domain so such a signature can never release a bounty.
 3. Every on-chain action started by an agent shows a draft and waits for approval.
 4. Bounty details shown to the human come from the chain, not from the message text.
 5. Tests assert invariants 1 and 2 by checking that only `ehor_near.cli`, the module behind `ehor near` and `ehor pay`, imports the release signer or the presence signer, so no agent can even trigger the approval prompt.
