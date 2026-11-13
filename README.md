@@ -201,7 +201,7 @@ git clone https://github.com/maxiggle/agentmesh
 cd agentmesh/packages/ehor-near/contract && cargo test
 ```
 
-You should see `test result: ok. 51 passed`. They include the rejecting cases: wrong caller,
+You should see `test result: ok. 75 passed`. They include the rejecting cases: wrong caller,
 double claim, claim after the deadline, a high-S signature, and a signature for another bounty,
 claimant, amount, contract or chain.
 
