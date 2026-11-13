@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export type Snippet = { language: "shell" | "json"; code: string };
+export type Snippet = { language: "shell"; code: string };
 
 function ShellLine({ line }: { line: string }) {
   if (line.startsWith("#")) return <span className="text-code-muted">{line}</span>;
@@ -25,30 +25,6 @@ function ShellLine({ line }: { line: string }) {
           </span>
         );
       })}
-    </>
-  );
-}
-
-function JsonLine({ line }: { line: string }) {
-  const parts = line.split(/("[^"]*")/g);
-  return (
-    <>
-      {parts.map((part, i) =>
-        part.startsWith('"') ? (
-          <span
-            key={i}
-            className={
-              parts[i + 1]?.trimStart().startsWith(":") ? "text-code-blue" : "text-code-amber"
-            }
-          >
-            {part}
-          </span>
-        ) : (
-          <span key={i} className="text-code-muted">
-            {part}
-          </span>
-        ),
-      )}
     </>
   );
 }
@@ -82,7 +58,7 @@ export function CodeLines({ snippet }: { snippet: Snippet }) {
               {i + 1}
             </span>
             <span className="[overflow-wrap:anywhere] whitespace-pre-wrap">
-              {snippet.language === "json" ? <JsonLine line={line} /> : <ShellLine line={line} />}
+              <ShellLine line={line} />
             </span>
           </span>
         ))}
@@ -92,7 +68,6 @@ export function CodeLines({ snippet }: { snippet: Snippet }) {
 }
 
 function copyableText(snippet: Snippet) {
-  if (snippet.language === "json") return snippet.code;
   return snippet.code
     .split("\n")
     .filter((line) => line.trim() && !line.startsWith("#"))
