@@ -25,8 +25,8 @@ STEP_GAS = 30 * TGAS
 OPEN = "Open"
 CLAIMED = "Claimed"
 DONE = "Done"
-_SENT = "sent"
-_TAKEN = "taken"
+SENT = "sent"
+TAKEN = "taken"
 _NS_PER_SECOND = 10**9
 
 
@@ -129,7 +129,7 @@ class BountyDesk:
             if isinstance(result, bool) or not isinstance(result, int):
                 raise BountyError("the contract did not return a bounty id")
             bounty = await fetch_bounty(near, self._contract, result)
-        self._ledger.add(bounty.id, _SENT)
+        self._ledger.add(bounty.id, SENT)
         terms = f"{format_near(bounty.amount_yocto)} NEAR for {handle} by {bounty.deadline}"
         self._messages.reply(message_id, f"NEAR bounty {bounty.id}: {terms}")
         return f"posted bounty {bounty.id}: {terms} ({account}, read from the chain)"
@@ -144,7 +144,7 @@ class BountyDesk:
             if bounty.status != OPEN:
                 raise BountyError(f"bounty {bounty.id} is {bounty.status}, not {OPEN}")
             await near.call(self._contract, "claim", {"bounty_id": bounty.id}, gas=STEP_GAS)
-        self._ledger.add(bounty.id, _TAKEN)
+        self._ledger.add(bounty.id, TAKEN)
         self._messages.set_status(message_id, "claimed", f"claimed NEAR bounty {bounty.id}")
         amount = format_near(bounty.amount_yocto)
         return f"claimed bounty {bounty.id}: {amount} NEAR from {sender}, due {bounty.deadline}"
@@ -170,7 +170,7 @@ class BountyDesk:
                 (await fetch_bounty(near, self._contract, bounty_id), role)
                 for bounty_id, role in entries
             ]
-        return "\n".join(_line(bounty, role) for bounty, role in bounties)
+        return "\n".join(bounty_line(bounty, role) for bounty, role in bounties)
 
     @property
     def _contract(self) -> str:
@@ -234,9 +234,9 @@ def _addressed_handle(message: Message) -> str:
     return handles[0]
 
 
-def _line(bounty: Bounty, role: str) -> str:
+def bounty_line(bounty: Bounty, role: str) -> str:
     parts = [f"{bounty.id}", f"{format_near(bounty.amount_yocto)} NEAR", bounty.status]
-    if role == _SENT:
+    if role == SENT:
         parts.append(f"for {bounty.claimant or ', '.join(bounty.allowed_claimants)}")
         if bounty.status == DONE:
             parts.append(f"pay with `ehor pay {bounty.id}`")
@@ -249,5 +249,5 @@ def _line(bounty: Bounty, role: str) -> str:
 def _is_entry(item: object) -> bool:
     match item:
         case [int() as bounty_id, str() as role]:
-            return not isinstance(bounty_id, bool) and role in {_SENT, _TAKEN}
+            return not isinstance(bounty_id, bool) and role in {SENT, TAKEN}
     return False

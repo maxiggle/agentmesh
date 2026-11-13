@@ -15,6 +15,7 @@ from ehor.identity.secure_enclave import SecureEnclavePresenceSigner, SwiftHelpe
 from ehor.service.config import DeviceConfig
 from ehor.service.device import check_passphrase, key_dir, tools_dir
 from ehor.service.rpc import RpcClient, RpcError, default_endpoint
+from ehor_near.bounties import TAKEN, BountyError, BountyLedger
 from ehor_near.client import TESTNET, NearClient, NearError, is_account_id
 from ehor_near.config import NearConfig, NearConfigError
 from ehor_near.limited_key import (
@@ -42,6 +43,13 @@ from ehor_near.registration import (
     registration_call,
 )
 from ehor_near.release import ReleaseSignError, ReleaseTerms, sign_release
+from ehor_near.status import (
+    Status,
+    bounties_posted_by,
+    describe,
+    fetch_account,
+    fetch_bounties,
+)
 from ehor_near.wallet_page import WalletCall, WalletPage, WalletPageError
 
 RELEASE_KEY_LABEL = "release"
@@ -54,6 +62,7 @@ _RESTART = (
     "Restart `ehor serve` so it announces this account to your team and loads the bounty tools."
 )
 _ERRORS = (
+    BountyError,
     LimitedKeyError,
     NearConfigError,
     NearError,
@@ -80,6 +89,11 @@ def register(commands: Commands) -> None:
         "--max-per-bounty", default="0.5", help="largest bounty in NEAR, if not registered"
     )
     setup.set_defaults(run=_reporting(_near_setup))
+
+    status = near_commands.add_parser(
+        "status", help="show this device's escrow budget, release key and bounties"
+    )
+    status.set_defaults(run=_reporting(_near_status))
 
     pay = commands.add_parser("pay", help="review a done bounty and pay it with Touch ID")
     pay.add_argument("bounty", type=int, help="bounty id on the escrow contract")
@@ -183,6 +197,45 @@ def _connect_near(
     config: NearConfig, private_key: str
 ) -> "contextlib.AbstractAsyncContextManager[NearClient]":
     return PyNearClient.connect(config.account_id, private_key, config.rpc_url)
+
+
+def _connect_view(config: NearConfig) -> "contextlib.AbstractAsyncContextManager[NearClient]":
+    return PyNearClient.connect(rpc_url=config.rpc_url)
+
+
+def _near_status(args: argparse.Namespace) -> int:
+    home = device_home(args)
+    config = NearConfig.load(home)
+    if config is None:
+        raise CliError(_NO_NEAR)
+    claimed_ids = [bounty_id for bounty_id, role in BountyLedger(home).entries() if role == TAKEN]
+    has_limited_key = (key_dir(home) / LIMITED_KEY_FILE).exists()
+    local_release_key = _local_release_key(home)
+
+    async def read() -> Status:
+        contract = config.contract_id
+        async with _connect_view(config) as near:
+            return Status(
+                config,
+                await fetch_account(near, contract, config.account_id),
+                local_release_key,
+                has_limited_key,
+                tuple(await bounties_posted_by(near, contract, config.account_id)),
+                tuple(await fetch_bounties(near, contract, claimed_ids)),
+            )
+
+    sys.stdout.write(describe(asyncio.run(read())) + "\n")
+    return 0
+
+
+def _local_release_key(home: Path) -> bytes | None:
+    if sys.platform != "darwin":
+        return None
+    handle = KeyHandle(SecureEnclavePresenceSigner.backend, RELEASE_KEY_LABEL)
+    try:
+        return _release_signer(home).public_key(handle)
+    except KeyNotFoundError:
+        return None
 
 
 def _near_setup(args: argparse.Namespace) -> int:

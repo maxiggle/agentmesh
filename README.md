@@ -157,7 +157,8 @@ Connect on testnet (Meteor, Intear, Nightly, Ledger or NEAR CLI).
    `claude mcp add --scope user ehor -- ehor mcp` on each Mac.
 3. **Connect each wallet** with `ehor near setup` on both Macs, approve the key and the 1 NEAR
    budget in the wallet, and restart `ehor serve`. You should see
-   `<your-account> is set up on ehor-escrow.testnet`. On restart, each device announces its NEAR
+   `<your-account> is set up on ehor-escrow.testnet`, and `ehor near status` should show
+   `this Mac's` on its `release key` line. On restart, each device announces its NEAR
    account to the team in a signed ehor entry, so nobody types a teammate's account.
 4. **Post, from ada's agent:** "Ask tobi to add CSV export, with a 0.1 NEAR bounty due in 24
    hours." Once ada approves, you should see
@@ -240,7 +241,8 @@ You should see `27 passed`:
 | `ehor pay`: review a bounty from the chain and release it with Touch ID | Built, used for a real testnet payout |
 | Tests that only `ehor pay` can reach the release key | Built, run in CI |
 | Bounty tools for agents: `bounty_post`, `bounty_claim`, `bounty_done`, `bounties` | Built, used by two Claude Code agents for bounty 5 on testnet |
-| `ehor near deposit`, `withdraw`, `status` and `ehor refund` | Not yet; use your wallet or NEAR CLI |
+| `ehor near status`: budget, release key and bounties, read from the chain | Built and tested |
+| `ehor near deposit`, `withdraw`, `ehor refund` and `ehor cancel` | Not yet; use your wallet or NEAR CLI |
 | Signed announcements of each device's NEAR account in the ehor log, checked against the contract | Built and tested |
 | Checking a bounty's message, sender and claimant against those announcements before each step | Built and tested |
 
