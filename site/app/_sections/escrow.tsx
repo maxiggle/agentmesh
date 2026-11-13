@@ -1,5 +1,4 @@
 import { Em, Section } from "@/app/_components/ui";
-import { links } from "@/app/_lib/links";
 
 const invariants = [
   [
@@ -23,6 +22,18 @@ const invariants = [
     "Owner-only methods need exactly 1 yoctoNEAR, which a function-call key can't attach.",
   ],
   ["Testnet only.", "ehor refuses any network or RPC whose chain id isn't testnet."],
+  [
+    "No device can add itself as a reader.",
+    "Once you approve encryption keys on-chain, teammates seal messages to you only with those keys.",
+  ],
+  [
+    "Changing readers takes two approvals.",
+    "Adding or removing a key needs your wallet and a Touch ID signature, which the contract checks.",
+  ],
+  [
+    "A lost laptop can be cut off.",
+    "Withdraw its key in one transaction. Teammates stop sealing to it within five minutes.",
+  ],
 ];
 
 export function Security() {
@@ -39,22 +50,13 @@ export function Security() {
     >
       <ol className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
         {invariants.map(([title, body], i) => (
-          <li key={title} className="bg-surface p-6">
+          <li key={title} className="bg-surface p-6 sm:max-lg:last:col-span-2">
             <span className="font-mono text-xs text-accent">{String(i + 1).padStart(2, "0")}</span>
             <h3 className="mt-3 font-semibold tracking-tight">{title}</h3>
             <p className="mt-2 text-sm leading-relaxed text-muted">{body}</p>
           </li>
         ))}
       </ol>
-      <p className="mt-6 max-w-3xl text-sm leading-relaxed text-muted">
-        If the function-call key leaks, the worst case is bounties posted from the pre-deposited
-        budget, which the owner can cancel or refund, and gas up to the key&apos;s 0.25 NEAR
-        allowance. Full details are in the{" "}
-        <a href={links.escrowSpec} target="_blank" rel="noreferrer" className="underline-accent">
-          escrow spec
-        </a>
-        .
-      </p>
     </Section>
   );
 }
