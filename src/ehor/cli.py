@@ -20,6 +20,7 @@ from ehor.agents import (
     install,
     instructions,
 )
+from ehor.crypto.keyfile import KeyFileError
 from ehor.identity import HardwareUnavailableError, IdentityError, KeyHandle
 from ehor.identity.backends import Backend
 from ehor.identity.security_key import Authenticator, SecurityKeySigner
@@ -104,6 +105,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ConfigError,
         IdentityError,
         IrohKeyError,
+        KeyFileError,
         PluginError,
         RelayError,
         RpcError,

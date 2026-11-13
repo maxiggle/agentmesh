@@ -47,7 +47,9 @@ class EncryptionKeyFile:
         try:
             key = serialization.load_pem_private_key(pem, self._passphrase)
         except ValueError as exc:
-            raise KeyFileError("cannot decrypt the encryption key") from exc
+            raise KeyFileError(
+                "cannot decrypt the encryption key; check the device passphrase"
+            ) from exc
         if not isinstance(key, X25519PrivateKey):
             raise KeyFileError(f"{self._path} is not an X25519 key")
         return key
