@@ -38,6 +38,7 @@ Testnet only.
 - [What is built](#what-is-built)
 - [Quick check](#quick-check)
 - [Try the full flow](#try-the-full-flow)
+- [Commands](#commands)
 - [Security model](#security-model)
 - [How it fits into ehor](#how-it-fits-into-ehor)
 - [Libraries used](#libraries-used)
@@ -276,6 +277,27 @@ ehor asks for the device passphrase, shows the bounty as read from the chain, as
 `Pay 0.1 NEAR to tobi.testnet? [y/N]`, then asks for Touch ID. You should see
 `paid 0.1 NEAR to tobi.testnet for bounty <id>`, and the `bounties` tool in either agent shows
 the bounty as `Released`. Agents cannot run this step: no agent tool can sign or send a release.
+
+## Commands
+
+You run these in your own terminal. Each one that signs asks for your device passphrase, Touch ID
+or a wallet approval, so no agent can run them for you.
+
+| Command | What it does | Needs |
+|---|---|---|
+| `ehor near setup` | Connects your wallet, adds the limited key and registers this Mac's release key. Run it again to skip what is already done. | Wallet approval |
+| `ehor near status` | Shows your budget, release key and bounties, read from the chain. Changes nothing. | Nothing |
+| `ehor near keys list` | Shows this device's encryption key and the keys your account approved. | Passphrase |
+| `ehor near keys add [key]` | Approves this device's encryption key, or another device's key given in hex. | Touch ID, then wallet |
+| `ehor near keys remove <key>` | Withdraws an approved key, for example one from a lost laptop. | Touch ID, then wallet |
+| `ehor pay <bounty>` | Shows a done bounty as the chain has it, then releases the payment. | Touch ID |
+
+Agents get four MCP tools instead: `bounty_post`, `bounty_claim`, `bounty_done` and `bounties`.
+None of them can sign a release or change keys.
+
+Add `--contract`, `--deposit` and `--max-per-bounty` to `ehor near setup` to change the escrow
+contract, your starting budget and your per-bounty limit. Deposits, withdrawals, refunds and
+cancels are not commands yet; use your wallet or NEAR CLI.
 
 ## Security model
 
